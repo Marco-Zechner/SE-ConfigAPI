@@ -3,7 +3,7 @@
     "registry":  "https://raw.githubusercontent.com/Marco-Zechner/selibs/main/registry/packages.json",
     "packages":  {
                      "Mz.SemanticVersioning":  {
-                                                   "version":  "0.1.1",
+                                                   "version":  "0.2.0",
                                                    "direct":  false,
                                                    "source":  {
                                                                   "provider":  "github",
@@ -19,13 +19,14 @@
                                                    "files":  {
                                                                  "Mz.SemanticVersioning/Changelog.cs":  "2f055000d86a26742d0c0b667c32ce8f03cace14500a10872dc9b5d26544c80e",
                                                                  "Mz.SemanticVersioning/ChangelogEntry.cs":  "7a541764a92a45f1ab85616696be8a5c2a76ac113c22c5ef8125392afe5cfa36",
-                                                                 "Mz.SemanticVersioning/LibraryVersionFile.cs":  "255b9a7dda57f150a6c8043a4bc8caa439e26cee9664a3c6ac08aaeecbcb08c4",
+                                                                 "Mz.SemanticVersioning/LibraryDependency.cs":  "a2439c31dde8b815ba27cedae5debc6c96a418af95644922ee9c5c7a98f07c6c",
+                                                                 "Mz.SemanticVersioning/LibraryVersionFile.cs":  "1d80ab85acd6cf8633f2ebcfce9a76f5a4284fb13a37ea8977777d814281043f",
                                                                  "Mz.SemanticVersioning/README.md":  "36db9fa9cf3b6014dfd178cf7cdca30943764bfcc2cce62dfac464a64311e61d",
                                                                  "Mz.SemanticVersioning/SemanticVersion.cs":  "713b1e15240b4e44d7c09a29085645c4e1ea74d1e362bc5bc6abdf21b15364e6"
                                                              }
                                                },
                      "Mz.ApiProtocol":  {
-                                            "version":  "0.2.5",
+                                            "version":  "0.3.0",
                                             "direct":  true,
                                             "source":  {
                                                            "provider":  "github",
@@ -33,7 +34,7 @@
                                                            "releasePrefix":  "release/Mz.ApiProtocol/"
                                                        },
                                             "dependencies":  {
-                                                                 "Mz.SemanticVersioning":  "0.1.1"
+                                                                 "Mz.SemanticVersioning":  "0.2.0"
                                                              },
                                             "folders":  [
                                                             "Mz.ApiProtocol.Core",
@@ -44,10 +45,10 @@
                                                           "Mz.ApiProtocol.Core/Compatibility/ApiDependencyDescriptor.cs":  "3f8181bb0be18e519952f2f0a2e5404c9409f60ec31dc4991064405ef793a716",
                                                           "Mz.ApiProtocol.Core/Compatibility/ApiDependencyKind.cs":  "c5f07de14bb1fe531920575d94b5cae45e55ccc6c429e6ae27c418a268b151dd",
                                                           "Mz.ApiProtocol.Core/Compatibility/ApiRequirement.cs":  "ccfc9ed3fe6639f1189fbde52ecf66f50d9b887d0be44aedad7716f0be1154f4",
-                                                          "Mz.ApiProtocol.Core/Compatibility/ApiVersionRange.cs":  "3bc008863235e5aabd884a2a7d5f6615637bb078c675ba0c12b1c55ab10052e0",
+                                                          "Mz.ApiProtocol.Core/Compatibility/ApiVersionRange.cs":  "d1dd0b8e4695f14069ef5f3ee69a7bdedbbf442ddd4f66c4fffb206b179a31aa",
                                                           "Mz.ApiProtocol.Core/Connections/ApiConnection.cs":  "e778d002e219f997a83caf59334dd1f0b8933fe6e622b6b3114f3e64bdf618b3",
                                                           "Mz.ApiProtocol.Core/Connections/ApiDisconnectReason.cs":  "e61abdaa8bdbc7dd0f9d14070e2eb10f66b23285980ebb97ce3afeb08f3c64f1",
-                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContract.cs":  "aac6383f1e267d9b48088cd32a6bfea1a83618f8292a2b593a335eae7011226f",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContract.cs":  "eabdbf9a8169f52b854b4c65c2a69fc8765c8d17dcbcd74eb7e964e23ee42b1b",
                                                           "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractException.cs":  "b3bc973395fe4b3b1d18ceae5b4d10ea878c3401aad56cad208512286fa88dee",
                                                           "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractIssue.cs":  "2683c082b96af5caee1ee973e2f9ced78f1a2f81fbb38d83ea34f1271eb9ba3c",
                                                           "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractIssueKind.cs":  "98f8b69b04c51f21b95be01dbf21c156f61cc951119b59f1f6090e67420d5b85",
@@ -66,14 +67,14 @@
                                                           "Mz.ApiProtocol.Core/Identity/ApiModIdentity.cs":  "963f5e5d595450b656759ac6c59c5cc18c4413ec900505d09cc0e2486216df18",
                                                           "Mz.ApiProtocol.Core/Internal/Collections/ReadOnlyDictionaryView.cs":  "7d765189230c88a0de2fae2c403afe308ed835f23f4c1ddd509c95b07c0153f5",
                                                           "Mz.ApiProtocol.Core/Internal/Collections/ReadOnlyListView.cs":  "64fd1d8edc7d58c592955700358758c1c524b9138b2ca9660f8b37fbc8aef1d1",
-                                                          "Mz.ApiProtocol.Core/LibraryVersionFile.cs":  "3d77db2e97bf74baae825b0a194933e5d16529e21edc988368e19e15b46e096d",
+                                                          "Mz.ApiProtocol.Core/LibraryVersionFile.cs":  "e8d64107bad9e72f8c97c97e0bf152cf40022fd606c0e5c8ed6eb1b647760a32",
                                                           "Mz.ApiProtocol.Core/README.md":  "c24517f220f2c27bae4047bae16682dc62a9ade9434e1650c33285962807357a",
                                                           "Mz.ApiProtocol.Core/Wire/ApiDiscoveryWireProtocol.cs":  "f0087875e3f280ae92e665275a7ad97301a1a5203bf849a821ad6913adc2550b",
                                                           "Mz.ApiProtocol.Core/Wire/ApiProtocolInfo.cs":  "831c25a8bb144751ef006e331269c44da665aa94a43b0994fa0c222702de7f6a",
                                                           "Mz.ApiProtocol.Core/Wire/ApiWireCompatibilityStatus.cs":  "5decddaa7b8e7c8cf139c2809c9d93aff2e92e184193f7e1f9ed0665126966ba",
                                                           "Mz.ApiProtocol.Core/Wire/ApiWireEnvelope.cs":  "6ba5ee53f67e44974ce69d03dda6354304155ecebece9f67572bb8096da25319",
                                                           "Mz.ApiProtocol.Core/Wire/ApiWireMessageKind.cs":  "df34f779bb098a797034cba68b1ee6be175496c0f3cad3334b1d6360a7d3193e",
-                                                          "Mz.ApiProtocol.SpaceEngineers/Discovery/ApiDiscoveryConsumer.cs":  "90b67ecbda84080a9b114b3b0a114ca415853cc4ca94821b90d5c25ee057a8f7",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Discovery/ApiDiscoveryConsumer.cs":  "19025fe4db99b9b1d03963562458db4ef7131de4f756a9c37d9e4114fa5b237e",
                                                           "Mz.ApiProtocol.SpaceEngineers/Discovery/ApiDiscoveryProvider.cs":  "70f2243a94d0509aaba2b3a65ccfc7cf4ce05152cbae1acd74eb17b57a013533",
                                                           "Mz.ApiProtocol.SpaceEngineers/Messaging/ApiProtocolChannels.cs":  "f233c0951ecfe86ca78749352cacdb7455cfb18c661bbc782f4f61030a7ee79b",
                                                           "Mz.ApiProtocol.SpaceEngineers/Messaging/IModMessageBus.cs":  "f5eea4eb655028f5fd4828902fc2e13cf9ee8939dd7e5cc7ea8271fca4832efd",
@@ -82,7 +83,7 @@
                                                       }
                                         },
                      "Mz.Logging":  {
-                                        "version":  "0.1.1",
+                                        "version":  "0.1.2",
                                         "direct":  true,
                                         "source":  {
                                                        "provider":  "github",
@@ -90,7 +91,7 @@
                                                        "releasePrefix":  "release/Mz.Logging/"
                                                    },
                                         "dependencies":  {
-                                                             "Mz.SemanticVersioning":  "0.1.1"
+                                                             "Mz.SemanticVersioning":  "0.2.0"
                                                          },
                                         "folders":  [
                                                         "Mz.Logging.Core",
@@ -100,7 +101,7 @@
                                                       "Mz.Logging.Core/CompositeLogSink.cs":  "4ea21ef52568ba7d6675c6c9184f3d8a41547c953982adc17d498f95a5cabbd3",
                                                       "Mz.Logging.Core/ILogFormatter.cs":  "48cb663cc5978471418f28c6c64cbb12effee68a71acad1b5bf8b4b2a86136b7",
                                                       "Mz.Logging.Core/ILogSink.cs":  "293391be522451e7d7bc8042cc13a43743ee72ca05723abd4dd068c2b200e260",
-                                                      "Mz.Logging.Core/LibraryVersionFile.cs":  "13f0c681af80275ecd751337d3eff3459791518d04eceba105fa5a1c15748904",
+                                                      "Mz.Logging.Core/LibraryVersionFile.cs":  "0992677709a56102898b60b6159a89b9413f302220d849d750fb0579a90b8d60",
                                                       "Mz.Logging.Core/LogEntry.cs":  "22f82e17b9bdb5cf858583ef76ec98f88743ed4401c6848d0bc0412ff2d05f07",
                                                       "Mz.Logging.Core/Logger.cs":  "8fa9c9f8f2db4d63b21ee66d81d7322f6ea023624c3bc166fc5fc473a8922370",
                                                       "Mz.Logging.Core/LogLevel.cs":  "7545bdb4f32b2a707be5d6f5544eac00790ae633c3c8aa019e4ae0e6eb1393e7",
@@ -113,7 +114,7 @@
                                                   }
                                     },
                      "Mz.Networking":  {
-                                           "version":  "0.2.0",
+                                           "version":  "0.2.1",
                                            "direct":  true,
                                            "source":  {
                                                           "provider":  "github",
@@ -121,50 +122,50 @@
                                                           "releasePrefix":  "release/Mz.Networking/"
                                                       },
                                            "dependencies":  {
-                                                                "Mz.ApiProtocol":  "0.2.5",
-                                                                "Mz.SemanticVersioning":  "0.1.1"
+                                                                "Mz.ApiProtocol":  "0.3.0",
+                                                                "Mz.SemanticVersioning":  "0.2.0"
                                                             },
                                            "folders":  [
                                                            "Mz.Networking.Core",
                                                            "Mz.Networking.SpaceEngineers"
                                                        ],
                                            "files":  {
-                                                         "Mz.Networking.Core/Dispatching/NetworkMessageDispatcher.cs":  "cba468500b802a4dbb73689b85bad2744c2cf14511bc78dbaecf29c15021b08e",
-                                                         "Mz.Networking.Core/Dispatching/NetworkMessageProcessor.cs":  "97c77132e1d42912e0a9df150f0b20742957eb13e48570aad3e0fcf31ef6e49a",
+                                                         "Mz.Networking.Core/Dispatching/NetworkMessageDispatcher.cs":  "1f11d2c405b4d9919cde6fd0df77a5282a2ebe99dc704d081a186c0e1ac4b6fe",
+                                                         "Mz.Networking.Core/Dispatching/NetworkMessageProcessor.cs":  "157dd6c7c6ade71b20bf000c0ca75c7c715d7213b9c3f895616a9d5e8099b6cb",
                                                          "Mz.Networking.Core/Dispatching/NetworkMessageSubscription.cs":  "56c9a8bc58430d3a3a5a263d2f72262d4aa4040c921acbc5ff10970f466cee61",
-                                                         "Mz.Networking.Core/Endpoints/NetworkEndpoint.cs":  "dcc4f636663699607bf414b2e35d1809731ad4b21de21fa1db726c7a06b3077b",
+                                                         "Mz.Networking.Core/Endpoints/NetworkEndpoint.cs":  "8c960e2ea9543ca4d9d7bee2f6efa04c0dfacd95fdebb1bc96210dbb4bf153ad",
                                                          "Mz.Networking.Core/Guide.md":  "3ab009454d137a69b717018dac02457658fcc0c27aa8797f9934860d20069069",
-                                                         "Mz.Networking.Core/LibraryVersionFile.cs":  "bba2add52d0cf47194c1347c27dc965be97edea9cd4e7f6e62a2be6ff30a8b8e",
+                                                         "Mz.Networking.Core/LibraryVersionFile.cs":  "5210e649ae5ae40a9219c0bbb036f891271b795a874ef6a416d7317011485cca",
                                                          "Mz.Networking.Core/Messages/NetworkDeliveryMode.cs":  "6c7d22f04c2dd252ce63f497999fbc2b6110c72d8674ff3256fed78e0ff976de",
                                                          "Mz.Networking.Core/Messages/NetworkEnvelope.cs":  "c8e73d7aafd8841b76b7469416dba67ac1aaf2abe137ef94a540b3581c039f4e",
-                                                         "Mz.Networking.Core/Messages/NetworkReceiveContext.cs":  "70bfbd2b70351348bcab5c00fd289bdd88600f6c16782f802240b3d4a1dcfe18",
+                                                         "Mz.Networking.Core/Messages/NetworkReceiveContext.cs":  "e4d81736046b020eee690ce43253ec6588abdb1912ba98b4c4d1cb0df7fdad81",
                                                          "Mz.Networking.Core/Messages/NetworkRelayMode.cs":  "c3816524b2045ae202657ac7b2da2e4654e13574cc850aaecf98f2ecb4438e49",
-                                                         "Mz.Networking.Core/Messages/NetworkSequence.cs":  "1602036e26e843b238982e8129dca191b5283a81d8383fd2e6ea9f94b706fb35",
-                                                         "Mz.Networking.Core/Messages/NetworkSequenceTracker.cs":  "52b4a8c129854109da93b7d8d488391206730e79f756438882c59f5c590cc6de",
+                                                         "Mz.Networking.Core/Messages/NetworkSequence.cs":  "dc7f29589ad6bd30c036150575d0f794c967f4c1fee477761833eb362122497f",
+                                                         "Mz.Networking.Core/Messages/NetworkSequenceTracker.cs":  "d019a156e66313b61a214dabaf2bbbdfbc040a9a4aa9bd518cfcb1f5a1b95601",
                                                          "Mz.Networking.Core/README.md":  "d13bea4481126c9ab54f784b6f257b6b39cb0cf92886238e0d795f38fe4c929f",
                                                          "Mz.Networking.Core/Transport/INetworkDeliveryTransport.cs":  "7dfbdd9a752ffe45af53bb00352a04bc6af7b94497e579701607ec1073e1d387",
                                                          "Mz.Networking.Core/Transport/INetworkTransport.cs":  "fa2ed14e8b3f66bf6c4aa751c9ddae0d6f4dda6fb6caed00ee7e64ec53479d7a",
-                                                         "Mz.Networking.SpaceEngineers/Diagnostics/SpaceEngineersNetworkDiagnosticBuilder.cs":  "c79b3aaaafe72d5c4874c8d1a75ade818d6fb203e1b1b86c9d2fa1035324e592",
+                                                         "Mz.Networking.SpaceEngineers/Diagnostics/SpaceEngineersNetworkDiagnosticBuilder.cs":  "661cca1a2dd59243c7623e2c9e9e50b4e9c4432ef7529704dd683873f9956049",
                                                          "Mz.Networking.SpaceEngineers/Diagnostics/SpaceEngineersNetworkDiagnosticSeverity.cs":  "7325da53eb2be2f4407f6830c007044211cf18319049d2f053c8e18a319afb8a",
                                                          "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkDeliveryGateway.cs":  "834f3b2e964cb790ddb0cd9836f16ce49531014812ba127b7605cf591d9091fe",
                                                          "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkDiagnosticGateway.cs":  "4f8b058193d3a575c65980ae635c376f0e2e4c21276853d48d67bca3ee24dee7",
                                                          "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkGateway.cs":  "b4886c1b90fa3742e94ec451524688ef9a466956dbefca91fb6ab11a73a18596",
                                                          "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkSchedulingGateway.cs":  "6b9bf072d6a92932f318a02136d5ab327324236a42d932328dfbc65a0ce931c5",
-                                                         "Mz.Networking.SpaceEngineers/Gateway/SpaceEngineersNetworkGateway.cs":  "7186faa2aa71c43ac9ffedc0d9c4d262adbeee24cfa2c462ffdd882c31e6d11e",
-                                                         "Mz.Networking.SpaceEngineers/Managed/NetworkManagerApiContract.cs":  "bc5dd7ebed46078a283d0821a9264661f8eb00236dd2e34d4d08042da70a5aaf",
-                                                         "Mz.Networking.SpaceEngineers/Managed/SpaceEngineersManagedNetworkConfiguration.cs":  "f1579cf6919ac895202b77848e9bdd677b7e4f28eaec5bc863044c096bb0d1dc",
-                                                         "Mz.Networking.SpaceEngineers/Managed/SpaceEngineersNetworkChannelAssignmentEventArgs.cs":  "14975e95bd1e00532a9395727c7232cef750adee6475583104e5c6abd642a273",
-                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkReceiveFailure.cs":  "32ddb89f972d6b034bdbaa972350f0fa95b59c42fe18b686944005cdec6a3f62",
+                                                         "Mz.Networking.SpaceEngineers/Gateway/SpaceEngineersNetworkGateway.cs":  "b985560befb2294f3d69d826ec92adefb2df857d3325b908be4741fbec6dd767",
+                                                         "Mz.Networking.SpaceEngineers/Managed/NetworkManagerApiContract.cs":  "092b86b18bc5bf59d49903fd380f8213482c7f0e57cdd7c0510ae15ac5a2bce1",
+                                                         "Mz.Networking.SpaceEngineers/Managed/SpaceEngineersManagedNetworkConfiguration.cs":  "a1590528d097430839a3e1b5df91353605275e3b05bb0c4322e70032ea1217d0",
+                                                         "Mz.Networking.SpaceEngineers/Managed/SpaceEngineersNetworkChannelAssignmentEventArgs.cs":  "debf96219a8db3378540ff3f30132886b95bbd2c0644edf0c66cfda93cd41ed3",
+                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkReceiveFailure.cs":  "7e23f4c2b8516e9ea54936b59dfb6d82ea43c5b0a524dbc4cee6d6d43b478a99",
                                                          "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkReceiveFailureKind.cs":  "75a8a03a39658e5adbce7917a90d5fec1c1ce7e2c6a98ae2e64d9edb16bd7df2",
-                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkSession.cs":  "208a25ddcdbad191f6df32fde7d5836718fa31064a9512a8ec21c3a0553a5ff8",
-                                                         "Mz.Networking.SpaceEngineers/Transport/SpaceEngineersNetworkTransport.cs":  "628241698e7e914f7d51d0dc8f5877b10bc64546987493c298141e56921e0a05",
+                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkSession.cs":  "f189529802c3cf22b8eaedb024fa32c7927a8c4b58055194b18ca5174cd702cd",
+                                                         "Mz.Networking.SpaceEngineers/Transport/SpaceEngineersNetworkTransport.cs":  "66c5ad4638733eda3f7eff9646ff56eb3d3d2bcf18fd05aa7abfd4fc23c14490",
                                                          "Mz.Networking.SpaceEngineers/Wire/NetworkEnvelopeWire.cs":  "2b940038a45ed024456dece74c12de4b8f49665e1e68932e761eecf86f262ed3",
-                                                         "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkIdentity.cs":  "23165cf8ce9c034934eb99fd365233c36ecba87f3b6a4712c1835ed49cb3cbb6",
-                                                         "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkWireCodec.cs":  "2543e143e0da18f9cc819dd865a2a607c93165babb992a8f04c94fca2efbf9bf"
+                                                         "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkIdentity.cs":  "21da0e962237a94624de62d7afdda356b78483f741cd4d0d8060d40d14977be4",
+                                                         "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkWireCodec.cs":  "8216b3e5b285e065052dd644356514f7cd7bd6edae6ba6bc18ef5d20e94826b1"
                                                      }
                                        },
                      "Mz.Toml":  {
-                                     "version":  "0.2.0",
+                                     "version":  "0.2.1",
                                      "direct":  true,
                                      "source":  {
                                                     "provider":  "github",
@@ -172,7 +173,7 @@
                                                     "releasePrefix":  "release/Mz.Toml/"
                                                 },
                                      "dependencies":  {
-                                                          "Mz.SemanticVersioning":  "0.1.1"
+                                                          "Mz.SemanticVersioning":  "0.2.0"
                                                       },
                                      "folders":  [
                                                      "Mz.Toml"
@@ -202,9 +203,9 @@
                                                    "Mz.Toml/Internal/TomlWriter.Tables.cs":  "0ce721754fdf2482469e89b44cbe433a89658c2bf0a93343d820f6719a9cd102",
                                                    "Mz.Toml/Internal/TomlWriter.Validation.cs":  "f93a439298514ba7b068abb9dae5d3090d4d8351096b45d5c8aab7f8aec4451a",
                                                    "Mz.Toml/Internal/TomlWriter.Values.cs":  "1785dd4b9b72a2781d7569a467dc3382cc00cb09625cbb438d3f1125ac8b4102",
-                                                   "Mz.Toml/LibraryVersionFile.cs":  "edd131d6c9f6dc8086c1a18e12398f77de71750b777c759c6345a77e53aef9a3",
+                                                   "Mz.Toml/LibraryVersionFile.cs":  "00466d5f3e2e512524d863ac4f3018ad672492b765027cbb81ec2070efd03753",
                                                    "Mz.Toml/README.md":  "b592779b68b0105560b61cfa7c6d273d88090e1a8f361dd62541615c93d5ea2d",
-                                                   "Mz.Toml/Toml.cs":  "9a90ec0a0ad77ec062282c0eea68c97a1f3ba633a0f4ab1c89ecd2956762dbb9",
+                                                   "Mz.Toml/Toml.cs":  "8b5854c2ed137f82c2464746249fe8a2289c37c7e39f27848a21d70847a96bd0",
                                                    "Mz.Toml/TomlArray.cs":  "46fdd50076735aaf57ecaba7dd4194d0583f172ba570df505b71ced9528b3ffb",
                                                    "Mz.Toml/TomlDiagnostic.cs":  "9111dd70e16ba9a8c0b1f8ff5a6cd42697ebb956e3d5d0244b79722d9c8b9522",
                                                    "Mz.Toml/TomlDiagnosticCode.cs":  "978f57059a786f39d451cf1693e5bf62f7140817d420c7bd504c5759f2e54ef3",

@@ -16,17 +16,24 @@ namespace Mz.ApiProtocol
         /// <summary>
         /// Gets the minor version number.
         /// </summary>
-        public const int Minor = 2;
+        public const int Minor = 3;
 
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 5;
+        public const int Patch = 0;
 
         /// <summary>
         /// Gets the version string.
         /// </summary>
         public static string VersionString => $"{Major}.{Minor}.{Patch}";
+
+        /// <summary>
+        /// Gets the exact package dependencies required by this release.
+        /// </summary>
+        public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+        };
 
         /// <summary>
         /// Gets the complete changelog ordered from newest to oldest.
@@ -35,6 +42,14 @@ namespace Mz.ApiProtocol
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "0.3.0",
+                    new[]
+                    {
+                        "Added a params ApiEndpointContract constructor for concise endpoint declarations.",
+                        "Declared the exact Mz.SemanticVersioning 0.2.0 SELibs dependency."
+                    }
+                ),
                 new ChangelogEntry(
                     "0.2.5",
                     new[]

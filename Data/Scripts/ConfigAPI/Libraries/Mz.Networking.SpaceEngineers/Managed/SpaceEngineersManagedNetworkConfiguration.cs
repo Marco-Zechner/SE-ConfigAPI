@@ -14,19 +14,11 @@ namespace Mz.Networking.SpaceEngineers
         /// Creates managed networking configuration.
         /// </summary>
         public SpaceEngineersManagedNetworkConfiguration(
-            string modId,
-            string modDisplayName,
-            SemanticVersion modVersion,
-            string networkId,
-            string networkName,
-            ushort preferredChannel,
-            ushort? forcedChannel)
+            string modId, string modDisplayName, SemanticVersion modVersion, string networkId, string networkName, 
+            ushort preferredChannel, ushort? forcedChannel)
         {
             ModId = NormalizeRequired(modId, nameof(modId));
-            ModDisplayName = NormalizeRequired(
-                modDisplayName,
-                nameof(modDisplayName)
-            );
+            ModDisplayName = NormalizeRequired(modDisplayName, nameof(modDisplayName));
 
             if (modVersion == null)
                 throw new ArgumentNullException(nameof(modVersion));
@@ -74,20 +66,12 @@ namespace Mz.Networking.SpaceEngineers
         /// </summary>
         public ushort? ForcedChannel { get; }
 
-        internal ushort InitialChannel =>
-            ForcedChannel ?? PreferredChannel;
+        internal ushort InitialChannel => ForcedChannel ?? PreferredChannel;
 
-        private static string NormalizeRequired(
-            string value,
-            string parameterName)
+        private static string NormalizeRequired(string value, string parameterName)
         {
             if (string.IsNullOrWhiteSpace(value))
-            {
-                throw new ArgumentException(
-                    "A non-empty value is required.",
-                    parameterName
-                );
-            }
+                throw new ArgumentException("A non-empty value is required.", parameterName);
 
             return value.Trim();
         }

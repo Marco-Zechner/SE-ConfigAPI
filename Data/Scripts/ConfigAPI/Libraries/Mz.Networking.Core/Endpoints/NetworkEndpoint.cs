@@ -91,14 +91,8 @@ namespace Mz.Networking
             if (!_transport.IsServer && !transportSenderIsServer)
                 throw new InvalidOperationException("A client can only accept network messages sent by the authoritative server.");
 
-            var dispatched = _dispatcher.TryDispatch(
-                envelope,
-                transportSenderId,
-                _transport.IsServer,
-                transportSenderIsServer,
-                handlerFailureObserver,
-                out context
-            );
+            bool dispatched = _dispatcher.TryDispatch(envelope, transportSenderId, _transport.IsServer, transportSenderIsServer, 
+                                                      handlerFailureObserver, out context);
 
             if (!dispatched)
                 return false;
@@ -114,7 +108,7 @@ namespace Mz.Networking
             if (context.RelayMode == NetworkRelayMode.None)
                 return;
 
-            var relayEnvelope = context.Envelope.WithRelay(true);
+            NetworkEnvelope relayEnvelope = context.Envelope.WithRelay(true);
 
             switch (context.RelayMode)
             {

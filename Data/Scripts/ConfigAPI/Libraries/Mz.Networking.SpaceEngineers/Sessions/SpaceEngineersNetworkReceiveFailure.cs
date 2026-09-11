@@ -34,8 +34,8 @@ namespace Mz.Networking.SpaceEngineers
         /// Gets whether the packet is evidence that another protocol or network
         /// identity is using the configured channel.
         /// </summary>
-        public bool IsChannelConflict =>
-            Kind == SpaceEngineersNetworkReceiveFailureKind.ForeignPacket
+        public bool IsChannelConflict 
+            => Kind == SpaceEngineersNetworkReceiveFailureKind.ForeignPacket
             || Kind == SpaceEngineersNetworkReceiveFailureKind.NetworkMismatch;
 
         /// <summary>
@@ -91,15 +91,8 @@ namespace Mz.Networking.SpaceEngineers
         public byte[] SerializedMessage => Copy(_serializedMessage);
 
         internal SpaceEngineersNetworkReceiveFailure(
-            ushort channelId,
-            byte[] serializedMessage,
-            ulong senderPeerId,
-            bool senderIsServer,
-            SpaceEngineersNetworkReceiveFailureKind kind,
-            string expectedNetworkId,
-            string observedNetworkId,
-            Exception exception,
-            SpaceEngineersNetworkDiagnosticData diagnostic)
+            ushort channelId, byte[] serializedMessage, ulong senderPeerId, bool senderIsServer, SpaceEngineersNetworkReceiveFailureKind kind,
+            string expectedNetworkId, string observedNetworkId, Exception exception, SpaceEngineersNetworkDiagnosticData diagnostic)
         {
             if (serializedMessage == null)
                 throw new ArgumentNullException(nameof(serializedMessage));

@@ -12,7 +12,7 @@ namespace Mz.Networking.SpaceEngineers
             if (string.IsNullOrWhiteSpace(networkId))
                 throw new ArgumentException("A stable network ID is required.", nameof(networkId));
 
-            var normalized = networkId.Trim();
+            string normalized = networkId.Trim();
 
             if (Encoding.UTF8.GetByteCount(normalized) > MaximumNetworkIdBytes)
                 throw new ArgumentException("A network ID cannot exceed 256 UTF-8 bytes.", nameof(networkId));

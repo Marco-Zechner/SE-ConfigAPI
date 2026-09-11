@@ -41,53 +41,28 @@ namespace Mz.Networking.SpaceEngineers
 
         private const int MinimumDiscoveredTextLength = 4;
 
-        private static readonly UTF8Encoding StrictUtf8 =
-            new UTF8Encoding(false, true);
+        private static readonly UTF8Encoding _strictUtf8 = new UTF8Encoding(false, true);
 
         public static SpaceEngineersNetworkDiagnosticData Build(
-            ushort channelId,
-            byte[] serialized,
-            ulong senderPeerId,
-            bool senderIsServer,
-            SpaceEngineersNetworkReceiveFailureKind kind,
-            string expectedNetworkId,
-            string observedNetworkId,
+            ushort channelId, byte[] serialized, ulong senderPeerId, bool senderIsServer,
+            SpaceEngineersNetworkReceiveFailureKind kind, string expectedNetworkId, string observedNetworkId,
             ISpaceEngineersNetworkDiagnosticGateway diagnosticGateway)
         {
             if (serialized == null)
                 throw new ArgumentNullException(nameof(serialized));
 
-            var severity = GetSeverity(kind);
-            var code = GetCode(kind);
-            var preview = BuildPreview(serialized);
-            var discoveredText = IsConflict(kind)
-                ? DiscoverText(serialized, diagnosticGateway)
-                : new string[0];
+            SpaceEngineersNetworkDiagnosticSeverity severity = GetSeverity(kind);
+            string code = GetCode(kind);
+            string preview = BuildPreview(serialized);
+            string[] discoveredText = IsConflict(kind) ? DiscoverText(serialized, diagnosticGateway) : Array.Empty<string>();
 
-            var message = BuildMessage(
-                channelId,
-                serialized.Length,
-                senderPeerId,
-                senderIsServer,
-                kind,
-                code,
-                expectedNetworkId,
-                observedNetworkId,
-                preview,
-                discoveredText
-            );
+            string message = BuildMessage(channelId, serialized.Length, senderPeerId, senderIsServer, 
+                                          kind, code, expectedNetworkId, observedNetworkId, preview, discoveredText);
 
-            return new SpaceEngineersNetworkDiagnosticData(
-                severity,
-                code,
-                message,
-                preview,
-                discoveredText
-            );
+            return new SpaceEngineersNetworkDiagnosticData(severity, code, message, preview, discoveredText);
         }
 
-        private static SpaceEngineersNetworkDiagnosticSeverity GetSeverity(
-            SpaceEngineersNetworkReceiveFailureKind kind)
+        private static SpaceEngineersNetworkDiagnosticSeverity GetSeverity(SpaceEngineersNetworkReceiveFailureKind kind)
         {
             switch (kind)
             {
@@ -103,15 +78,11 @@ namespace Mz.Networking.SpaceEngineers
                     return SpaceEngineersNetworkDiagnosticSeverity.Error;
 
                 default:
-                    throw new ArgumentException(
-                        "The receive failure kind is outside the supported range.",
-                        nameof(kind)
-                    );
+                    throw new ArgumentException("The receive failure kind is outside the supported range.", nameof(kind));
             }
         }
 
-        private static string GetCode(
-            SpaceEngineersNetworkReceiveFailureKind kind)
+        private static string GetCode(SpaceEngineersNetworkReceiveFailureKind kind)
         {
             switch (kind)
             {
@@ -137,75 +108,55 @@ namespace Mz.Networking.SpaceEngineers
                     return "network.receive.handler-failure";
 
                 default:
-                    throw new ArgumentException(
-                        "The receive failure kind is outside the supported range.",
-                        nameof(kind)
-                    );
+                    throw new ArgumentException("The receive failure kind is outside the supported range.", nameof(kind));
             }
         }
 
-        private static bool IsConflict(
-            SpaceEngineersNetworkReceiveFailureKind kind)
-            => kind == SpaceEngineersNetworkReceiveFailureKind.ForeignPacket
-                || kind == SpaceEngineersNetworkReceiveFailureKind.NetworkMismatch;
+        private static bool IsConflict(SpaceEngineersNetworkReceiveFailureKind kind) 
+            => kind == SpaceEngineersNetworkReceiveFailureKind.ForeignPacket || kind == SpaceEngineersNetworkReceiveFailureKind.NetworkMismatch;
 
         private static string BuildPreview(byte[] serialized)
         {
             if (serialized.Length == 0)
                 return string.Empty;
 
-            var count = Math.Min(
-                serialized.Length,
-                MaximumPreviewBytes
-            );
+            int count = Math.Min(serialized.Length, MaximumPreviewBytes);
 
-            var builder = new StringBuilder(
-                count * 3 + 32
-            );
+            var builder = new StringBuilder(count * 3 + 32);
 
             for (var index = 0; index < count; index++)
             {
                 if (index > 0)
                     builder.Append(' ');
 
-                builder.Append(
-                    serialized[index].ToString("X2")
-                );
+                builder.Append(serialized[index].ToString("X2"));
             }
 
-            if (serialized.Length > count)
-            {
-                builder.Append(" ... (+");
-                builder.Append(serialized.Length - count);
-                builder.Append(" bytes)");
-            }
+            if (serialized.Length <= count)
+                return builder.ToString();
+            
+            builder.Append(" ... (+");
+            builder.Append(serialized.Length - count);
+            builder.Append(" bytes)");
 
             return builder.ToString();
         }
 
-        private static string[] DiscoverText(
-            byte[] serialized,
-            ISpaceEngineersNetworkDiagnosticGateway diagnosticGateway)
+        private static string[] DiscoverText(byte[] serialized, ISpaceEngineersNetworkDiagnosticGateway diagnosticGateway)
         {
             var discovered = new List<string>();
 
-            if (
-                diagnosticGateway != null
-                && serialized.Length <= MaximumInspectedBytes
-            ) {
-                string value;
-
+            if (diagnosticGateway != null && serialized.Length <= MaximumInspectedBytes) 
+            {
                 try
                 {
-                    if (diagnosticGateway.TryDeserializeString(
-                        serialized,
-                        out value
-                    )) {
+                    string value;
+                    if (diagnosticGateway.TryDeserializeString(serialized, out value)) 
                         AddCandidate(discovered, value);
-                    }
                 }
                 catch
                 {
+                    // ignored
                 }
             }
 
@@ -213,13 +164,11 @@ namespace Mz.Networking.SpaceEngineers
             {
                 try
                 {
-                    AddCandidate(
-                        discovered,
-                        StrictUtf8.GetString(serialized)
-                    );
+                    AddCandidate(discovered, _strictUtf8.GetString(serialized));
                 }
                 catch (DecoderFallbackException)
                 {
+                    // ignored
                 }
             }
 
@@ -230,89 +179,44 @@ namespace Mz.Networking.SpaceEngineers
             return discovered.ToArray();
         }
 
-        private static void AddAsciiCandidates(
-            List<string> discovered,
-            byte[] serialized)
+        private static void AddAsciiCandidates(List<string> discovered, byte[] serialized)
         {
-            var inspectedLength = Math.Min(
-                serialized.Length,
-                MaximumInspectedBytes
-            );
+            int inspectedLength = Math.Min(serialized.Length, MaximumInspectedBytes);
 
             var index = 0;
 
-            while (
-                index < inspectedLength
-                && discovered.Count < MaximumDiscoveredTextCount
-            ) {
-                while (
-                    index < inspectedLength
-                    && !IsPrintableAscii(serialized[index])
-                ) {
+            while (index < inspectedLength && discovered.Count < MaximumDiscoveredTextCount) {
+                while (index < inspectedLength && !IsPrintableAscii(serialized[index]))
                     index++;
-                }
 
-                var start = index;
+                int start = index;
 
-                while (
-                    index < inspectedLength
-                    && IsPrintableAscii(serialized[index])
-                ) {
+                while (index < inspectedLength && IsPrintableAscii(serialized[index]))
                     index++;
-                }
 
-                var length = index - start;
+                int length = index - start;
 
                 if (length < MinimumDiscoveredTextLength)
                     continue;
 
-                AddCandidate(
-                    discovered,
-                    Encoding.ASCII.GetString(
-                        serialized,
-                        start,
-                        length
-                    )
-                );
+                AddCandidate(discovered, Encoding.ASCII.GetString(serialized, start, length));
             }
         }
 
-        private static void AddUtf16Candidates(
-            List<string> discovered,
-            byte[] serialized,
-            int offset)
+        private static void AddUtf16Candidates(List<string> discovered, byte[] serialized, int offset)
         {
-            var inspectedLength = Math.Min(
-                serialized.Length,
-                MaximumInspectedBytes
-            );
+            int inspectedLength = Math.Min(serialized.Length, MaximumInspectedBytes);
 
-            var index = offset;
+            int index = offset;
 
-            while (
-                index + 1 < inspectedLength
-                && discovered.Count < MaximumDiscoveredTextCount
-            ) {
-                while (
-                    index + 1 < inspectedLength
-                    && !IsPrintableUtf16Pair(
-                        serialized[index],
-                        serialized[index + 1]
-                    )
-                ) {
+            while (index + 1 < inspectedLength && discovered.Count < MaximumDiscoveredTextCount) {
+                while (index + 1 < inspectedLength && !IsPrintableUtf16Pair(serialized[index], serialized[index + 1]))
                     index += 2;
-                }
 
-                var start = index;
+                int start = index;
                 var characterCount = 0;
 
-                while (
-                    index + 1 < inspectedLength
-                    && IsPrintableUtf16Pair(
-                        serialized[index],
-                        serialized[index + 1]
-                    )
-                ) {
+                while (index + 1 < inspectedLength && IsPrintableUtf16Pair(serialized[index], serialized[index + 1])) {
                     characterCount++;
                     index += 2;
                 }
@@ -320,111 +224,59 @@ namespace Mz.Networking.SpaceEngineers
                 if (characterCount < MinimumDiscoveredTextLength)
                     continue;
 
-                var characters = new char[
-                    Math.Min(
-                        characterCount,
-                        MaximumDiscoveredTextLength
-                    )
-                ];
+                var characters = new char[Math.Min(characterCount, MaximumDiscoveredTextLength)];
 
-                for (
-                    var characterIndex = 0;
-                    characterIndex < characters.Length;
-                    characterIndex++
-                ) {
-                    characters[characterIndex] =
-                        (char)serialized[
-                            start + characterIndex * 2
-                        ];
-                }
+                for (var characterIndex = 0; characterIndex < characters.Length; characterIndex++)
+                    characters[characterIndex] = (char)serialized[start + characterIndex * 2];
 
-                AddCandidate(
-                    discovered,
-                    new string(characters)
-                );
+                AddCandidate(discovered, new string(characters));
             }
         }
 
         private static bool IsPrintableAscii(byte value)
             => value >= 32 && value <= 126;
 
-        private static bool IsPrintableUtf16Pair(
-            byte low,
-            byte high)
+        private static bool IsPrintableUtf16Pair(byte low, byte high)
             => high == 0 && IsPrintableAscii(low);
 
-        private static void AddCandidate(
-            List<string> discovered,
-            string candidate)
+        private static void AddCandidate(List<string> discovered, string candidate)
         {
-            if (
-                candidate == null
-                || discovered.Count >= MaximumDiscoveredTextCount
-            ) {
+            if (candidate == null || discovered.Count >= MaximumDiscoveredTextCount)
                 return;
-            }
 
-            var sanitized = Sanitize(candidate);
+            string sanitized = Sanitize(candidate);
 
-            if (
-                sanitized.Length < MinimumDiscoveredTextLength
-                || Contains(discovered, sanitized)
-            ) {
+            if (sanitized.Length < MinimumDiscoveredTextLength || Contains(discovered, sanitized)) {
                 return;
             }
 
             discovered.Add(sanitized);
         }
 
-        private static bool Contains(
-            List<string> discovered,
-            string candidate)
+        private static bool Contains(List<string> discovered, string candidate)
         {
-            for (var index = 0; index < discovered.Count; index++)
-            {
-                if (string.Equals(
-                    discovered[index],
-                    candidate,
-                    StringComparison.Ordinal
-                )) {
+            foreach (string discoveredItem in discovered)
+                if (string.Equals(discoveredItem, candidate, StringComparison.Ordinal))
                     return true;
-                }
-            }
 
             return false;
         }
 
         private static string Sanitize(string value)
-            => Sanitize(
-                value,
-                MaximumDiscoveredTextLength
-            );
+            => Sanitize(value, MaximumDiscoveredTextLength);
 
-        private static string Sanitize(
-            string value,
-            int maximumLength)
+        private static string Sanitize(string value, int maximumLength)
         {
-            var builder = new StringBuilder(
-                Math.Min(
-                    value.Length,
-                    maximumLength
-                )
-            );
+            var builder = new StringBuilder(Math.Min(value.Length, maximumLength));
 
             var pendingSpace = false;
 
-            for (
-                var index = 0;
-                index < value.Length
-                    && builder.Length < maximumLength;
-                index++
-            ) {
-                var character = value[index];
+            for (var index = 0; index < value.Length && builder.Length < maximumLength; index++) 
+            {
+                char character = value[index];
 
-                if (
-                    char.IsControl(character)
-                    || char.IsWhiteSpace(character)
-                ) {
+                if (char.IsControl(character) || char.IsWhiteSpace(character)) 
+                {
                     pendingSpace = builder.Length > 0;
                     continue;
                 }
@@ -445,16 +297,8 @@ namespace Mz.Networking.SpaceEngineers
         }
 
         private static string BuildMessage(
-            ushort channelId,
-            int packetLength,
-            ulong senderPeerId,
-            bool senderIsServer,
-            SpaceEngineersNetworkReceiveFailureKind kind,
-            string code,
-            string expectedNetworkId,
-            string observedNetworkId,
-            string preview,
-            string[] discoveredText)
+            ushort channelId, int packetLength, ulong senderPeerId, bool senderIsServer, SpaceEngineersNetworkReceiveFailureKind kind, 
+            string code, string expectedNetworkId, string observedNetworkId, string preview, string[] discoveredText)
         {
             var builder = new StringBuilder();
 
@@ -470,16 +314,8 @@ namespace Mz.Networking.SpaceEngineers
             builder.Append(senderIsServer ? "true" : "false");
             builder.Append("; packetBytes=");
             builder.Append(packetLength);
-            AppendValue(
-                builder,
-                "expectedNetworkId",
-                expectedNetworkId
-            );
-            AppendValue(
-                builder,
-                "observedNetworkId",
-                observedNetworkId
-            );
+            AppendValue(builder, "expectedNetworkId", expectedNetworkId);
+            AppendValue(builder, "observedNetworkId", observedNetworkId);
 
             if (preview.Length > 0)
                 AppendValue(builder, "preview", preview);
@@ -488,17 +324,12 @@ namespace Mz.Networking.SpaceEngineers
             {
                 builder.Append("; discoveredText=\"");
 
-                for (
-                    var index = 0;
-                    index < discoveredText.Length;
-                    index++
-                ) {
+                for (var index = 0; index < discoveredText.Length; index++) 
+                {
                     if (index > 0)
                         builder.Append(" | ");
 
-                    builder.Append(
-                        Escape(discoveredText[index])
-                    );
+                    builder.Append(Escape(discoveredText[index]));
                 }
 
                 builder.Append('"');
@@ -507,16 +338,10 @@ namespace Mz.Networking.SpaceEngineers
             if (builder.Length <= MaximumMessageLength)
                 return builder.ToString();
 
-            return builder.ToString(
-                0,
-                MaximumMessageLength - 3
-            ) + "...";
+            return builder.ToString(0, MaximumMessageLength - 3) + "...";
         }
 
-        private static void AppendValue(
-            StringBuilder builder,
-            string name,
-            string value)
+        private static void AppendValue(StringBuilder builder, string name, string value)
         {
             builder.Append("; ");
             builder.Append(name);
@@ -534,11 +359,6 @@ namespace Mz.Networking.SpaceEngineers
         }
 
         private static string Escape(string value)
-            => Sanitize(
-                value,
-                MaximumMessageLength
-            )
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"");
+            => Sanitize(value, MaximumMessageLength).Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 }

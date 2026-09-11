@@ -8,14 +8,14 @@ namespace Mz.Toml
     /// </summary>
     public static class Toml
     {
-        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+        private static readonly UTF8Encoding _strictUtf8 = new UTF8Encoding(false, true);
 
         /// <summary>
         /// Parses TOML text and throws <see cref="TomlParseException"/> on failure.
         /// </summary>
         public static TomlDocument Parse(string text)
         {
-            var result = TryParse(text);
+            TomlParseResult result = TryParse(text);
             if (result.IsSuccess)
                 return result.Document;
 
@@ -40,7 +40,7 @@ namespace Mz.Toml
         /// </summary>
         public static TomlDocument Parse(byte[] utf8)
         {
-            var result = TryParse(utf8);
+            TomlParseResult result = TryParse(utf8);
             if (result.IsSuccess)
                 return result.Document;
 
@@ -70,7 +70,7 @@ namespace Mz.Toml
 
             try
             {
-                text = StrictUtf8.GetString(utf8, offset, count);
+                text = _strictUtf8.GetString(utf8, offset, count);
             }
             catch (DecoderFallbackException)
             {

@@ -44,9 +44,9 @@ namespace Mz.Networking
             if (!isServer && !transportSenderIsServer)
                 throw new InvalidOperationException("A client can only accept network messages sent by the authoritative server.");
 
-            var senderWasCorrected = isServer && envelope.OriginalSenderId != transportSenderId;
-            var relayFlagWasCorrected = isServer && !transportSenderIsServer && envelope.IsRelay;
-            var validatedEnvelope = envelope;
+            bool senderWasCorrected = isServer && envelope.OriginalSenderId != transportSenderId;
+            bool relayFlagWasCorrected = isServer && !transportSenderIsServer && envelope.IsRelay;
+            NetworkEnvelope validatedEnvelope = envelope;
 
             if (senderWasCorrected)
                 validatedEnvelope = validatedEnvelope.WithOriginalSenderId(transportSenderId);
@@ -54,7 +54,8 @@ namespace Mz.Networking
             if (relayFlagWasCorrected)
                 validatedEnvelope = validatedEnvelope.WithRelay(false);
 
-            var context = new NetworkReceiveContext(validatedEnvelope, transportSenderId, isServer, transportSenderIsServer, senderWasCorrected, relayFlagWasCorrected);
+            var context = new NetworkReceiveContext(validatedEnvelope, transportSenderId, isServer, transportSenderIsServer, 
+                                                    senderWasCorrected, relayFlagWasCorrected);
 
             try
             {
@@ -62,9 +63,7 @@ namespace Mz.Networking
             }
             catch (Exception exception)
             {
-                if (handlerFailureObserver != null)
-                    handlerFailureObserver(exception);
-
+                handlerFailureObserver?.Invoke(exception);
                 throw;
             }
 

@@ -13,7 +13,6 @@ namespace Mz.Networking.SpaceEngineers
         private const int MaximumUnreliableMessageSize = 1024;
 
         private readonly ISpaceEngineersNetworkGateway _gateway;
-        private ushort _channelId;
 
         /// <summary>
         /// Creates a transport using the legacy unframed envelope wire.
@@ -24,17 +23,14 @@ namespace Mz.Networking.SpaceEngineers
                 throw new ArgumentNullException(nameof(gateway));
 
             _gateway = gateway;
-            _channelId = channelId;
+            ChannelId = channelId;
         }
 
         /// <summary>
         /// Creates a transport over one secure-message channel and stable
         /// application network identity.
         /// </summary>
-        public SpaceEngineersNetworkTransport(
-            ISpaceEngineersNetworkGateway gateway,
-            ushort channelId,
-            string networkId)
+        public SpaceEngineersNetworkTransport(ISpaceEngineersNetworkGateway gateway, ushort channelId, string networkId)
             : this(gateway, channelId)
         {
             NetworkId = SpaceEngineersNetworkIdentity.Normalize(networkId);
@@ -50,7 +46,7 @@ namespace Mz.Networking.SpaceEngineers
         /// <summary>
         /// Gets the currently active secure-message channel.
         /// </summary>
-        public ushort ChannelId => _channelId;
+        public ushort ChannelId { get; private set; }
 
         /// <summary>
         /// Gets whether outgoing packets use the versioned Mz.Networking wire.
@@ -64,13 +60,13 @@ namespace Mz.Networking.SpaceEngineers
         public string NetworkId { get; }
 
         /// <inheritdoc />
-        public void SendToServer(NetworkEnvelope envelope)
+        public void SendToServer(NetworkEnvelope envelope) 
             => SendToServer(envelope, NetworkDeliveryMode.Reliable);
 
         /// <inheritdoc />
         public void SendToServer(NetworkEnvelope envelope, NetworkDeliveryMode deliveryMode)
         {
-            var serialized = Serialize(envelope, deliveryMode);
+            byte[] serialized = Serialize(envelope, deliveryMode);
 
             if (!SendToServer(serialized, deliveryMode))
                 throw new InvalidOperationException("Space Engineers rejected the network message sent to the server.");
@@ -85,7 +81,7 @@ namespace Mz.Networking.SpaceEngineers
         {
             EnsureServer();
 
-            var serialized = Serialize(envelope, deliveryMode);
+            byte[] serialized = Serialize(envelope, deliveryMode);
 
             SendSerializedToPeer(serialized, peerId, deliveryMode);
         }
@@ -99,12 +95,12 @@ namespace Mz.Networking.SpaceEngineers
         {
             EnsureServer();
 
-            var serialized = Serialize(envelope, deliveryMode);
+            byte[] serialized = Serialize(envelope, deliveryMode);
             var playerIds = new List<ulong>();
 
             _gateway.GetPlayerIds(playerIds);
 
-            foreach (var peerId in playerIds.Where(peerId => peerId != LocalPeerId && peerId != excludedPeerId))
+            foreach (ulong peerId in playerIds.Where(peerId => peerId != LocalPeerId && peerId != excludedPeerId))
                 SendSerializedToPeer(serialized, peerId, deliveryMode);
         }
 
@@ -117,19 +113,17 @@ namespace Mz.Networking.SpaceEngineers
         {
             EnsureServer();
 
-            var serialized = Serialize(envelope, deliveryMode);
+            byte[] serialized = Serialize(envelope, deliveryMode);
             var playerIds = new List<ulong>();
 
             _gateway.GetPlayerIds(playerIds);
 
-            foreach (var peerId in playerIds.Where(peerId => peerId != LocalPeerId))
+            foreach (ulong peerId in playerIds.Where(peerId => peerId != LocalPeerId))
                 SendSerializedToPeer(serialized, peerId, deliveryMode);
         }
 
-        internal void ChangeChannel(ushort channelId)
-        {
-            _channelId = channelId;
-        }
+        internal void ChangeChannel(ushort channelId) 
+            => ChannelId = channelId;
 
         private byte[] Serialize(NetworkEnvelope envelope, NetworkDeliveryMode deliveryMode)
         {
@@ -138,7 +132,7 @@ namespace Mz.Networking.SpaceEngineers
 
             EnsureDeliveryMode(deliveryMode);
 
-            var serialized = _gateway.Serialize(envelope);
+            byte[] serialized = _gateway.Serialize(envelope);
 
             if (serialized == null)
                 throw new InvalidOperationException("The Space Engineers network gateway returned no serialized envelope.");
@@ -157,10 +151,10 @@ namespace Mz.Networking.SpaceEngineers
             var deliveryGateway = _gateway as ISpaceEngineersNetworkDeliveryGateway;
 
             if (deliveryGateway != null)
-                return deliveryGateway.SendToServer(_channelId, serialized, deliveryMode == NetworkDeliveryMode.Reliable);
+                return deliveryGateway.SendToServer(ChannelId, serialized, deliveryMode == NetworkDeliveryMode.Reliable);
 
             EnsureLegacyGatewaySupports(deliveryMode);
-            return _gateway.SendToServer(_channelId, serialized);
+            return _gateway.SendToServer(ChannelId, serialized);
         }
 
         private void SendSerializedToPeer(byte[] serialized, ulong peerId, NetworkDeliveryMode deliveryMode)
@@ -169,15 +163,15 @@ namespace Mz.Networking.SpaceEngineers
             bool sent;
 
             if (deliveryGateway != null)
-                sent = deliveryGateway.SendToPeer(_channelId, serialized, peerId, deliveryMode == NetworkDeliveryMode.Reliable);
+                sent = deliveryGateway.SendToPeer(ChannelId, serialized, peerId, deliveryMode == NetworkDeliveryMode.Reliable);
             else
             {
                 EnsureLegacyGatewaySupports(deliveryMode);
-                sent = _gateway.SendToPeer(_channelId, serialized, peerId);
+                sent = _gateway.SendToPeer(ChannelId, serialized, peerId);
             }
 
             if (!sent)
-                throw new InvalidOperationException("Space Engineers rejected the network message sent to peer " + peerId + ".");
+                throw new InvalidOperationException($"Space Engineers rejected the network message sent to peer {peerId}.");
         }
 
         private static void EnsureDeliveryMode(NetworkDeliveryMode deliveryMode)

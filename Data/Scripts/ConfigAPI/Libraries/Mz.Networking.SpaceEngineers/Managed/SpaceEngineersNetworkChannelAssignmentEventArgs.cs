@@ -11,10 +11,7 @@ namespace Mz.Networking.SpaceEngineers
         /// <summary>
         /// Creates channel-assignment event data.
         /// </summary>
-        public SpaceEngineersNetworkChannelAssignmentEventArgs(
-            ushort previousChannel,
-            ushort channelId,
-            ulong generation)
+        public SpaceEngineersNetworkChannelAssignmentEventArgs(ushort previousChannel, ushort channelId, ulong generation)
         {
             PreviousChannel = previousChannel;
             ChannelId = channelId;
@@ -40,7 +37,6 @@ namespace Mz.Networking.SpaceEngineers
         /// Gets whether applying the assignment changed secure-message
         /// registration.
         /// </summary>
-        public bool ChannelChanged =>
-            PreviousChannel != ChannelId;
+        public bool ChannelChanged => PreviousChannel != ChannelId;
     }
 }

@@ -57,8 +57,8 @@ namespace Mz.Networking
         public bool RequiresSerialization { get; set; }
 
         internal NetworkReceiveContext(
-            NetworkEnvelope envelope, ulong transportSenderId, 
-            bool isServer, bool transportSenderIsServer, bool originalSenderWasCorrected, bool relayFlagWasCorrected)
+            NetworkEnvelope envelope, ulong transportSenderId, bool isServer, bool transportSenderIsServer, 
+            bool originalSenderWasCorrected, bool relayFlagWasCorrected)
         {
             if (envelope == null)
                 throw new ArgumentNullException(nameof(envelope));

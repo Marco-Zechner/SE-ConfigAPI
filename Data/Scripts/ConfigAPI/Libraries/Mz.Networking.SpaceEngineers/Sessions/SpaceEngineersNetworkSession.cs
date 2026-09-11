@@ -20,11 +20,9 @@ namespace Mz.Networking.SpaceEngineers
         private Guid? _connectedNetworkManagerProviderInstanceId;
         private Guid? _activeNetworkManagerProviderInstanceId;
         private ulong? _activeAssignmentGeneration;
-        private Action<ushort, ulong>
-            _activeNetworkManagerConflictReporter;
+        private Action<ushort, ulong> _activeNetworkManagerConflictReporter;
         private bool _activeAssignmentConflictReported;
-        private SpaceEngineersManagedNetworkConfiguration
-            _managedConfiguration;
+        private SpaceEngineersManagedNetworkConfiguration _managedConfiguration;
 
         private bool _disposed;
 
@@ -32,153 +30,76 @@ namespace Mz.Networking.SpaceEngineers
         /// Creates a compatibility session using the legacy unframed wire.
         /// Receive diagnostics can be observed through <see cref="Diagnostic"/>.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ushort channelId)
-            : this(
-                new SpaceEngineersNetworkGateway(),
-                channelId,
-                null,
-                false,
-                null
-            ) { }
+        public SpaceEngineersNetworkSession(ushort channelId) 
+            : this(new SpaceEngineersNetworkGateway(), channelId, null, false, null) { }
 
         /// <summary>
         /// Creates a session using the active Space Engineers ModAPI and an
         /// explicit stable application network identity. Receive diagnostics
         /// can be observed through <see cref="Diagnostic"/>.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ushort channelId,
-            string networkId)
-            : this(
-                new SpaceEngineersNetworkGateway(),
-                channelId,
-                networkId,
-                true,
-                null
-            ) { }
+        public SpaceEngineersNetworkSession(ushort channelId, string networkId)
+            : this(new SpaceEngineersNetworkGateway(), channelId, networkId, true, null) { }
 
         /// <summary>
         /// Creates a compatibility session over an explicit gateway using the
         /// legacy unframed wire. Receive diagnostics can be observed through
         /// <see cref="Diagnostic"/>.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            ushort channelId)
-            : this(
-                gateway,
-                channelId,
-                null,
-                false,
-                null
-            ) { }
+        public SpaceEngineersNetworkSession(ISpaceEngineersNetworkGateway gateway, ushort channelId)
+            : this(gateway, channelId, null, false, null) { }
 
         /// <summary>
         /// Creates a session over an explicit gateway and stable application
         /// network identity. Receive diagnostics can be observed through
         /// <see cref="Diagnostic"/>.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            ushort channelId,
-            string networkId)
-            : this(
-                gateway,
-                channelId,
-                networkId,
-                true,
-                null
-            ) { }
+        public SpaceEngineersNetworkSession(ISpaceEngineersNetworkGateway gateway, ushort channelId, string networkId)
+            : this(gateway, channelId, networkId, true, null) { }
 
         /// <summary>
         /// Creates a compatibility session using the legacy unframed wire.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ushort channelId,
-            Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
-            : this(
-                new SpaceEngineersNetworkGateway(),
-                channelId,
-                null,
-                false,
-                receiveFailureHandler
-            ) { }
+        public SpaceEngineersNetworkSession(ushort channelId, Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
+            : this(new SpaceEngineersNetworkGateway(), channelId, null, false, receiveFailureHandler) { }
 
         /// <summary>
         /// Creates a session using the active Space Engineers ModAPI and an
         /// explicit stable application network identity.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ushort channelId,
-            string networkId,
-            Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
-            : this(
-                new SpaceEngineersNetworkGateway(),
-                channelId,
-                networkId,
-                true,
-                receiveFailureHandler
-            ) { }
+        public SpaceEngineersNetworkSession(ushort channelId, string networkId, Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
+            : this(new SpaceEngineersNetworkGateway(), channelId, networkId, true, receiveFailureHandler) { }
 
         /// <summary>
         /// Creates a compatibility session over an explicit gateway using the
         /// legacy unframed wire.
         /// </summary>
         public SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            ushort channelId,
-            Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
-            : this(
-                gateway,
-                channelId,
-                null,
-                false,
-                receiveFailureHandler
-            ) { }
+            ISpaceEngineersNetworkGateway gateway, ushort channelId, Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
+            : this(gateway, channelId, null, false, receiveFailureHandler) { }
 
         /// <summary>
         /// Creates a session over an explicit gateway and stable application
         /// network identity.
         /// </summary>
         public SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            ushort channelId,
-            string networkId,
-            Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
-            : this(
-                gateway,
-                channelId,
-                networkId,
-                true,
-                receiveFailureHandler
-            ) { }
+            ISpaceEngineersNetworkGateway gateway, ushort channelId, string networkId, Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
+            : this(gateway, channelId, networkId, true, receiveFailureHandler) { }
 
         /// <summary>
         /// Creates a managed session using the active Space Engineers ModAPI.
         /// Forced-channel configuration creates no ApiProtocol message bus.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            SpaceEngineersManagedNetworkConfiguration configuration)
-            : this(
-                new SpaceEngineersNetworkGateway(),
-                CreateDefaultMessageBus(configuration),
-                configuration
-            ) { }
+        public SpaceEngineersNetworkSession(SpaceEngineersManagedNetworkConfiguration configuration)
+            : this(new SpaceEngineersNetworkGateway(), CreateDefaultMessageBus(configuration), configuration) { }
 
         /// <summary>
         /// Creates a managed session over an explicit networking gateway.
         /// ApiProtocol setup remains internal, and forced-channel
         /// configuration creates no message bus.
         /// </summary>
-        public SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            SpaceEngineersManagedNetworkConfiguration configuration)
-            : this(
-                gateway,
-                CreateDefaultMessageBus(configuration),
-                configuration
-            ) { }
+        public SpaceEngineersNetworkSession(ISpaceEngineersNetworkGateway gateway, SpaceEngineersManagedNetworkConfiguration configuration)
+            : this(gateway, CreateDefaultMessageBus(configuration), configuration) { }
 
         /// <summary>
         /// Creates a session that starts immediately on its configured
@@ -186,19 +107,9 @@ namespace Mz.Networking.SpaceEngineers
         /// unless a forced channel is configured.
         /// </summary>
         public SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            IModMessageBus messageBus,
-            SpaceEngineersManagedNetworkConfiguration configuration)
-            : this(
-                gateway,
-                GetManagedInitialChannel(
-                    messageBus,
-                    configuration
-                ),
-                GetManagedNetworkId(configuration),
-                true,
-                null
-            )
+            ISpaceEngineersNetworkGateway gateway, IModMessageBus messageBus, SpaceEngineersManagedNetworkConfiguration configuration)
+            : this(gateway, GetManagedInitialChannel(messageBus, configuration), GetManagedNetworkId(configuration), 
+                   true, null)
         {
             _managedConfiguration = configuration;
             IsForcedChannel = configuration.ForcedChannel.HasValue;
@@ -208,17 +119,11 @@ namespace Mz.Networking.SpaceEngineers
 
             try
             {
-                _networkManagerConsumer =
-                    NetworkManagerApiContract.CreateConsumer(
-                        messageBus,
-                        configuration
-                    );
+                _networkManagerConsumer = NetworkManagerApiContract.CreateConsumer(messageBus, configuration);
 
-                _networkManagerConsumer.Connected +=
-                    OnNetworkManagerConnected;
+                _networkManagerConsumer.Connected += OnNetworkManagerConnected;
 
-                _networkManagerConsumer.Disconnected +=
-                    OnNetworkManagerDisconnected;
+                _networkManagerConsumer.Disconnected += OnNetworkManagerDisconnected;
 
                 _networkManagerConsumer.Start();
 
@@ -231,10 +136,7 @@ namespace Mz.Networking.SpaceEngineers
             }
         }
         private SpaceEngineersNetworkSession(
-            ISpaceEngineersNetworkGateway gateway,
-            ushort channelId,
-            string networkId,
-            bool usesWireIdentity,
+            ISpaceEngineersNetworkGateway gateway, ushort channelId, string networkId, bool usesWireIdentity,
             Action<SpaceEngineersNetworkReceiveFailure> receiveFailureHandler)
         {
             if (gateway == null)
@@ -243,12 +145,10 @@ namespace Mz.Networking.SpaceEngineers
             _gateway = gateway;
             _receiveFailureHandler = receiveFailureHandler;
             UsesWireIdentity = usesWireIdentity;
-            NetworkId = usesWireIdentity
-                ? SpaceEngineersNetworkIdentity.Normalize(networkId)
-                : null;
+            NetworkId = usesWireIdentity ? SpaceEngineersNetworkIdentity.Normalize(networkId) : null;
 
-            Transport = usesWireIdentity
-                ? new SpaceEngineersNetworkTransport(gateway, channelId, NetworkId)
+            Transport = usesWireIdentity 
+                ? new SpaceEngineersNetworkTransport(gateway, channelId, NetworkId) 
                 : new SpaceEngineersNetworkTransport(gateway, channelId);
 
             Endpoint = new NetworkEndpoint(Transport);
@@ -278,8 +178,8 @@ namespace Mz.Networking.SpaceEngineers
         /// Gets whether a provider with a valid endpoint contract currently
         /// owns this session's managed registration.
         /// </summary>
-        public bool IsNetworkManagerConnected =>
-            _activeNetworkManagerProviderInstanceId.HasValue
+        public bool IsNetworkManagerConnected 
+            => _activeNetworkManagerProviderInstanceId.HasValue
             && NetworkManagerError == null;
 
         /// <summary>
@@ -314,9 +214,7 @@ namespace Mz.Networking.SpaceEngineers
         /// Raised after a newer provider-scoped assignment is accepted.
         /// Subscriber exceptions are isolated from assignment processing.
         /// </summary>
-        public event Action<
-            SpaceEngineersNetworkChannelAssignmentEventArgs
-        > ChannelAssignmentApplied;
+        public event Action<SpaceEngineersNetworkChannelAssignmentEventArgs> ChannelAssignmentApplied;
 
         /// <summary>
         /// Raised for each rejected packet after its structured bounded
@@ -342,47 +240,27 @@ namespace Mz.Networking.SpaceEngineers
                 _activeAssignmentGeneration = null;
                 ReleaseNetworkManagerRegistration();
 
-                if (_networkManagerConsumer != null)
-                {
-                    _networkManagerConsumer.Connected -=
-                        OnNetworkManagerConnected;
+                if (_networkManagerConsumer == null)
+                    return;
+                
+                _networkManagerConsumer.Connected -= OnNetworkManagerConnected;
+                _networkManagerConsumer.Disconnected -= OnNetworkManagerDisconnected;
 
-                    _networkManagerConsumer.Disconnected -=
-                        OnNetworkManagerDisconnected;
-
-                    _networkManagerConsumer.Dispose();
-                }
+                _networkManagerConsumer.Dispose();
             }
             finally
             {
-                _gateway.UnregisterSecureMessageHandler(
-                    ChannelId,
-                    _secureMessageHandler
-                );
+                _gateway.UnregisterSecureMessageHandler(ChannelId, _secureMessageHandler);
             }
         }
 
-        private void ReceiveSecureMessage(
-            ushort channelId,
-            byte[] serialized,
-            ulong senderPeerId,
-            bool senderIsServer)
+        private void ReceiveSecureMessage(ushort channelId, byte[] serialized, ulong senderPeerId, bool senderIsServer)
         {
             if (channelId != ChannelId)
             {
-                ReportFailure(
-                    channelId,
-                    serialized,
-                    senderPeerId,
-                    senderIsServer,
-                    SpaceEngineersNetworkReceiveFailureKind.ProcessingFailure,
-                    null,
-                    new InvalidOperationException(
-                        "The secure-message handler received channel "
-                        + channelId
-                        + " instead of its configured channel "
-                        + ChannelId
-                        + "."
+                ReportFailure(channelId, serialized, senderPeerId, senderIsServer, SpaceEngineersNetworkReceiveFailureKind.ProcessingFailure, 
+                    null, new InvalidOperationException(
+                        $"The secure-message handler received channel {channelId} instead of its configured channel {ChannelId}."
                     )
                 );
 
@@ -391,41 +269,24 @@ namespace Mz.Networking.SpaceEngineers
 
             if (serialized == null)
             {
-                ReportFailure(
-                    channelId,
-                    null,
-                    senderPeerId,
-                    senderIsServer,
-                    SpaceEngineersNetworkReceiveFailureKind.ProcessingFailure,
-                    null,
-                    new ArgumentNullException(nameof(serialized))
+                ReportFailure(channelId, null, senderPeerId, senderIsServer, SpaceEngineersNetworkReceiveFailureKind.ProcessingFailure, 
+                    null, new ArgumentNullException(nameof(serialized))
                 );
 
                 return;
             }
 
-            var serializedEnvelope = serialized;
+            byte[] serializedEnvelope = serialized;
             string observedNetworkId = null;
 
             if (UsesWireIdentity)
             {
-                var decoded =
-                    SpaceEngineersNetworkWireCodec.Decode(
-                        serialized,
-                        NetworkId
-                    );
+                SpaceEngineersNetworkWireDecodeResult decoded = SpaceEngineersNetworkWireCodec.Decode(serialized, NetworkId);
 
                 if (decoded.Status != SpaceEngineersNetworkWireStatus.Success)
                 {
-                    ReportFailure(
-                        channelId,
-                        serialized,
-                        senderPeerId,
-                        senderIsServer,
-                        ToFailureKind(decoded.Status),
-                        decoded.ObservedNetworkId,
-                        decoded.Exception
-                    );
+                    ReportFailure(channelId, serialized, senderPeerId, senderIsServer, ToFailureKind(decoded.Status), 
+                                  decoded.ObservedNetworkId, decoded.Exception);
 
                     return;
                 }
@@ -445,15 +306,8 @@ namespace Mz.Networking.SpaceEngineers
             }
             catch (Exception exception)
             {
-                ReportFailure(
-                    channelId,
-                    serialized,
-                    senderPeerId,
-                    senderIsServer,
-                    SpaceEngineersNetworkReceiveFailureKind.MalformedOwnPacket,
-                    observedNetworkId,
-                    exception
-                );
+                ReportFailure(channelId, serialized, senderPeerId, senderIsServer, SpaceEngineersNetworkReceiveFailureKind.MalformedOwnPacket,
+                              observedNetworkId, exception);
 
                 return;
             }
@@ -465,10 +319,7 @@ namespace Mz.Networking.SpaceEngineers
                 NetworkReceiveContext ignored;
 
                 Endpoint.Receive(
-                    envelope,
-                    senderPeerId,
-                    senderIsServer,
-                    delegate(Exception exception)
+                    envelope, senderPeerId, senderIsServer, delegate(Exception exception)
                     {
                         handlerFailure = exception;
                     },
@@ -477,61 +328,30 @@ namespace Mz.Networking.SpaceEngineers
             }
             catch (Exception exception)
             {
-                var kind = ReferenceEquals(handlerFailure, exception)
+                SpaceEngineersNetworkReceiveFailureKind kind = ReferenceEquals(handlerFailure, exception)
                     ? SpaceEngineersNetworkReceiveFailureKind.HandlerFailure
                     : SpaceEngineersNetworkReceiveFailureKind.ProcessingFailure;
 
-                ReportFailure(
-                    channelId,
-                    serialized,
-                    senderPeerId,
-                    senderIsServer,
-                    kind,
-                    observedNetworkId,
-                    exception
-                );
+                ReportFailure(channelId, serialized, senderPeerId, senderIsServer, kind, observedNetworkId, exception);
             }
         }
 
-        private void ReportFailure(
-            ushort channelId,
-            byte[] serialized,
-            ulong senderPeerId,
-            bool senderIsServer,
-            SpaceEngineersNetworkReceiveFailureKind kind,
-            string observedNetworkId,
-            Exception exception)
+        private void ReportFailure(ushort channelId, byte[] serialized, ulong senderPeerId, bool senderIsServer,
+                                   SpaceEngineersNetworkReceiveFailureKind kind, string observedNetworkId, Exception exception) 
         {
-            var packet = serialized ?? Array.Empty<byte>();
+            byte[] packet = serialized ?? Array.Empty<byte>();
 
-            var diagnostic =
-                SpaceEngineersNetworkDiagnosticBuilder.Build(
-                    channelId,
-                    packet,
-                    senderPeerId,
-                    senderIsServer,
-                    kind,
-                    NetworkId,
-                    observedNetworkId,
-                    _gateway as ISpaceEngineersNetworkDiagnosticGateway
-                );
-
-            var failure =
-                new SpaceEngineersNetworkReceiveFailure(
-                    channelId,
-                    packet,
-                    senderPeerId,
-                    senderIsServer,
-                    kind,
-                    NetworkId,
-                    observedNetworkId,
-                    exception,
-                    diagnostic
-                );
-
-            ReportManagedConflict(
-                failure
+            SpaceEngineersNetworkDiagnosticData diagnostic = SpaceEngineersNetworkDiagnosticBuilder.Build(
+                channelId, packet, senderPeerId, senderIsServer, kind, NetworkId, observedNetworkId,
+                _gateway as ISpaceEngineersNetworkDiagnosticGateway
             );
+
+            var failure = new SpaceEngineersNetworkReceiveFailure(
+                channelId, packet, senderPeerId, senderIsServer, kind, NetworkId, observedNetworkId,
+                exception, diagnostic
+            );
+
+            ReportManagedConflict(failure);
 
             if (_receiveFailureHandler == null)
             {
@@ -549,47 +369,36 @@ namespace Mz.Networking.SpaceEngineers
             }
         }
 
-        private void ReportManagedConflict(
-            SpaceEngineersNetworkReceiveFailure failure)
+        private void ReportManagedConflict(SpaceEngineersNetworkReceiveFailure failure)
         {
-            if (
-                failure == null
-                || !failure.IsChannelConflict
-                || _disposed
-                || IsForcedChannel
-                || !_activeNetworkManagerProviderInstanceId.HasValue
-                || !_activeAssignmentGeneration.HasValue
-                || _activeNetworkManagerConflictReporter == null
-                || _activeAssignmentConflictReported
-                || failure.ChannelId != ChannelId
-            )
-            {
+            if (failure == null || !failure.IsChannelConflict || _disposed)
                 return;
-            }
+            if (IsForcedChannel)
+                return;
+            if (!_activeNetworkManagerProviderInstanceId.HasValue || !_activeAssignmentGeneration.HasValue)
+                return;
+            if (_activeNetworkManagerConflictReporter == null || _activeAssignmentConflictReported)
+                return;
+            if (failure.ChannelId != ChannelId)
+                return;
 
-            var reportConflict =
-                _activeNetworkManagerConflictReporter;
+            var reportConflict = _activeNetworkManagerConflictReporter;
 
-            var generation =
-                _activeAssignmentGeneration.Value;
-
-            _activeAssignmentConflictReported =
-                true;
+            ulong generation = _activeAssignmentGeneration.Value;
+            
+            _activeAssignmentConflictReported = true;
 
             try
             {
-                reportConflict(
-                    failure.ChannelId,
-                    generation
-                );
+                reportConflict(failure.ChannelId, generation);
             }
             catch
             {
+                // ignored
             }
         }
 
-        private void PublishDiagnostic(
-            SpaceEngineersNetworkReceiveFailure failure)
+        private void PublishDiagnostic(SpaceEngineersNetworkReceiveFailure failure)
         {
             var handlers = Diagnostic;
 
@@ -598,27 +407,24 @@ namespace Mz.Networking.SpaceEngineers
 
             var subscribers = handlers.GetInvocationList();
 
-            for (var index = 0; index < subscribers.Length; index++)
+            foreach (Delegate subscriber in subscribers)
             {
                 try
                 {
-                    ((Action<SpaceEngineersNetworkReceiveFailure>)
-                        subscribers[index])(failure);
+                    ((Action<SpaceEngineersNetworkReceiveFailure>)subscriber)(failure);
                 }
                 catch
                 {
+                    // ignored
                 }
             }
         }
 
-        private void OnNetworkManagerConnected(
-            ApiConnectedEventArgs eventArgs)
+        private void OnNetworkManagerConnected(ApiConnectedEventArgs eventArgs)
         {
-            var providerInstanceId =
-                eventArgs.Connection.ProviderInstanceId;
+            Guid providerInstanceId = eventArgs.Connection.ProviderInstanceId;
 
-            _connectedNetworkManagerProviderInstanceId =
-                providerInstanceId;
+            _connectedNetworkManagerProviderInstanceId = providerInstanceId;
 
             ReleaseNetworkManagerRegistration();
             _activeNetworkManagerProviderInstanceId = null;
@@ -627,112 +433,56 @@ namespace Mz.Networking.SpaceEngineers
 
             try
             {
-                var registerNetwork =
-                    NetworkManagerApiContract.GetRegisterNetworkEndpoint(
-                        eventArgs.Connection
-                    );
+                var registerNetwork = NetworkManagerApiContract.GetRegisterNetworkEndpoint(eventArgs.Connection);
 
-                Func<
-                    string,
-                    string,
-                    Version,
-                    string,
-                    string,
-                    ushort,
-                    Action<
-                        ushort,
-                        ulong,
-                        Action<ushort, ulong>
-                    >,
-                    Action
-                > registerNetworkWithConflictReporting;
+                Func<string, string, Version, string, string, ushort, Action<ushort, ulong, Action<ushort, ulong>>, Action> 
+                    registerNetworkWithConflictReporting;
 
-                var supportsConflictReporting =
-                    NetworkManagerApiContract
-                        .TryGetRegisterNetworkWithConflictReportingEndpoint(
-                            eventArgs.Connection,
-                            out registerNetworkWithConflictReporting
-                        );
+                bool supportsConflictReporting = NetworkManagerApiContract.TryGetRegisterNetworkWithConflictReportingEndpoint(
+                    eventArgs.Connection, out registerNetworkWithConflictReporting);
 
-                _activeNetworkManagerProviderInstanceId =
-                    providerInstanceId;
+                _activeNetworkManagerProviderInstanceId = providerInstanceId;
 
                 Action unregister;
 
+                
+                var version = new Version(
+                    _managedConfiguration.ModVersion.Major,
+                    _managedConfiguration.ModVersion.Minor,
+                    _managedConfiguration.ModVersion.Patch
+                );
+                
                 if (supportsConflictReporting)
                 {
-                    unregister =
-                        registerNetworkWithConflictReporting(
-                            _managedConfiguration.ModId,
-                            _managedConfiguration.ModDisplayName,
-                            new Version(
-                                _managedConfiguration.ModVersion.Major,
-                                _managedConfiguration.ModVersion.Minor,
-                                _managedConfiguration.ModVersion.Patch
-                            ),
-                            _managedConfiguration.NetworkId,
-                            _managedConfiguration.NetworkName,
-                            _managedConfiguration.PreferredChannel,
-                            delegate(
-                                ushort channelId,
-                                ulong generation,
-                                Action<ushort, ulong> reportConflict
-                            )
-                            {
-                                ApplyManagedAssignment(
-                                    providerInstanceId,
-                                    channelId,
-                                    generation,
-                                    reportConflict
-                                );
-                            }
-                        );
+                    Action<ushort, ulong, Action<ushort, ulong>> reportConflictHandler = 
+                        delegate(ushort channelId, ulong generation, Action<ushort, ulong> reportConflict) {
+                        ApplyManagedAssignment(providerInstanceId, channelId, generation, reportConflict);
+                    };
+                    
+                    unregister = registerNetworkWithConflictReporting(
+                        _managedConfiguration.ModId, _managedConfiguration.ModDisplayName, version, 
+                        _managedConfiguration.NetworkId, _managedConfiguration.NetworkName, _managedConfiguration.PreferredChannel,
+                        reportConflictHandler
+                    );
                 }
                 else
                 {
-                    unregister =
-                        registerNetwork(
-                            _managedConfiguration.ModId,
-                            _managedConfiguration.ModDisplayName,
-                            new Version(
-                                _managedConfiguration.ModVersion.Major,
-                                _managedConfiguration.ModVersion.Minor,
-                                _managedConfiguration.ModVersion.Patch
-                            ),
-                            _managedConfiguration.NetworkId,
-                            _managedConfiguration.NetworkName,
-                            _managedConfiguration.PreferredChannel,
-                            delegate(
-                                ushort channelId,
-                                ulong generation
-                            )
-                            {
-                                ApplyManagedAssignment(
-                                    providerInstanceId,
-                                    channelId,
-                                    generation,
-                                    null
-                                );
-                            }
-                        );
+                    unregister = registerNetwork(
+                        _managedConfiguration.ModId, _managedConfiguration.ModDisplayName, version,
+                        _managedConfiguration.NetworkId, _managedConfiguration.NetworkName, _managedConfiguration.PreferredChannel,
+                        delegate(ushort channelId, ulong generation) {
+                            ApplyManagedAssignment(providerInstanceId, channelId, generation, null);
+                        });
                 }
 
                 if (unregister == null)
-                {
-                    throw new InvalidOperationException(
-                        "NetworkManager returned no registration cleanup "
-                        + "action."
-                    );
-                }
+                    throw new InvalidOperationException("NetworkManager returned no registration cleanup action.");
 
                 _networkManagerUnregister = unregister;
             }
             catch (Exception exception)
             {
-                if (
-                    _activeNetworkManagerProviderInstanceId
-                    == providerInstanceId
-                )
+                if (_activeNetworkManagerProviderInstanceId == providerInstanceId)
                 {
                     _activeNetworkManagerProviderInstanceId = null;
                     _activeAssignmentGeneration = null;
@@ -743,26 +493,16 @@ namespace Mz.Networking.SpaceEngineers
             }
         }
 
-        private void OnNetworkManagerDisconnected(
-            ApiDisconnectedEventArgs eventArgs)
+        private void OnNetworkManagerDisconnected(ApiDisconnectedEventArgs eventArgs)
         {
-            var providerInstanceId =
-                eventArgs.PreviousConnection.ProviderInstanceId;
+            Guid providerInstanceId = eventArgs.PreviousConnection.ProviderInstanceId;
 
-            if (
-                _connectedNetworkManagerProviderInstanceId
-                != providerInstanceId
-            )
-            {
+            if (_connectedNetworkManagerProviderInstanceId != providerInstanceId)
                 return;
-            }
 
             _connectedNetworkManagerProviderInstanceId = null;
 
-            if (
-                _activeNetworkManagerProviderInstanceId
-                == providerInstanceId
-            )
+            if (_activeNetworkManagerProviderInstanceId == providerInstanceId)
             {
                 _activeNetworkManagerProviderInstanceId = null;
                 _activeAssignmentGeneration = null;
@@ -772,39 +512,20 @@ namespace Mz.Networking.SpaceEngineers
             NetworkManagerError = null;
         }
 
-        private void ApplyManagedAssignment(
-            Guid providerInstanceId,
-            ushort channelId,
-            ulong generation,
-            Action<ushort, ulong> conflictReporter)
+        private void ApplyManagedAssignment(Guid providerInstanceId, ushort channelId, ulong generation, Action<ushort, ulong> conflictReporter)
         {
-            if (
-                !CanApplyManagedAssignment(
-                    providerInstanceId,
-                    generation
-                )
-            )
-            {
+            if (!CanApplyManagedAssignment(providerInstanceId, generation))
                 return;
-            }
 
             if (channelId != ChannelId)
             {
-                var schedulingGateway =
-                    _gateway
-                        as ISpaceEngineersNetworkSchedulingGateway;
+                var schedulingGateway = _gateway as ISpaceEngineersNetworkSchedulingGateway;
 
                 if (schedulingGateway != null)
                 {
                     schedulingGateway.InvokeOnGameThread(
-                        delegate
-                        {
-                            ApplyManagedAssignmentImmediately(
-                                providerInstanceId,
-                                channelId,
-                                generation,
-                                conflictReporter
-                            );
+                        delegate {
+                            ApplyManagedAssignmentImmediately(providerInstanceId, channelId, generation, conflictReporter);
                         }
                     );
 
@@ -812,79 +533,37 @@ namespace Mz.Networking.SpaceEngineers
                 }
             }
 
-            ApplyManagedAssignmentImmediately(
-                providerInstanceId,
-                channelId,
-                generation,
-                conflictReporter
-            );
+            ApplyManagedAssignmentImmediately(providerInstanceId, channelId, generation, conflictReporter);
         }
 
-        private void ApplyManagedAssignmentImmediately(
-            Guid providerInstanceId,
-            ushort channelId,
-            ulong generation,
-            Action<ushort, ulong> conflictReporter)
+        private void ApplyManagedAssignmentImmediately(Guid providerInstanceId, ushort channelId, ulong generation,
+                                                       Action<ushort, ulong> conflictReporter)
         {
-            if (
-                !CanApplyManagedAssignment(
-                    providerInstanceId,
-                    generation
-                )
-            )
-            {
+            if (!CanApplyManagedAssignment(providerInstanceId, generation))
                 return;
-            }
 
-            var previousChannel =
-                ChannelId;
+            ushort previousChannel = ChannelId;
 
             if (channelId != previousChannel)
                 ChangeChannel(channelId);
 
-            _activeAssignmentGeneration =
-                generation;
-
-            _activeNetworkManagerConflictReporter =
-                conflictReporter;
-
-            _activeAssignmentConflictReported =
-                false;
-
-            AssignmentGeneration =
-                generation;
-
-            PublishChannelAssignment(
-                new SpaceEngineersNetworkChannelAssignmentEventArgs(
-                    previousChannel,
-                    channelId,
-                    generation
-                )
-            );
+            _activeAssignmentGeneration = generation;
+            _activeNetworkManagerConflictReporter = conflictReporter;
+            _activeAssignmentConflictReported = false;
+            AssignmentGeneration = generation;
+            
+            PublishChannelAssignment(new SpaceEngineersNetworkChannelAssignmentEventArgs(previousChannel, channelId, generation));
         }
 
-        private bool CanApplyManagedAssignment(
-            Guid providerInstanceId,
-            ulong generation)
+        private bool CanApplyManagedAssignment(Guid providerInstanceId, ulong generation)
         {
-            if (
-                _disposed
-                || IsForcedChannel
-                || _activeNetworkManagerProviderInstanceId
-                    != providerInstanceId
-            )
-            {
+            if (_disposed || IsForcedChannel || _activeNetworkManagerProviderInstanceId != providerInstanceId)
                 return false;
-            }
 
-            return
-                !_activeAssignmentGeneration.HasValue
-                || generation
-                    > _activeAssignmentGeneration.Value;
+            return !_activeAssignmentGeneration.HasValue || generation > _activeAssignmentGeneration.Value;
         }
 
-        private void PublishChannelAssignment(
-            SpaceEngineersNetworkChannelAssignmentEventArgs eventArgs)
+        private void PublishChannelAssignment(SpaceEngineersNetworkChannelAssignmentEventArgs eventArgs)
         {
             var handlers = ChannelAssignmentApplied;
 
@@ -893,47 +572,38 @@ namespace Mz.Networking.SpaceEngineers
 
             var subscribers = handlers.GetInvocationList();
 
-            for (var index = 0; index < subscribers.Length; index++)
+            foreach (Delegate subscriber in subscribers)
             {
                 try
                 {
-                    ((Action<
-                        SpaceEngineersNetworkChannelAssignmentEventArgs
-                    >)subscribers[index])(eventArgs);
+                    ((Action<SpaceEngineersNetworkChannelAssignmentEventArgs>)subscriber)(eventArgs);
                 }
                 catch
                 {
+                    // ignored
                 }
             }
         }
 
         private void ChangeChannel(ushort channelId)
         {
-            var previousChannel = ChannelId;
+            ushort previousChannel = ChannelId;
 
-            _gateway.RegisterSecureMessageHandler(
-                channelId,
-                _secureMessageHandler
-            );
+            _gateway.RegisterSecureMessageHandler(channelId, _secureMessageHandler);
 
             try
             {
-                _gateway.UnregisterSecureMessageHandler(
-                    previousChannel,
-                    _secureMessageHandler
-                );
+                _gateway.UnregisterSecureMessageHandler(previousChannel, _secureMessageHandler);
             }
             catch
             {
                 try
                 {
-                    _gateway.UnregisterSecureMessageHandler(
-                        channelId,
-                        _secureMessageHandler
-                    );
+                    _gateway.UnregisterSecureMessageHandler(channelId, _secureMessageHandler);
                 }
                 catch
                 {
+                    // ignored
                 }
 
                 throw;
@@ -944,12 +614,10 @@ namespace Mz.Networking.SpaceEngineers
 
         private void ReleaseNetworkManagerRegistration()
         {
-            _activeNetworkManagerConflictReporter =
-                null;
-            _activeAssignmentConflictReported =
-                false;
+            _activeNetworkManagerConflictReporter = null;
+            _activeAssignmentConflictReported = false;
 
-            var unregister = _networkManagerUnregister;
+            Action unregister = _networkManagerUnregister;
             _networkManagerUnregister = null;
 
             if (unregister == null)
@@ -961,78 +629,48 @@ namespace Mz.Networking.SpaceEngineers
             }
             catch
             {
+                // ignored
             }
         }
 
-        private static IModMessageBus CreateDefaultMessageBus(
-            SpaceEngineersManagedNetworkConfiguration configuration)
+        private static IModMessageBus CreateDefaultMessageBus(SpaceEngineersManagedNetworkConfiguration configuration)
         {
             if (configuration == null)
-            {
-                throw new ArgumentNullException(
-                    nameof(configuration)
-                );
-            }
+                throw new ArgumentNullException(nameof(configuration));
 
-            return configuration.ForcedChannel.HasValue
-                ? null
-                : new SpaceEngineersModMessageBus();
+            return configuration.ForcedChannel.HasValue ? null : new SpaceEngineersModMessageBus();
         }
 
-        private static ushort GetManagedInitialChannel(
-            IModMessageBus messageBus,
-            SpaceEngineersManagedNetworkConfiguration configuration)
+        private static ushort GetManagedInitialChannel(IModMessageBus messageBus, SpaceEngineersManagedNetworkConfiguration configuration)
         {
             if (configuration == null)
-            {
-                throw new ArgumentNullException(
-                    nameof(configuration)
-                );
-            }
+                throw new ArgumentNullException(nameof(configuration));
 
-            if (
-                !configuration.ForcedChannel.HasValue
-                && messageBus == null
-            )
-            {
+            if (!configuration.ForcedChannel.HasValue && messageBus == null)
                 throw new ArgumentNullException(nameof(messageBus));
-            }
 
             return configuration.InitialChannel;
         }
 
-        private static string GetManagedNetworkId(
-            SpaceEngineersManagedNetworkConfiguration configuration)
+        private static string GetManagedNetworkId(SpaceEngineersManagedNetworkConfiguration configuration)
         {
             if (configuration == null)
-            {
-                throw new ArgumentNullException(
-                    nameof(configuration)
-                );
-            }
+                throw new ArgumentNullException(nameof(configuration));
 
             return configuration.NetworkId;
         }
-        private static SpaceEngineersNetworkReceiveFailureKind ToFailureKind(
-            SpaceEngineersNetworkWireStatus status)
+        private static SpaceEngineersNetworkReceiveFailureKind ToFailureKind(SpaceEngineersNetworkWireStatus status)
         {
-            switch (status)
-            {
-                case SpaceEngineersNetworkWireStatus.ForeignPacket:
-                    return SpaceEngineersNetworkReceiveFailureKind.ForeignPacket;
-
-                case SpaceEngineersNetworkWireStatus.NetworkMismatch:
-                    return SpaceEngineersNetworkReceiveFailureKind.NetworkMismatch;
-
-                case SpaceEngineersNetworkWireStatus.UnsupportedWireVersion:
-                    return SpaceEngineersNetworkReceiveFailureKind.UnsupportedWireVersion;
-
-                case SpaceEngineersNetworkWireStatus.MalformedWirePacket:
-                    return SpaceEngineersNetworkReceiveFailureKind.MalformedWirePacket;
-
-                default:
-                    throw new InvalidOperationException("A successful wire result cannot be converted to a receive failure.");
-            }
+            if (status == SpaceEngineersNetworkWireStatus.ForeignPacket)
+                return SpaceEngineersNetworkReceiveFailureKind.ForeignPacket;
+            if (status == SpaceEngineersNetworkWireStatus.NetworkMismatch)
+                return SpaceEngineersNetworkReceiveFailureKind.NetworkMismatch;
+            if (status == SpaceEngineersNetworkWireStatus.UnsupportedWireVersion)
+                return SpaceEngineersNetworkReceiveFailureKind.UnsupportedWireVersion;
+            if (status == SpaceEngineersNetworkWireStatus.MalformedWirePacket)
+                return SpaceEngineersNetworkReceiveFailureKind.MalformedWirePacket;
+            
+            throw new InvalidOperationException("A successful wire result cannot be converted to a receive failure.");
         }
     }
 }

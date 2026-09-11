@@ -21,12 +21,20 @@ namespace Mz.Networking
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 0;
+        public const int Patch = 1;
 
         /// <summary>
         /// Gets the version string.
         /// </summary>
         public static string VersionString => $"{Major}.{Minor}.{Patch}";
+
+        /// <summary>
+        /// Gets the exact package dependencies required by this release.
+        /// </summary>
+        public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.ApiProtocol", "0.3.0"),
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+        };
 
         /// <summary>
         /// Gets the complete changelog ordered from newest to oldest.
@@ -35,6 +43,15 @@ namespace Mz.Networking
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "0.2.1",
+                    new[]
+                    {
+                        "Improved internal variable declarations and formatting.",
+                        "Improved receive classification for packets belonging to another network.",
+                        "Declared exact dependencies on Mz.ApiProtocol 0.3.0 and Mz.SemanticVersioning 0.2.0."
+                    }
+                ),
                 new ChangelogEntry(
                     "0.2.0",
                     new[]

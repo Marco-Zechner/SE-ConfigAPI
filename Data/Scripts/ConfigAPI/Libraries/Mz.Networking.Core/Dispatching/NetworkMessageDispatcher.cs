@@ -24,7 +24,7 @@ namespace Mz.Networking
         /// </summary>
         public NetworkMessageSubscription RegisterHandler(string messageType, Action<NetworkReceiveContext> handler)
         {
-            var normalizedMessageType = NormalizeMessageType(messageType);
+            string normalizedMessageType = NormalizeMessageType(messageType);
 
             if (handler == null)
                 throw new ArgumentNullException(nameof(handler));
@@ -40,12 +40,15 @@ namespace Mz.Networking
         /// <summary>
         /// Attempts to dispatch a received envelope to its registered handler.
         /// </summary>
-        public bool TryDispatch(NetworkEnvelope envelope, ulong transportSenderId, bool isServer, bool transportSenderIsServer, out NetworkReceiveContext context)
+        public bool TryDispatch(NetworkEnvelope envelope, ulong transportSenderId, bool isServer, bool transportSenderIsServer, 
+                                out NetworkReceiveContext context)
             => TryDispatch(envelope, transportSenderId, isServer, transportSenderIsServer, null, out context);
 
-        internal bool TryDispatch(
-            NetworkEnvelope envelope, ulong transportSenderId, bool isServer, bool transportSenderIsServer,
-            Action<Exception> handlerFailureObserver, out NetworkReceiveContext context)
+        /// <summary>
+        /// Attempts to dispatch a received envelope to its registered handler.
+        /// </summary>
+        internal bool TryDispatch(NetworkEnvelope envelope, ulong transportSenderId, bool isServer, bool transportSenderIsServer,
+                                  Action<Exception> handlerFailureObserver, out NetworkReceiveContext context)
         {
             if (envelope == null)
                 throw new ArgumentNullException(nameof(envelope));
@@ -58,14 +61,7 @@ namespace Mz.Networking
                 return false;
             }
 
-            context = NetworkMessageProcessor.Process(
-                envelope,
-                transportSenderId,
-                isServer,
-                transportSenderIsServer,
-                handler,
-                handlerFailureObserver
-            );
+            context = NetworkMessageProcessor.Process(envelope, transportSenderId, isServer, transportSenderIsServer, handler, handlerFailureObserver);
 
             return true;
         }

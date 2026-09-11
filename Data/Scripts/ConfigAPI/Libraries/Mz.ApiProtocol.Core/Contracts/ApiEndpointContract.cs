@@ -27,6 +27,21 @@ namespace Mz.ApiProtocol
         /// <exception cref="ArgumentException">
         /// Thrown when a requirement is null or endpoint names are duplicated.
         /// </exception>
+        public ApiEndpointContract(params ApiEndpointRequirement[] requirements) : this((IEnumerable<ApiEndpointRequirement>)requirements) { }
+        
+        /// <summary>
+        /// Creates an endpoint contract.
+        /// </summary>
+        /// <param name="requirements">
+        /// The endpoint requirements. An empty collection represents an API
+        /// with no required endpoints.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="requirements"/> is null.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// Thrown when a requirement is null or endpoint names are duplicated.
+        /// </exception>
         public ApiEndpointContract(IEnumerable<ApiEndpointRequirement> requirements)
         {
             if (requirements == null)

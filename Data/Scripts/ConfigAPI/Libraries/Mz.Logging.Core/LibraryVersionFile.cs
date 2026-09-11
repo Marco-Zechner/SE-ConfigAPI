@@ -21,12 +21,19 @@ namespace Mz.Logging
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 1;
+        public const int Patch = 2;
 
         /// <summary>
         /// Gets the version string.
         /// </summary>
         public static string VersionString => $"{Major}.{Minor}.{Patch}";
+
+        /// <summary>
+        /// Gets the exact package dependencies required by this release.
+        /// </summary>
+        public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+        };
 
         /// <summary>
         /// Gets the complete changelog ordered from newest to oldest.
@@ -35,6 +42,13 @@ namespace Mz.Logging
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "0.1.2",
+                    new[]
+                    {
+                        "Declared the exact Mz.SemanticVersioning 0.2.0 SELibs dependency."
+                    }
+                ),
                 new ChangelogEntry(
                     "0.1.1",
                     new[]

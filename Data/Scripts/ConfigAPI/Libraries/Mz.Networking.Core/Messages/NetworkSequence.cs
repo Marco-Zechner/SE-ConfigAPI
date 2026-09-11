@@ -13,7 +13,7 @@ namespace Mz.Networking
         /// </summary>
         public static bool IsNewer(ushort candidate, ushort current)
         {
-            ushort delta = unchecked((ushort)(candidate - current));
+            var delta = unchecked((ushort)(candidate - current));
 
             return delta != 0 && delta < HalfRange;
         }

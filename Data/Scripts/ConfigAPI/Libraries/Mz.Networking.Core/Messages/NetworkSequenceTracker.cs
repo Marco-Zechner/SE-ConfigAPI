@@ -8,13 +8,12 @@ namespace Mz.Networking
     /// </summary>
     public sealed class NetworkSequenceTracker
     {
-        private bool _hasSequence;
         private ushort _latestSequence;
 
         /// <summary>
         /// Gets whether a sequence has been accepted.
         /// </summary>
-        public bool HasSequence => _hasSequence;
+        public bool HasSequence { get; private set; }
 
         /// <summary>
         /// Gets the latest accepted sequence.
@@ -23,7 +22,7 @@ namespace Mz.Networking
         {
             get
             {
-                if (!_hasSequence)
+                if (!HasSequence)
                     throw new InvalidOperationException("No network sequence has been accepted.");
 
                 return _latestSequence;
@@ -36,11 +35,11 @@ namespace Mz.Networking
         /// </summary>
         public bool TryAccept(ushort sequence)
         {
-            if (_hasSequence && !NetworkSequence.IsNewer(sequence, _latestSequence))
+            if (HasSequence && !NetworkSequence.IsNewer(sequence, _latestSequence))
                 return false;
 
             _latestSequence = sequence;
-            _hasSequence = true;
+            HasSequence = true;
             return true;
         }
 
@@ -49,7 +48,7 @@ namespace Mz.Networking
         /// </summary>
         public void Reset()
         {
-            _hasSequence = false;
+            HasSequence = false;
             _latestSequence = 0;
         }
     }
