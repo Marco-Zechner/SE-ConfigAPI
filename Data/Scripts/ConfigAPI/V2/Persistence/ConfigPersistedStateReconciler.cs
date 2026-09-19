@@ -10,10 +10,8 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         public IReadOnlyList<ConfigDefaultChange> Changes { get; }
         public bool RequiresBackup { get; }
 
-        internal ConfigPersistedStateReconciliationResult(
-            ConfigPersistedState state,
-            IReadOnlyList<ConfigDefaultChange> changes,
-            bool requiresBackup)
+        internal ConfigPersistedStateReconciliationResult(ConfigPersistedState state, IReadOnlyList<ConfigDefaultChange> changes,
+                                                          bool requiresBackup)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
@@ -29,9 +27,7 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
 
     public static class ConfigPersistedStateReconciler
     {
-        public static ConfigPersistedStateReconciliationResult Reconcile(
-            ConfigPersistedState state,
-            ConfigDocument currentDefaults)
+        public static ConfigPersistedStateReconciliationResult Reconcile(ConfigPersistedState state, ConfigDocument currentDefaults)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
@@ -39,21 +35,13 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             if (currentDefaults == null)
                 throw new ArgumentNullException(nameof(currentDefaults));
 
-            var reconciliation = ConfigDefaultReconciler.Reconcile(
-                state.BaselineDefaults,
-                state.PlayerValues,
-                currentDefaults);
+            var reconciliationResult = ConfigDefaultReconciler.Reconcile(state.BaselineDefaults, state.PlayerValues, currentDefaults);
 
-            var reconciledState = new ConfigPersistedState(
-                state.Identity,
-                reconciliation.PlayerValues,
-                reconciliation.BaselineDefaults,
-                state.CurrentFile);
+            var reconciledState = new ConfigPersistedState(state.Identity, reconciliationResult.PlayerValues,
+                                                           reconciliationResult.BaselineDefaults, state.CurrentFile);
 
-            return new ConfigPersistedStateReconciliationResult(
-                reconciledState,
-                reconciliation.Changes,
-                reconciliation.RequiresBackup);
+            return new ConfigPersistedStateReconciliationResult(reconciledState, reconciliationResult.Changes, 
+                                                                reconciliationResult.RequiresBackup);
         }
     }
 }

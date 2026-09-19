@@ -294,7 +294,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             object value;
 
             if (!values.TryGetValue(key, out value)) 
-                throw new ArgumentException($"Config wire node is missing required field '{key}'.", nameof(values)                );
+                throw new ArgumentException($"Config wire node is missing required field '{key}'.", nameof(values));
 
             var text = value as string;
 

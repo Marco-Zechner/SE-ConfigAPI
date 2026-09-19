@@ -9,11 +9,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         public string File { get; }
         public bool Overwrite { get; }
 
-        internal WorldConfigExport(
-            WorldConfigSnapshot authoritative,
-            ConfigDocument document,
-            string file,
-            bool overwrite)
+        internal WorldConfigExport(WorldConfigSnapshot authoritative, ConfigDocument document, string file, bool overwrite)
         {
             if (authoritative == null)
                 throw new ArgumentNullException(nameof(authoritative));

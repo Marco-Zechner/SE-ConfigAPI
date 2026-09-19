@@ -9,11 +9,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         public ulong ServerIteration { get; }
         public string CurrentFile { get; }
 
-        public WorldConfigSnapshot(
-            ConfigIdentity identity,
-            ConfigDocument document,
-            ulong serverIteration,
-            string currentFile)
+        public WorldConfigSnapshot(ConfigIdentity identity, ConfigDocument document, ulong serverIteration, string currentFile)
         {
             if (identity == null)
                 throw new ArgumentNullException(nameof(identity));

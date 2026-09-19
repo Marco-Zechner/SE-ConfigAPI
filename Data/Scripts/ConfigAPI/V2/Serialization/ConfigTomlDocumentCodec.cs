@@ -26,10 +26,8 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
         private static TomlNode ToTomlNode(ConfigNode node)
         {
             if (node is ConfigNullNode)
-            {
                 throw new NotSupportedException(
                     "TOML 1.0 has no null value. ConfigAPI null persistence requires the syntax-layer disabled-assignment policy.");
-            }
 
             var scalar = node as ConfigScalarNode;
             if (scalar != null)
@@ -43,8 +41,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             if (array != null)
                 return ToTomlArray(array);
 
-            throw new NotSupportedException(
-                "Unsupported ConfigAPI semantic node type: " + node.GetType().FullName);
+            throw new NotSupportedException("Unsupported ConfigAPI semantic node type: " + node.GetType().FullName);
         }
 
         private static TomlValue ToTomlValue(ConfigScalarNode scalar)
@@ -68,8 +65,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 case ConfigScalarKind.LocalTime:
                     return TomlValue.FromLocalTime(ToTomlLocalTime((ConfigLocalTime)scalar.Value));
                 default:
-                    throw new NotSupportedException(
-                        "Unsupported ConfigAPI scalar kind: " + scalar.Kind);
+                    throw new NotSupportedException("Unsupported ConfigAPI scalar kind: " + scalar.Kind);
             }
         }
 
@@ -77,11 +73,8 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
         {
             var table = new TomlTable();
 
-            for (var i = 0; i < obj.Entries.Count; i++)
-            {
-                var entry = obj.Entries[i];
+            foreach (ConfigObjectEntry entry in obj.Entries)
                 table.Set(entry.Name, ToTomlNode(entry.Value));
-            }
 
             return table;
         }
@@ -90,8 +83,8 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
         {
             var result = new TomlArray();
 
-            for (var i = 0; i < array.Items.Count; i++)
-                result.Add(ToTomlNode(array.Items[i]));
+            foreach (ConfigNode item in array.Items)
+                result.Add(ToTomlNode(item));
 
             return result;
         }
@@ -107,8 +100,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 case TomlNodeKind.Array:
                     return ToConfigArray((TomlArray)node);
                 default:
-                    throw new NotSupportedException(
-                        "Unsupported TOML node kind: " + node.Kind);
+                    throw new NotSupportedException("Unsupported TOML node kind: " + node.Kind);
             }
         }
 
@@ -133,8 +125,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 case TomlValueKind.LocalTime:
                     return ConfigScalarNode.LocalTime(ToConfigLocalTime(value.AsLocalTime()));
                 default:
-                    throw new NotSupportedException(
-                        "Unsupported TOML scalar kind: " + value.ValueKind);
+                    throw new NotSupportedException("Unsupported TOML scalar kind: " + value.ValueKind);
             }
         }
 
@@ -145,10 +136,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             foreach (var pair in table)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key))
-                {
-                    throw new NotSupportedException(
-                        "TOML key cannot be represented as a ConfigAPI value-path segment.");
-                }
+                    throw new NotSupportedException("TOML key cannot be represented as a ConfigAPI value-path segment.");
 
                 entries.Add(new ConfigObjectEntry(pair.Key, ToConfigNode(pair.Value)));
             }
@@ -166,64 +154,30 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             return new ConfigArrayNode(items);
         }
 
-        private static TomlOffsetDateTime ToTomlOffsetDateTime(ConfigOffsetDateTime value)
-        {
-            return new TomlOffsetDateTime(
-                ToTomlLocalDate(value.Date),
-                ToTomlLocalTime(value.Time),
-                value.OffsetMinutes,
-                value.IsUnknownLocalOffset);
-        }
+        private static TomlOffsetDateTime ToTomlOffsetDateTime(ConfigOffsetDateTime value) 
+            => new TomlOffsetDateTime(ToTomlLocalDate(value.Date), ToTomlLocalTime(value.Time),
+                                      value.OffsetMinutes, value.IsUnknownLocalOffset);
 
-        private static TomlLocalDateTime ToTomlLocalDateTime(ConfigLocalDateTime value)
-        {
-            return new TomlLocalDateTime(
-                ToTomlLocalDate(value.Date),
-                ToTomlLocalTime(value.Time));
-        }
+        private static TomlLocalDateTime ToTomlLocalDateTime(ConfigLocalDateTime value) 
+            => new TomlLocalDateTime(ToTomlLocalDate(value.Date), ToTomlLocalTime(value.Time));
 
-        private static TomlLocalDate ToTomlLocalDate(ConfigLocalDate value)
-        {
-            return new TomlLocalDate(value.Year, value.Month, value.Day);
-        }
+        private static TomlLocalDate ToTomlLocalDate(ConfigLocalDate value) 
+            => new TomlLocalDate(value.Year, value.Month, value.Day);
 
-        private static TomlLocalTime ToTomlLocalTime(ConfigLocalTime value)
-        {
-            return new TomlLocalTime(
-                value.Hour,
-                value.Minute,
-                value.Second,
-                value.FractionalSeconds);
-        }
+        private static TomlLocalTime ToTomlLocalTime(ConfigLocalTime value) 
+            => new TomlLocalTime(value.Hour, value.Minute, value.Second, value.FractionalSeconds);
 
-        private static ConfigOffsetDateTime ToConfigOffsetDateTime(TomlOffsetDateTime value)
-        {
-            return new ConfigOffsetDateTime(
-                ToConfigLocalDate(value.Date),
-                ToConfigLocalTime(value.Time),
-                value.OffsetMinutes,
-                value.IsUnknownLocalOffset);
-        }
+        private static ConfigOffsetDateTime ToConfigOffsetDateTime(TomlOffsetDateTime value) 
+            => new ConfigOffsetDateTime(ToConfigLocalDate(value.Date), ToConfigLocalTime(value.Time),
+                                        value.OffsetMinutes, value.IsUnknownLocalOffset);
 
-        private static ConfigLocalDateTime ToConfigLocalDateTime(TomlLocalDateTime value)
-        {
-            return new ConfigLocalDateTime(
-                ToConfigLocalDate(value.Date),
-                ToConfigLocalTime(value.Time));
-        }
+        private static ConfigLocalDateTime ToConfigLocalDateTime(TomlLocalDateTime value) 
+            => new ConfigLocalDateTime(ToConfigLocalDate(value.Date), ToConfigLocalTime(value.Time));
 
-        private static ConfigLocalDate ToConfigLocalDate(TomlLocalDate value)
-        {
-            return new ConfigLocalDate(value.Year, value.Month, value.Day);
-        }
+        private static ConfigLocalDate ToConfigLocalDate(TomlLocalDate value) 
+            => new ConfigLocalDate(value.Year, value.Month, value.Day);
 
-        private static ConfigLocalTime ToConfigLocalTime(TomlLocalTime value)
-        {
-            return new ConfigLocalTime(
-                value.Hour,
-                value.Minute,
-                value.Second,
-                value.FractionalSeconds);
-        }
+        private static ConfigLocalTime ToConfigLocalTime(TomlLocalTime value) 
+            => new ConfigLocalTime(value.Hour, value.Minute, value.Second, value.FractionalSeconds);
     }
 }

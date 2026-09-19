@@ -2,8 +2,7 @@ using System;
 
 namespace Mz.ConfigApi
 {
-    public sealed class ConfigDefinition<T>
-        where T : class
+    public sealed class ConfigDefinition<T> where T : class
     {
         private readonly Func<T> _createDefaults;
         private readonly Func<T, ConfigDocument> _serialize;

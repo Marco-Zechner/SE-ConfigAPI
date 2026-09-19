@@ -6,9 +6,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
     public sealed class ConfigArrayNode : ConfigNode
     {
         private readonly ConfigNode[] _items;
-        private readonly IReadOnlyList<ConfigNode> _readOnlyItems;
 
-        public IReadOnlyList<ConfigNode> Items => _readOnlyItems;
+        public IReadOnlyList<ConfigNode> Items { get; }
 
         public ConfigArrayNode(params ConfigNode[] items)
         {
@@ -20,12 +19,13 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             for (var i = 0; i < items.Length; i++)
             {
                 if (items[i] == null)
-                    throw new ArgumentException("Array items must not contain null. Use ConfigNullNode.Instance for semantic null.", nameof(items));
+                    throw new ArgumentException("Array items must not contain null. Use ConfigNullNode.Instance for semantic null.", 
+                                                nameof(items));
 
                 _items[i] = items[i];
             }
 
-            _readOnlyItems = Array.AsReadOnly(_items);
+            Items = Array.AsReadOnly(_items);
         }
 
         protected override bool EqualsNode(ConfigNode other)
@@ -49,8 +49,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             {
                 var hash = 17;
 
-                for (var i = 0; i < _items.Length; i++)
-                    hash = (hash * 31) ^ _items[i].GetHashCode();
+                foreach (ConfigNode item in _items)
+                    hash = (hash * 31) ^ item.GetHashCode();
 
                 return hash;
             }

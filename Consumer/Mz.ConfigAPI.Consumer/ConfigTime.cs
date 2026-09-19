@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 
 namespace Mz.ConfigApi
 {
@@ -14,11 +15,8 @@ namespace Mz.ConfigApi
             if (fractionalSeconds == null)
                 throw new ArgumentNullException(nameof(fractionalSeconds));
 
-            foreach (char c in fractionalSeconds)
-            {
-                if (c < '0' || c > '9')
-                    throw new ArgumentException("Fractional seconds must contain only digits.", nameof(fractionalSeconds));
-            }
+            if (fractionalSeconds.Any(c => c < '0' || c > '9'))
+                throw new ArgumentException("Fractional seconds must contain only digits.", nameof(fractionalSeconds));
 
             Hour = hour;
             Minute = minute;

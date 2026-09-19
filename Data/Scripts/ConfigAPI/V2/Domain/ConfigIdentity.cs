@@ -31,16 +31,13 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                 && string.Equals(ConfigKey, other.ConfigKey, StringComparison.Ordinal);
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigIdentity);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigIdentity);
 
         public override int GetHashCode()
         {
             unchecked
             {
-                var hash = StringComparer.Ordinal.GetHashCode(OwnerId);
+                int hash = StringComparer.Ordinal.GetHashCode(OwnerId);
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(ConfigKey);
                 return hash;
             }

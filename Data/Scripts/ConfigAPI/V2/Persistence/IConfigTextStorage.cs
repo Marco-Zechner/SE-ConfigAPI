@@ -6,9 +6,6 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
     {
         string Read(ConfigLocation location, string file);
 
-        void Write(
-            ConfigLocation location,
-            string file,
-            string content);
+        void Write(ConfigLocation location, string file, string content);
     }
 }

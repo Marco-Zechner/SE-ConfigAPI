@@ -8,9 +8,7 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         private readonly Func<int, string, string> _read;
         private readonly Action<int, string, string> _write;
 
-        public ConfigCallbackTextStorage(
-            Func<int, string, string> read,
-            Action<int, string, string> write)
+        public ConfigCallbackTextStorage(Func<int, string, string> read, Action<int, string, string> write)
         {
             if (read == null)
                 throw new ArgumentNullException(nameof(read));
@@ -22,24 +20,8 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             _write = write;
         }
 
-        public string Read(
-            ConfigLocation location,
-            string file)
-        {
-            return _read(
-                (int)location,
-                file);
-        }
+        public string Read(ConfigLocation location, string file) => _read((int)location, file);
 
-        public void Write(
-            ConfigLocation location,
-            string file,
-            string content)
-        {
-            _write(
-                (int)location,
-                file,
-                content);
-        }
+        public void Write(ConfigLocation location, string file, string content) => _write((int)location, file, content);
     }
 }

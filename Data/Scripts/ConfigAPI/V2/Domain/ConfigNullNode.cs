@@ -4,18 +4,10 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
     {
         public static readonly ConfigNullNode Instance = new ConfigNullNode();
 
-        private ConfigNullNode()
-        {
-        }
+        private ConfigNullNode() { }
 
-        protected override bool EqualsNode(ConfigNode other)
-        {
-            return other is ConfigNullNode;
-        }
+        protected override bool EqualsNode(ConfigNode other) => other is ConfigNullNode;
 
-        public override int GetHashCode()
-        {
-            return 0;
-        }
+        public override int GetHashCode() => 0;
     }
 }

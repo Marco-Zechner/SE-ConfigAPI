@@ -27,17 +27,12 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
     internal sealed class ConfigTomlSyntaxTable
     {
-        private readonly string[] _path;
-        private readonly IReadOnlyList<string> _readOnlyPath;
+        public IReadOnlyList<string> Path { get; }
 
-        public IReadOnlyList<string> Path => _readOnlyPath;
         public TomlSyntaxNode Node { get; }
         public bool IsAddressable { get; }
 
-        public ConfigTomlSyntaxTable(
-            string[] path,
-            TomlSyntaxNode node,
-            bool isAddressable)
+        public ConfigTomlSyntaxTable(string[] path, TomlSyntaxNode node, bool isAddressable)
         {
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
@@ -45,9 +40,9 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             if (node == null)
                 throw new ArgumentNullException(nameof(node));
 
-            _path = new string[path.Length];
-            Array.Copy(path, _path, path.Length);
-            _readOnlyPath = Array.AsReadOnly(_path);
+            var pathCopy = new string[path.Length];
+            Array.Copy(path, pathCopy, path.Length);
+            Path = Array.AsReadOnly(pathCopy);
 
             Node = node;
             IsAddressable = isAddressable;
@@ -59,39 +54,33 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
         private const string ProbeKey = "__configapi_path_probe__";
         private const long ProbeValue = 584321;
 
-        private readonly ConfigTomlSyntaxAssignment[] _assignments;
-        private readonly IReadOnlyList<ConfigTomlSyntaxAssignment> _readOnlyAssignments;
-        private readonly TomlSyntaxNode[] _unaddressableAssignments;
-        private readonly IReadOnlyList<TomlSyntaxNode> _readOnlyUnaddressableAssignments;
-        private readonly ConfigTomlSyntaxTable[] _tables;
-        private readonly IReadOnlyList<ConfigTomlSyntaxTable> _readOnlyTables;
+        public IReadOnlyList<ConfigTomlSyntaxAssignment> Assignments { get; }
 
-        public IReadOnlyList<ConfigTomlSyntaxAssignment> Assignments => _readOnlyAssignments;
-        public IReadOnlyList<TomlSyntaxNode> UnaddressableAssignments => _readOnlyUnaddressableAssignments;
-        internal IReadOnlyList<ConfigTomlSyntaxTable> Tables => _readOnlyTables;
+        public IReadOnlyList<TomlSyntaxNode> UnaddressableAssignments { get; }
 
-        private ConfigTomlSyntaxIndex(
-            IList<ConfigTomlSyntaxAssignment> assignments,
-            IList<TomlSyntaxNode> unaddressableAssignments,
-            IList<ConfigTomlSyntaxTable> tables)
+        internal IReadOnlyList<ConfigTomlSyntaxTable> Tables { get; }
+
+        private ConfigTomlSyntaxIndex(IList<ConfigTomlSyntaxAssignment> assignments,
+                                      IList<TomlSyntaxNode> unaddressableAssignments,
+                                      IList<ConfigTomlSyntaxTable> tables)
         {
-            _assignments = new ConfigTomlSyntaxAssignment[assignments.Count];
+            var assignmentsCopy = new ConfigTomlSyntaxAssignment[assignments.Count];
             for (var i = 0; i < assignments.Count; i++)
-                _assignments[i] = assignments[i];
+                assignmentsCopy[i] = assignments[i];
 
-            _readOnlyAssignments = Array.AsReadOnly(_assignments);
+            Assignments = Array.AsReadOnly(assignmentsCopy);
 
-            _unaddressableAssignments = new TomlSyntaxNode[unaddressableAssignments.Count];
+            var unaddressableAssignmentsCopy = new TomlSyntaxNode[unaddressableAssignments.Count];
             for (var i = 0; i < unaddressableAssignments.Count; i++)
-                _unaddressableAssignments[i] = unaddressableAssignments[i];
+                unaddressableAssignmentsCopy[i] = unaddressableAssignments[i];
 
-            _readOnlyUnaddressableAssignments = Array.AsReadOnly(_unaddressableAssignments);
+            UnaddressableAssignments = Array.AsReadOnly(unaddressableAssignmentsCopy);
 
-            _tables = new ConfigTomlSyntaxTable[tables.Count];
+            var tablesCopy = new ConfigTomlSyntaxTable[tables.Count];
             for (var i = 0; i < tables.Count; i++)
-                _tables[i] = tables[i];
+                tablesCopy[i] = tables[i];
 
-            _readOnlyTables = Array.AsReadOnly(_tables);
+            Tables = Array.AsReadOnly(tablesCopy);
         }
 
         public static ConfigTomlSyntaxIndex Create(TomlParseResult parseResult)
@@ -100,36 +89,26 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 throw new ArgumentNullException(nameof(parseResult));
 
             if (!parseResult.IsSuccess || parseResult.Syntax == null)
-            {
-                throw new ArgumentException(
-                    "A successful TOML parse with source syntax is required.",
-                    nameof(parseResult));
-            }
+                throw new ArgumentException("A successful TOML parse with source syntax is required.", nameof(parseResult));
 
             var assignments = new List<ConfigTomlSyntaxAssignment>();
             var unaddressableAssignments = new List<TomlSyntaxNode>();
             var tables = new List<ConfigTomlSyntaxTable>();
             var arrayTablePaths = new List<string[]>();
 
-            var currentTablePath = new string[0];
+            string[] currentTablePath = Array.Empty<string>();
             var currentTableTraversesArray = false;
-            var syntax = parseResult.Syntax;
+            TomlSyntaxDocument syntax = parseResult.Syntax;
 
-            for (var i = 0; i < syntax.Nodes.Count; i++)
+            foreach (TomlSyntaxNode node in syntax.Nodes)
             {
-                var node = syntax.Nodes[i];
-
                 switch (node.Kind)
                 {
                     case TomlSyntaxNodeKind.TableHeader:
                         currentTablePath = ReadHeaderPath(syntax, node);
                         currentTableTraversesArray = TraversesArrayTable(currentTablePath, arrayTablePaths);
 
-                        tables.Add(
-                            new ConfigTomlSyntaxTable(
-                                currentTablePath,
-                                node,
-                                !currentTableTraversesArray));
+                        tables.Add(new ConfigTomlSyntaxTable(currentTablePath, node, !currentTableTraversesArray));
 
                         break;
 
@@ -138,11 +117,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                         arrayTablePaths.Add(Copy(currentTablePath));
                         currentTableTraversesArray = true;
 
-                        tables.Add(
-                            new ConfigTomlSyntaxTable(
-                                currentTablePath,
-                                node,
-                                false));
+                        tables.Add(new ConfigTomlSyntaxTable(currentTablePath, node, false));
 
                         break;
 
@@ -154,21 +129,15 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                             break;
                         }
 
-                        var localPath = ReadAssignmentPath(syntax, node);
-                        var completePath = Combine(currentTablePath, localPath);
+                        string[] localPath = ReadAssignmentPath(syntax, node);
+                        string[] completePath = Combine(currentTablePath, localPath);
 
-                        assignments.Add(
-                            new ConfigTomlSyntaxAssignment(
-                                CreateConfigValuePath(completePath),
-                                node));
+                        assignments.Add(new ConfigTomlSyntaxAssignment(CreateConfigValuePath(completePath), node));
                         break;
                 }
             }
 
-            return new ConfigTomlSyntaxIndex(
-                assignments,
-                unaddressableAssignments,
-                tables);
+            return new ConfigTomlSyntaxIndex(assignments, unaddressableAssignments, tables);
         }
 
         private static ConfigValuePath CreateConfigValuePath(string[] segments)
@@ -179,9 +148,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             }
             catch (ArgumentException exception)
             {
-                throw new NotSupportedException(
-                    "The TOML assignment path contains a segment that ConfigValuePath cannot represent.",
-                    exception);
+                throw new NotSupportedException("The TOML assignment path contains a segment that ConfigValuePath cannot represent.", exception);
             }
         }
 
@@ -190,21 +157,19 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             if (!node.ValueSpan.HasValue)
                 throw new InvalidOperationException("Assignment syntax node has no value span.");
 
-            var statement = syntax.Source.Substring(node.Span.Start, node.Span.Length);
-            var valueSpan = node.ValueSpan.Value;
-            var relativeValueStart = valueSpan.Start - node.Span.Start;
+            string statement = syntax.Source.Substring(node.Span.Start, node.Span.Length);
+            TomlSourceSpan valueSpan = node.ValueSpan.Value;
+            int relativeValueStart = valueSpan.Start - node.Span.Start;
 
-            statement = statement
-                .Remove(relativeValueStart, valueSpan.Length)
-                .Insert(relativeValueStart, "0");
+            statement = statement.Remove(relativeValueStart, valueSpan.Length).Insert(relativeValueStart, "0");
 
-            if (node.Kind == TomlSyntaxNodeKind.DisabledAssignment)
-            {
-                if (!statement.StartsWith("#!", StringComparison.Ordinal))
-                    throw new InvalidOperationException("Disabled assignment is missing the expected '#!' marker.");
+            if (node.Kind != TomlSyntaxNodeKind.DisabledAssignment)
+                return ReadSingleAssignmentPath(Toml.Parse(statement).Root);
+            
+            if (!statement.StartsWith("#!", StringComparison.Ordinal))
+                throw new InvalidOperationException("Disabled assignment is missing the expected '#!' marker.");
 
-                statement = statement.Remove(0, 2);
-            }
+            statement = statement.Remove(0, 2);
 
             return ReadSingleAssignmentPath(Toml.Parse(statement).Root);
         }
@@ -212,15 +177,15 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
         private static string[] ReadSingleAssignmentPath(TomlTable root)
         {
             var path = new List<string>();
-            var table = root;
+            TomlTable table = root;
 
             while (true)
             {
                 if (table.Count != 1)
                     throw new InvalidOperationException("Synthetic TOML assignment did not produce exactly one path.");
 
-                var key = table.Keys[0];
-                var node = table[key];
+                string key = table.Keys[0];
+                TomlNode node = table[key];
 
                 path.Add(key);
 
@@ -236,9 +201,9 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
         private static string[] ReadHeaderPath(TomlSyntaxDocument syntax, TomlSyntaxNode node)
         {
-            var statement = syntax.Source.Substring(node.Span.Start, node.Span.Length);
-            var synthetic = statement + "\n" + ProbeKey + " = " + ProbeValue + "\n";
-            var parsed = Toml.Parse(synthetic);
+            string statement = syntax.Source.Substring(node.Span.Start, node.Span.Length);
+            string synthetic = statement + "\n" + ProbeKey + " = " + ProbeValue + "\n";
+            TomlDocument parsed = Toml.Parse(synthetic);
 
             string[] path;
             if (!TryFindProbePath(parsed.Root, new List<string>(), out path))
@@ -253,10 +218,8 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             {
                 var value = pair.Value as TomlValue;
 
-                if (string.Equals(pair.Key, ProbeKey, StringComparison.Ordinal) &&
-                    value != null &&
-                    value.ValueKind == TomlValueKind.Integer &&
-                    value.AsInteger() == ProbeValue)
+                if (string.Equals(pair.Key, ProbeKey, StringComparison.Ordinal) && value != null && 
+                    value.ValueKind == TomlValueKind.Integer && value.AsInteger() == ProbeValue)
                 {
                     result = path.ToArray();
                     return true;
@@ -279,9 +242,9 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 path.Add(pair.Key);
 
                 var array = (TomlArray)pair.Value;
-                for (var i = 0; i < array.Count; i++)
+                foreach (TomlNode item in array)
                 {
-                    var element = array[i] as TomlTable;
+                    var element = item as TomlTable;
                     if (element != null && TryFindProbePath(element, path, out result))
                         return true;
                 }
@@ -295,11 +258,9 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
         private static bool TraversesArrayTable(string[] path, IList<string[]> arrayTablePaths)
         {
-            for (var i = 0; i < arrayTablePaths.Count; i++)
-            {
-                if (IsPrefix(arrayTablePaths[i], path))
+            foreach (string[] tablePath in arrayTablePaths)
+                if (IsPrefix(tablePath, path))
                     return true;
-            }
 
             return false;
         }
@@ -310,10 +271,8 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 return false;
 
             for (var i = 0; i < prefix.Length; i++)
-            {
                 if (!string.Equals(prefix[i], value[i], StringComparison.Ordinal))
                     return false;
-            }
 
             return true;
         }

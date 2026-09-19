@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace MarcoZechner.ConfigAPI.V2.Domain
 {
@@ -9,10 +10,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         public int Second { get; }
         public string FractionalSeconds { get; }
 
-        public ConfigLocalTime(int hour, int minute, int second)
-            : this(hour, minute, second, string.Empty)
-        {
-        }
+        public ConfigLocalTime(int hour, int minute, int second) : this(hour, minute, second, string.Empty) { }
 
         public ConfigLocalTime(int hour, int minute, int second, string fractionalSeconds)
         {
@@ -22,12 +20,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (fractionalSeconds == null)
                 throw new ArgumentNullException(nameof(fractionalSeconds));
 
-            for (var i = 0; i < fractionalSeconds.Length; i++)
-            {
-                var c = fractionalSeconds[i];
-                if (c < '0' || c > '9')
-                    throw new ArgumentException("Fractional seconds must contain only decimal digits.", nameof(fractionalSeconds));
-            }
+            if (fractionalSeconds.Any(c => c < '0' || c > '9'))
+                throw new ArgumentException("Fractional seconds must contain only decimal digits.", nameof(fractionalSeconds));
 
             Hour = hour;
             Minute = minute;
@@ -49,16 +43,13 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                    string.Equals(FractionalSeconds, other.FractionalSeconds, StringComparison.Ordinal);
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigLocalTime);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigLocalTime);
 
         public override int GetHashCode()
         {
             unchecked
             {
-                var hash = Hour;
+                int hash = Hour;
                 hash = (hash * 397) ^ Minute;
                 hash = (hash * 397) ^ Second;
                 hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(FractionalSeconds);

@@ -38,17 +38,11 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             var persistence = new ConfigApiPersistenceService(registry, clock);
 
             Func<string, Guid, Func<int, string, string>, Action<int, string, string>,
-                Action> registerConsumer = delegate(string consumerId, Guid registrationId, 
-                                                    Func<int, string, string> read, 
-                                                    Action<int, string, string> write
-                )
+                Action> registerConsumer = (consumerId, registrationId, read, write) =>
             {
                 registry.Register(consumerId, registrationId, read, write);
 
-                return delegate
-                {
-                    registry.Unregister(consumerId, registrationId);
-                };
+                return () => registry.Unregister(consumerId, registrationId);
             };
 
             Func<string, Guid, string, int, string, object, object> openConfig = persistence.Open;

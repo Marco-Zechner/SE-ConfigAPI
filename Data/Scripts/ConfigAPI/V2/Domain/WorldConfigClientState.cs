@@ -7,9 +7,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         public WorldConfigSnapshot Authoritative { get; }
         public ConfigDocument Draft { get; }
 
-        private WorldConfigClientState(
-            WorldConfigSnapshot authoritative,
-            ConfigDocument draft)
+        private WorldConfigClientState(WorldConfigSnapshot authoritative, ConfigDocument draft)
         {
             if (authoritative == null)
                 throw new ArgumentNullException(nameof(authoritative));
@@ -26,9 +24,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (authoritative == null)
                 throw new ArgumentNullException(nameof(authoritative));
 
-            return new WorldConfigClientState(
-                authoritative,
-                authoritative.Document);
+            return new WorldConfigClientState(authoritative, authoritative.Document); 
         }
 
         public WorldConfigClientState WithDraft(ConfigDocument draft)
@@ -45,18 +41,11 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                 throw new ArgumentNullException(nameof(authoritative));
 
             if (!Authoritative.Identity.Equals(authoritative.Identity))
-                throw new ArgumentException(
-                    "Authoritative snapshot belongs to a different config.",
-                    nameof(authoritative));
+                throw new ArgumentException("Authoritative snapshot belongs to a different config.", nameof(authoritative));
 
             return new WorldConfigClientState(authoritative, Draft);
         }
 
-        public WorldConfigClientState ResetDraftToAuthoritative()
-        {
-            return new WorldConfigClientState(
-                Authoritative,
-                Authoritative.Document);
-        }
+        public WorldConfigClientState ResetDraftToAuthoritative() => new WorldConfigClientState(Authoritative, Authoritative.Document);
     }
 }

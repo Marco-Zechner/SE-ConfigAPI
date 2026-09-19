@@ -30,10 +30,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             return Date.Equals(other.Date) && Time.Equals(other.Time);
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigLocalDateTime);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigLocalDateTime);
 
         public override int GetHashCode()
         {

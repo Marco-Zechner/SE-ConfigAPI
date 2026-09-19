@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using MarcoZechner.ConfigAPI.V2.Domain;
@@ -32,65 +31,36 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
 
-            if (!source.StartsWith(
-                FormatHeader,
-                StringComparison.Ordinal))
+            if (!source.StartsWith(FormatHeader, StringComparison.Ordinal))
             {
-                if (source.StartsWith(
-                    FormatPrefix,
-                    StringComparison.Ordinal))
-                {
-                    throw new NotSupportedException(
-                        "Unsupported ConfigAPI provenance format version.");
-                }
+                if (source.StartsWith(FormatPrefix, StringComparison.Ordinal))
+                    throw new NotSupportedException("Unsupported ConfigAPI provenance format version.");
 
-                throw new FormatException(
-                    "ConfigAPI provenance header is missing or invalid.");
+                throw new FormatException("ConfigAPI provenance header is missing or invalid.");
             }
 
             try
             {
-                var reader = new Reader(
-                    source,
-                    FormatHeader.Length);
-
+                var reader = new Reader(source, FormatHeader.Length);
                 var ownerId = reader.ReadString();
                 var configKey = reader.ReadString();
                 var root = reader.ReadNode() as ConfigObjectNode;
 
                 if (root == null)
-                {
-                    throw new FormatException(
-                        "ConfigAPI provenance baseline root must be an object.");
-                }
+                    throw new FormatException("ConfigAPI provenance baseline root must be an object.");
 
                 if (!reader.IsEnd)
-                {
-                    throw new FormatException(
-                        "ConfigAPI provenance contains trailing data.");
-                }
+                    throw new FormatException("ConfigAPI provenance contains trailing data.");
 
-                return new ConfigProvenance(
-                    new ConfigIdentity(
-                        ownerId,
-                        configKey),
-                    new ConfigDocument(root));
-            }
-            catch (FormatException)
-            {
-                throw;
+                return new ConfigProvenance(new ConfigIdentity(ownerId, configKey), new ConfigDocument(root));
             }
             catch (ArgumentException exception)
             {
-                throw new FormatException(
-                    "ConfigAPI provenance contains an invalid semantic value.",
-                    exception);
+                throw new FormatException("ConfigAPI provenance contains an invalid semantic value.", exception);
             }
         }
 
-        private static void WriteNode(
-            StringBuilder result,
-            ConfigNode node)
+        private static void WriteNode(StringBuilder result, ConfigNode node)
         {
             if (node is ConfigNullNode)
             {
@@ -101,10 +71,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             var scalar = node as ConfigScalarNode;
             if (scalar != null)
             {
-                WriteScalar(
-                    result,
-                    scalar);
-
+                WriteScalar(result, scalar);
                 return;
             }
 
@@ -112,233 +79,142 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             if (array != null)
             {
                 result.Append('A');
-                WriteInteger(
-                    result,
-                    array.Items.Count);
+                WriteInteger(result, array.Items.Count);
                 result.Append(';');
 
-                for (var i = 0;
-                    i < array.Items.Count;
-                    i++)
-                {
-                    WriteNode(
-                        result,
-                        array.Items[i]);
-                }
+                foreach (ConfigNode item in array.Items)
+                    WriteNode(result, item);
 
                 return;
             }
 
             var obj = node as ConfigObjectNode;
-            if (obj != null)
+            if (obj == null)
+                throw new NotSupportedException($"Unsupported ConfigAPI provenance node type: {node.GetType().FullName}");
+            
+            result.Append('O');
+            WriteInteger(result, obj.Entries.Count);
+            result.Append(';');
+
+            foreach (ConfigObjectEntry entry in obj.Entries)
             {
-                result.Append('O');
-                WriteInteger(
-                    result,
-                    obj.Entries.Count);
-                result.Append(';');
-
-                for (var i = 0;
-                    i < obj.Entries.Count;
-                    i++)
-                {
-                    var entry = obj.Entries[i];
-
-                    WriteString(
-                        result,
-                        entry.Name);
-                    WriteNode(
-                        result,
-                        entry.Value);
-                }
-
-                return;
+                WriteString(result, entry.Name);
+                WriteNode(result, entry.Value);
             }
-
-            throw new NotSupportedException(
-                "Unsupported ConfigAPI provenance node type: " +
-                node.GetType().FullName);
         }
 
-        private static void WriteScalar(
-            StringBuilder result,
-            ConfigScalarNode scalar)
+        private static void WriteScalar(StringBuilder result, ConfigScalarNode scalar)
         {
             switch (scalar.Kind)
             {
                 case ConfigScalarKind.Boolean:
-                    result.Append(
-                        (bool)scalar.Value
-                            ? "B1;"
-                            : "B0;");
+                    result.Append((bool)scalar.Value ? "B1;" : "B0;");
                     return;
 
                 case ConfigScalarKind.Integer:
                     result.Append('I');
-                    WriteInteger(
-                        result,
-                        (long)scalar.Value);
+                    WriteInteger(result, (long)scalar.Value);
                     result.Append(';');
                     return;
 
                 case ConfigScalarKind.Float:
                 {
-                    var bits = unchecked(
-                        (ulong)BitConverter.DoubleToInt64Bits(
-                            (double)scalar.Value));
+                    var bits = unchecked((ulong)BitConverter.DoubleToInt64Bits((double)scalar.Value));
 
                     result.Append('F');
-                    result.Append(
-                        bits.ToString(
-                            "X16",
-                            CultureInfo.InvariantCulture));
+                    result.Append(bits.ToString("X16", CultureInfo.InvariantCulture)); 
                     result.Append(';');
                     return;
                 }
 
                 case ConfigScalarKind.String:
-                    WriteString(
-                        result,
-                        (string)scalar.Value);
+                    WriteString(result, (string)scalar.Value); 
                     return;
 
                 case ConfigScalarKind.LocalDate:
-                    WriteLocalDate(
-                        result,
-                        (ConfigLocalDate)scalar.Value);
+                    WriteLocalDate(result, (ConfigLocalDate)scalar.Value);
                     return;
 
                 case ConfigScalarKind.LocalTime:
-                    WriteLocalTime(
-                        result,
-                        (ConfigLocalTime)scalar.Value);
+                    WriteLocalTime(result, (ConfigLocalTime)scalar.Value);
                     return;
 
                 case ConfigScalarKind.LocalDateTime:
                 {
-                    var value =
-                        (ConfigLocalDateTime)scalar.Value;
+                    var value = (ConfigLocalDateTime)scalar.Value;
 
                     result.Append('L');
-                    WriteLocalDate(
-                        result,
-                        value.Date);
-                    WriteLocalTime(
-                        result,
-                        value.Time);
+                    WriteLocalDate(result, value.Date);
+                    WriteLocalTime(result, value.Time);
                     return;
                 }
 
                 case ConfigScalarKind.OffsetDateTime:
                 {
-                    var value =
-                        (ConfigOffsetDateTime)scalar.Value;
+                    var value = (ConfigOffsetDateTime)scalar.Value;
 
                     result.Append('Z');
-                    WriteLocalDate(
-                        result,
-                        value.Date);
-                    WriteLocalTime(
-                        result,
-                        value.Time);
+                    WriteLocalDate(result, value.Date);
+                    WriteLocalTime(result, value.Time);
 
                     result.Append('M');
-                    WriteInteger(
-                        result,
-                        value.OffsetMinutes);
+                    WriteInteger(result, value.OffsetMinutes);
                     result.Append(';');
 
-                    result.Append(
-                        value.IsUnknownLocalOffset
-                            ? "U1;"
-                            : "U0;");
+                    result.Append(value.IsUnknownLocalOffset ? "U1;" : "U0;");
                     return;
                 }
 
                 default:
-                    throw new NotSupportedException(
-                        "Unsupported ConfigAPI scalar kind: " +
-                        scalar.Kind);
+                    throw new NotSupportedException($"Unsupported ConfigAPI scalar kind: {scalar.Kind}");
             }
         }
 
-        private static void WriteLocalDate(
-            StringBuilder result,
-            ConfigLocalDate value)
+        private static void WriteLocalDate(StringBuilder result, ConfigLocalDate value)
         {
             result.Append('D');
 
-            WriteInteger(
-                result,
-                value.Year);
+            WriteInteger(result, value.Year); 
             result.Append(',');
 
-            WriteInteger(
-                result,
-                value.Month);
+            WriteInteger(result, value.Month);
             result.Append(',');
 
-            WriteInteger(
-                result,
-                value.Day);
+            WriteInteger(result, value.Day);
             result.Append(';');
         }
 
-        private static void WriteLocalTime(
-            StringBuilder result,
-            ConfigLocalTime value)
+        private static void WriteLocalTime(StringBuilder result, ConfigLocalTime value)
         {
             result.Append('T');
 
-            WriteInteger(
-                result,
-                value.Hour);
+            WriteInteger(result, value.Hour);
             result.Append(',');
 
-            WriteInteger(
-                result,
-                value.Minute);
+            WriteInteger(result, value.Minute);
             result.Append(',');
 
-            WriteInteger(
-                result,
-                value.Second);
+            WriteInteger(result, value.Second);
             result.Append(',');
 
-            WriteRawString(
-                result,
-                value.FractionalSeconds);
+            WriteRawString(result, value.FractionalSeconds);
         }
 
-        private static void WriteString(
-            StringBuilder result,
-            string value)
+        private static void WriteString(StringBuilder result, string value)
         {
             result.Append('S');
-            WriteRawString(
-                result,
-                value);
+            WriteRawString(result, value);
         }
 
-        private static void WriteRawString(
-            StringBuilder result,
-            string value)
+        private static void WriteRawString(StringBuilder result, string value) 
         {
-            WriteInteger(
-                result,
-                value.Length);
+            WriteInteger(result, value.Length);
             result.Append(':');
             result.Append(value);
         }
 
-        private static void WriteInteger(
-            StringBuilder result,
-            long value)
-        {
-            result.Append(
-                value.ToString(
-                    CultureInfo.InvariantCulture));
-        }
+        private static void WriteInteger(StringBuilder result, long value) 
+            => result.Append(value.ToString(CultureInfo.InvariantCulture));
 
         private sealed class Reader
         {
@@ -347,9 +223,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
             public bool IsEnd => _index == _source.Length;
 
-            public Reader(
-                string source,
-                int startIndex)
+            public Reader(string source, int startIndex)
             {
                 _source = source;
                 _index = startIndex;
@@ -363,7 +237,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
             public ConfigNode ReadNode()
             {
-                var kind = ReadCharacter();
+                char kind = ReadCharacter();
 
                 switch (kind)
                 {
@@ -397,9 +271,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
                     case 'L':
                         return ConfigScalarNode.LocalDateTime(
-                            new ConfigLocalDateTime(
-                                ReadTaggedLocalDate(),
-                                ReadTaggedLocalTime()));
+                            new ConfigLocalDateTime(ReadTaggedLocalDate(), ReadTaggedLocalTime()));
 
                     case 'Z':
                         return ReadOffsetDateTime();
@@ -411,21 +283,16 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                         return ReadObject();
 
                     default:
-                        throw Error(
-                            "Unknown ConfigAPI provenance node tag.");
+                        throw new FormatException("Unknown ConfigAPI provenance node tag.");
                 }
             }
 
             private bool ReadBoolean()
             {
-                var value = ReadCharacter();
+                char value = ReadCharacter();
 
-                if (value != '0' &&
-                    value != '1')
-                {
-                    throw Error(
-                        "Boolean provenance value must be 0 or 1.");
-                }
+                if (value != '0' && value != '1')
+                    throw new FormatException("Boolean provenance value must be 0 or 1.");
 
                 Expect(';');
                 return value == '1';
@@ -433,28 +300,17 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
 
             private double ReadFloat()
             {
-                var text = ReadUntil(';');
+                string text = ReadUntil(';');
 
                 if (text.Length != 16)
-                {
-                    throw Error(
-                        "Float provenance value must contain exactly 16 hexadecimal digits.");
-                }
+                    throw new FormatException("Float provenance value must contain exactly 16 hexadecimal digits.");
 
                 ulong bits;
 
-                if (!ulong.TryParse(
-                    text,
-                    NumberStyles.AllowHexSpecifier,
-                    CultureInfo.InvariantCulture,
-                    out bits))
-                {
-                    throw Error(
-                        "Float provenance value contains invalid hexadecimal digits.");
-                }
+                if (!ulong.TryParse(text, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out bits))
+                    throw new FormatException("Float provenance value contains invalid hexadecimal digits.");
 
-                return BitConverter.Int64BitsToDouble(
-                    unchecked((long)bits));
+                return BitConverter.Int64BitsToDouble(unchecked((long)bits));
             }
 
             private ConfigLocalDate ReadTaggedLocalDate()
@@ -469,10 +325,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 var month = ReadInt32(',');
                 var day = ReadInt32(';');
 
-                return new ConfigLocalDate(
-                    year,
-                    month,
-                    day);
+                return new ConfigLocalDate(year, month, day);
             }
 
             private ConfigLocalTime ReadTaggedLocalTime()
@@ -486,49 +339,32 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 var hour = ReadInt32(',');
                 var minute = ReadInt32(',');
                 var second = ReadInt32(',');
-                var fractionalSeconds =
-                    ReadRawString();
+                var fractionalSeconds = ReadRawString();
 
-                return new ConfigLocalTime(
-                    hour,
-                    minute,
-                    second,
-                    fractionalSeconds);
+                return new ConfigLocalTime(hour, minute, second, fractionalSeconds);
             }
 
             private ConfigNode ReadOffsetDateTime()
             {
-                var date = ReadTaggedLocalDate();
-                var time = ReadTaggedLocalTime();
+                ConfigLocalDate date = ReadTaggedLocalDate();
+                ConfigLocalTime time = ReadTaggedLocalTime();
 
                 Expect('M');
-                var offsetMinutes =
-                    ReadInt32(';');
+                var offsetMinutes = ReadInt32(';');
 
                 Expect('U');
-                var unknown =
-                    ReadBoolean();
+                var unknown = ReadBoolean();
 
-                return ConfigScalarNode.OffsetDateTime(
-                    new ConfigOffsetDateTime(
-                        date,
-                        time,
-                        offsetMinutes,
-                        unknown));
+                return ConfigScalarNode.OffsetDateTime(new ConfigOffsetDateTime(date, time, offsetMinutes, unknown));
             }
 
             private ConfigArrayNode ReadArray()
             {
                 var count = ReadCount();
-                var items =
-                    new ConfigNode[count];
+                var items = new ConfigNode[count];
 
-                for (var i = 0;
-                    i < count;
-                    i++)
-                {
+                for (var i = 0; i < count; i++)
                     items[i] = ReadNode();
-                }
 
                 return new ConfigArrayNode(items);
             }
@@ -536,18 +372,10 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             private ConfigObjectNode ReadObject()
             {
                 var count = ReadCount();
-                var entries =
-                    new ConfigObjectEntry[count];
+                var entries = new ConfigObjectEntry[count];
 
-                for (var i = 0;
-                    i < count;
-                    i++)
-                {
-                    entries[i] =
-                        new ConfigObjectEntry(
-                            ReadString(),
-                            ReadNode());
-                }
+                for (var i = 0; i < count; i++)
+                    entries[i] = new ConfigObjectEntry(ReadString(), ReadNode());
 
                 return new ConfigObjectNode(entries);
             }
@@ -557,16 +385,10 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 var count = ReadInt32(';');
 
                 if (count < 0)
-                {
-                    throw Error(
-                        "Collection provenance count must not be negative.");
-                }
+                    throw new FormatException("Collection provenance count must not be negative.");
 
                 if (count > _source.Length - _index)
-                {
-                    throw Error(
-                        "Collection provenance count exceeds the remaining source.");
-                }
+                    throw new FormatException("Collection provenance count exceeds the remaining source.");
 
                 return count;
             }
@@ -576,95 +398,55 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 var length = ReadInt32(':');
 
                 if (length < 0)
-                {
-                    throw Error(
-                        "String provenance length must not be negative.");
-                }
+                    throw new FormatException("String provenance length must not be negative.");
 
                 if (length > _source.Length - _index)
-                {
-                    throw Error(
-                        "String provenance length exceeds the remaining source.");
-                }
+                    throw new FormatException("String provenance length exceeds the remaining source.");
 
-                var result =
-                    _source.Substring(
-                        _index,
-                        length);
+                var result = _source.Substring(_index, length);
 
                 _index += length;
                 return result;
             }
 
-            private int ReadInt32(
-                char terminator)
+            private int ReadInt32(char terminator)
             {
-                var text =
-                    ReadUntil(terminator);
+                string text = ReadUntil(terminator);
 
                 int value;
 
-                if (!int.TryParse(
-                    text,
-                    NumberStyles.AllowLeadingSign,
-                    CultureInfo.InvariantCulture,
-                    out value))
-                {
-                    throw Error(
-                        "Invalid 32-bit integer provenance value.");
-                }
+                if (!int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out value))
+                    throw new FormatException("Invalid 32-bit integer provenance value.");
 
                 return value;
             }
 
-            private long ReadInt64(
-                char terminator)
+            private long ReadInt64(char terminator)
             {
-                var text =
-                    ReadUntil(terminator);
+                string text = ReadUntil(terminator);
 
                 long value;
 
-                if (!long.TryParse(
-                    text,
-                    NumberStyles.AllowLeadingSign,
-                    CultureInfo.InvariantCulture,
-                    out value))
-                {
-                    throw Error(
-                        "Invalid 64-bit integer provenance value.");
-                }
+                if (!long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out value))
+                    throw new FormatException("Invalid 64-bit integer provenance value.");
 
                 return value;
             }
 
-            private string ReadUntil(
-                char terminator)
+            private string ReadUntil(char terminator)
             {
                 var start = _index;
 
-                while (_index < _source.Length &&
-                    _source[_index] != terminator)
-                {
+                while (_index < _source.Length && _source[_index] != terminator)
                     _index++;
-                }
 
                 if (_index >= _source.Length)
-                {
-                    throw Error(
-                        "Expected provenance delimiter was not found.");
-                }
+                    throw new FormatException("Expected provenance delimiter was not found.");
 
                 if (_index == start)
-                {
-                    throw Error(
-                        "Provenance numeric token must not be empty.");
-                }
+                    throw new FormatException("Provenance numeric token must not be empty.");
 
-                var result =
-                    _source.Substring(
-                        start,
-                        _index - start);
+                var result = _source.Substring(start, _index - start);
 
                 _index++;
                 return result;
@@ -673,10 +455,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
             private char ReadCharacter()
             {
                 if (_index >= _source.Length)
-                {
-                    throw Error(
-                        "Unexpected end of ConfigAPI provenance.");
-                }
+                    throw new FormatException("Unexpected end of ConfigAPI provenance.");
 
                 return _source[_index++];
             }
@@ -686,16 +465,7 @@ namespace MarcoZechner.ConfigAPI.V2.Serialization
                 var actual = ReadCharacter();
 
                 if (actual != expected)
-                {
-                    throw Error(
-                        "Unexpected ConfigAPI provenance token.");
-                }
-            }
-
-            private static FormatException Error(
-                string message)
-            {
-                return new FormatException(message);
+                    throw new FormatException("Unexpected ConfigAPI provenance token.");
             }
         }
     }

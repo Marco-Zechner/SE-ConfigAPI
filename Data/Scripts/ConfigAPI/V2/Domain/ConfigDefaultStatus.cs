@@ -16,11 +16,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             !CurrentDefault.Equals(BaselineDefault) &&
             !PlayerValue.Equals(BaselineDefault);
 
-        private ConfigDefaultStatus(
-            ConfigValuePath path,
-            ConfigNode baselineDefault,
-            ConfigNode playerValue,
-            ConfigNode currentDefault)
+        private ConfigDefaultStatus(ConfigValuePath path, 
+                                    ConfigNode baselineDefault, ConfigNode playerValue, ConfigNode currentDefault)
         {
             Path = path;
             BaselineDefault = baselineDefault;
@@ -28,11 +25,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             CurrentDefault = currentDefault;
         }
 
-        public static ConfigDefaultStatus Get(
-            ConfigDocument baselineDefaults,
-            ConfigDocument playerValues,
-            ConfigDocument currentDefaults,
-            ConfigValuePath path)
+        public static ConfigDefaultStatus Get(ConfigDocument baselineDefaults, ConfigDocument playerValues, ConfigDocument currentDefaults,
+                                              ConfigValuePath path)
         {
             if (baselineDefaults == null)
                 throw new ArgumentNullException(nameof(baselineDefaults));
@@ -58,11 +52,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (!currentDefaults.TryGet(path, out currentDefault))
                 throw new KeyNotFoundException("Config value path does not exist in current defaults.");
 
-            return new ConfigDefaultStatus(
-                path,
-                baselineDefault,
-                playerValue,
-                currentDefault);
+            return new ConfigDefaultStatus(path, baselineDefault, playerValue, currentDefault);
         }
     }
 }

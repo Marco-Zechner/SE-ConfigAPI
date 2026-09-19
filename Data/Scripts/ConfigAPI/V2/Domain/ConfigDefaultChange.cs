@@ -19,12 +19,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         public ConfigNode PlayerValue { get; }
         public ConfigNode CurrentDefault { get; }
 
-        public ConfigDefaultChange(
-            ConfigDefaultChangeKind kind,
-            ConfigValuePath path,
-            ConfigNode baselineDefault,
-            ConfigNode playerValue,
-            ConfigNode currentDefault)
+        public ConfigDefaultChange(ConfigDefaultChangeKind kind, ConfigValuePath path, 
+                                   ConfigNode baselineDefault, ConfigNode playerValue, ConfigNode currentDefault)
         {
             if (path == null)
                 throw new ArgumentNullException(nameof(path));

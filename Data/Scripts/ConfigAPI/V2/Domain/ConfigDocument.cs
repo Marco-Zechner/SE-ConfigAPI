@@ -22,14 +22,14 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
             ConfigNode current = Root;
 
-            for (var i = 0; i < path.Segments.Count; i++)
+            foreach (string segment in path.Segments)
             {
                 var obj = current as ConfigObjectNode;
-                if (obj == null || !obj.TryGet(path.Segments[i], out current))
-                {
-                    value = null;
-                    return false;
-                }
+                if (obj != null && obj.TryGet(segment, out current))
+                    continue;
+                
+                value = null;
+                return false;
             }
 
             value = current;
@@ -47,7 +47,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (path.Segments.Count == 0)
                 throw new ArgumentException("Value path must contain at least one segment.", nameof(path));
 
-            var root = ReplaceValue(Root, path, 0, value);
+            ConfigObjectNode root = ReplaceValue(Root, path, 0, value);
             return new ConfigDocument(root);
         }
 
@@ -56,29 +56,16 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (ReferenceEquals(other, null))
                 return false;
 
-            if (ReferenceEquals(this, other))
-                return true;
-
-            return Root.Equals(other.Root);
+            return ReferenceEquals(this, other) || Root.Equals(other.Root);
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigDocument);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigDocument);
 
-        public override int GetHashCode()
-        {
-            return Root.GetHashCode();
-        }
+        public override int GetHashCode() => Root.GetHashCode();
 
-        private static ConfigObjectNode ReplaceValue(
-            ConfigObjectNode current,
-            ConfigValuePath path,
-            int segmentIndex,
-            ConfigNode value)
+        private static ConfigObjectNode ReplaceValue(ConfigObjectNode current, ConfigValuePath path, int segmentIndex, ConfigNode value)
         {
-            var segment = path.Segments[segmentIndex];
+            string segment = path.Segments[segmentIndex];
 
             ConfigNode existing;
             if (!current.TryGet(segment, out existing))
@@ -86,9 +73,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
             ConfigNode replacement;
             if (segmentIndex == path.Segments.Count - 1)
-            {
                 replacement = value;
-            }
             else
             {
                 var child = existing as ConfigObjectNode;
@@ -102,7 +87,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
             for (var i = 0; i < current.Entries.Count; i++)
             {
-                var entry = current.Entries[i];
+                ConfigObjectEntry entry = current.Entries[i];
                 entries[i] = string.Equals(entry.Name, segment, StringComparison.Ordinal)
                     ? new ConfigObjectEntry(entry.Name, replacement)
                     : entry;

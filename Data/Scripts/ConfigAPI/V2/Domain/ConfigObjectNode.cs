@@ -23,45 +23,41 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
     public sealed class ConfigObjectNode : ConfigNode
     {
-        private readonly ConfigObjectEntry[] _entries;
-        private readonly IReadOnlyList<ConfigObjectEntry> _readOnlyEntries;
         private readonly Dictionary<string, ConfigNode> _values;
 
-        public IReadOnlyList<ConfigObjectEntry> Entries => _readOnlyEntries;
+        public IReadOnlyList<ConfigObjectEntry> Entries { get; }
 
         public ConfigObjectNode(params ConfigObjectEntry[] entries)
         {
             if (entries == null)
                 throw new ArgumentNullException(nameof(entries));
 
-            _entries = new ConfigObjectEntry[entries.Length];
+            var entriesCopy = new ConfigObjectEntry[entries.Length];
             _values = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
 
             for (var i = 0; i < entries.Length; i++)
             {
-                var entry = entries[i];
+                ConfigObjectEntry entry = entries[i];
                 if (entry == null)
                     throw new ArgumentException("Object entries must not contain null.", nameof(entries));
 
                 if (_values.ContainsKey(entry.Name))
                     throw new ArgumentException("Duplicate object entry: " + entry.Name, nameof(entries));
 
-                _entries[i] = entry;
+                entriesCopy[i] = entry;
                 _values.Add(entry.Name, entry.Value);
             }
 
-            _readOnlyEntries = Array.AsReadOnly(_entries);
+            Entries = Array.AsReadOnly(entriesCopy);
         }
 
         public bool TryGet(string name, out ConfigNode value)
         {
-            if (name == null)
-            {
-                value = null;
-                return false;
-            }
-
-            return _values.TryGetValue(name, out value);
+            if (name != null)
+                return _values.TryGetValue(name, out value);
+            
+            value = null;
+            return false;
         }
 
         protected override bool EqualsNode(ConfigNode other)
@@ -87,11 +83,11 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         {
             unchecked
             {
-                var hash = 17 ^ _values.Count;
+                int hash = 17 ^ _values.Count;
 
                 foreach (var pair in _values)
                 {
-                    var entryHash = StringComparer.Ordinal.GetHashCode(pair.Key);
+                    int entryHash = StringComparer.Ordinal.GetHashCode(pair.Key);
                     entryHash = (entryHash * 397) ^ pair.Value.GetHashCode();
                     hash ^= entryHash;
                 }

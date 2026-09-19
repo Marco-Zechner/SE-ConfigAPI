@@ -31,16 +31,13 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                    Day == other.Day;
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigLocalDate);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigLocalDate);
 
         public override int GetHashCode()
         {
             unchecked
             {
-                var hash = Year;
+                int hash = Year;
                 hash = (hash * 397) ^ Month;
                 hash = (hash * 397) ^ Day;
                 return hash;

@@ -6,9 +6,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
     public sealed class ConfigValuePath : IEquatable<ConfigValuePath>
     {
         private readonly string[] _segments;
-        private readonly IReadOnlyList<string> _readOnlySegments;
 
-        public IReadOnlyList<string> Segments => _readOnlySegments;
+        public IReadOnlyList<string> Segments { get; }
 
         public ConfigValuePath(params string[] segments)
         {
@@ -23,7 +22,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                 _segments[i] = segments[i];
             }
 
-            _readOnlySegments = Array.AsReadOnly(_segments);
+            Segments = Array.AsReadOnly(_segments);
         }
 
         public ConfigValuePath Append(string segment)
@@ -56,10 +55,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             return true;
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigValuePath);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigValuePath);
 
         public override int GetHashCode()
         {
@@ -67,8 +63,8 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             {
                 var hash = 17;
 
-                for (var i = 0; i < _segments.Length; i++)
-                    hash = (hash * 31) ^ StringComparer.Ordinal.GetHashCode(_segments[i]);
+                foreach (string segment in _segments)
+                    hash = (hash * 31) ^ StringComparer.Ordinal.GetHashCode(segment);
 
                 return hash;
             }

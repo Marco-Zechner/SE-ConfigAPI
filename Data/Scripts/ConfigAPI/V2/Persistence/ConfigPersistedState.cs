@@ -10,11 +10,7 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         public ConfigDocument BaselineDefaults { get; }
         public string CurrentFile { get; }
 
-        public ConfigPersistedState(
-            ConfigIdentity identity,
-            ConfigDocument playerValues,
-            ConfigDocument baselineDefaults,
-            string currentFile)
+        public ConfigPersistedState(ConfigIdentity identity, ConfigDocument playerValues, ConfigDocument baselineDefaults, string currentFile)
         {
             if (identity == null)
                 throw new ArgumentNullException(nameof(identity));

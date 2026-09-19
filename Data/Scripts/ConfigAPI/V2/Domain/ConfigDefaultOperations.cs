@@ -6,10 +6,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
     public static class ConfigDefaultOperations
     {
         public static ConfigDefaultOperationResult RevertToDefault(
-            ConfigDocument baselineDefaults,
-            ConfigDocument playerValues,
-            ConfigDocument currentDefaults,
-            ConfigValuePath path)
+            ConfigDocument baselineDefaults, ConfigDocument playerValues, ConfigDocument currentDefaults, ConfigValuePath path)
         {
             if (baselineDefaults == null)
                 throw new ArgumentNullException(nameof(baselineDefaults));

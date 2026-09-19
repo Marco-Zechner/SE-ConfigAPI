@@ -8,9 +8,7 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         public ConfigIdentity Identity { get; }
         public ConfigDocument BaselineDefaults { get; }
 
-        public ConfigProvenance(
-            ConfigIdentity identity,
-            ConfigDocument baselineDefaults)
+        public ConfigProvenance(ConfigIdentity identity, ConfigDocument baselineDefaults)
         {
             if (identity == null)
                 throw new ArgumentNullException(nameof(identity));

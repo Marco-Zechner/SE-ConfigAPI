@@ -16,31 +16,18 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
     public sealed class ConfigScalarNode : ConfigNode
     {
-        private readonly object _value;
-
         public ConfigScalarKind Kind { get; }
-        public object Value => _value;
+        public object Value { get; }
 
         private ConfigScalarNode(ConfigScalarKind kind, object value)
         {
             Kind = kind;
-            _value = value;
+            Value = value;
         }
 
-        public static ConfigScalarNode Boolean(bool value)
-        {
-            return new ConfigScalarNode(ConfigScalarKind.Boolean, value);
-        }
-
-        public static ConfigScalarNode Integer(long value)
-        {
-            return new ConfigScalarNode(ConfigScalarKind.Integer, value);
-        }
-
-        public static ConfigScalarNode Float(double value)
-        {
-            return new ConfigScalarNode(ConfigScalarKind.Float, value);
-        }
+        public static ConfigScalarNode Boolean(bool value) => new ConfigScalarNode(ConfigScalarKind.Boolean, value);
+        public static ConfigScalarNode Integer(long value) => new ConfigScalarNode(ConfigScalarKind.Integer, value);
+        public static ConfigScalarNode Float(double value) => new ConfigScalarNode(ConfigScalarKind.Float, value);
 
         public static ConfigScalarNode String(string value)
         {
@@ -91,21 +78,21 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             switch (Kind)
             {
                 case ConfigScalarKind.Boolean:
-                    return (bool)_value == (bool)scalar._value;
+                    return (bool)Value == (bool)scalar.Value;
                 case ConfigScalarKind.Integer:
-                    return (long)_value == (long)scalar._value;
+                    return (long)Value == (long)scalar.Value;
                 case ConfigScalarKind.Float:
-                    return ((double)_value).Equals((double)scalar._value);
+                    return ((double)Value).Equals((double)scalar.Value);
                 case ConfigScalarKind.String:
-                    return string.Equals((string)_value, (string)scalar._value, StringComparison.Ordinal);
+                    return string.Equals((string)Value, (string)scalar.Value, StringComparison.Ordinal);
                 case ConfigScalarKind.OffsetDateTime:
-                    return ((ConfigOffsetDateTime)_value).Equals((ConfigOffsetDateTime)scalar._value);
+                    return ((ConfigOffsetDateTime)Value).Equals((ConfigOffsetDateTime)scalar.Value);
                 case ConfigScalarKind.LocalDateTime:
-                    return ((ConfigLocalDateTime)_value).Equals((ConfigLocalDateTime)scalar._value);
+                    return ((ConfigLocalDateTime)Value).Equals((ConfigLocalDateTime)scalar.Value);
                 case ConfigScalarKind.LocalDate:
-                    return ((ConfigLocalDate)_value).Equals((ConfigLocalDate)scalar._value);
+                    return ((ConfigLocalDate)Value).Equals((ConfigLocalDate)scalar.Value);
                 case ConfigScalarKind.LocalTime:
-                    return ((ConfigLocalTime)_value).Equals((ConfigLocalTime)scalar._value);
+                    return ((ConfigLocalTime)Value).Equals((ConfigLocalTime)scalar.Value);
                 default:
                     throw new InvalidOperationException("Unknown config scalar kind: " + Kind);
             }
@@ -120,21 +107,21 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                 switch (Kind)
                 {
                     case ConfigScalarKind.Boolean:
-                        return (hash * 397) ^ ((bool)_value).GetHashCode();
+                        return (hash * 397) ^ ((bool)Value).GetHashCode();
                     case ConfigScalarKind.Integer:
-                        return (hash * 397) ^ ((long)_value).GetHashCode();
+                        return (hash * 397) ^ ((long)Value).GetHashCode();
                     case ConfigScalarKind.Float:
-                        return (hash * 397) ^ ((double)_value).GetHashCode();
+                        return (hash * 397) ^ ((double)Value).GetHashCode();
                     case ConfigScalarKind.String:
-                        return (hash * 397) ^ StringComparer.Ordinal.GetHashCode((string)_value);
+                        return (hash * 397) ^ StringComparer.Ordinal.GetHashCode((string)Value);
                     case ConfigScalarKind.OffsetDateTime:
-                        return (hash * 397) ^ ((ConfigOffsetDateTime)_value).GetHashCode();
+                        return (hash * 397) ^ ((ConfigOffsetDateTime)Value).GetHashCode();
                     case ConfigScalarKind.LocalDateTime:
-                        return (hash * 397) ^ ((ConfigLocalDateTime)_value).GetHashCode();
+                        return (hash * 397) ^ ((ConfigLocalDateTime)Value).GetHashCode();
                     case ConfigScalarKind.LocalDate:
-                        return (hash * 397) ^ ((ConfigLocalDate)_value).GetHashCode();
+                        return (hash * 397) ^ ((ConfigLocalDate)Value).GetHashCode();
                     case ConfigScalarKind.LocalTime:
-                        return (hash * 397) ^ ((ConfigLocalTime)_value).GetHashCode();
+                        return (hash * 397) ^ ((ConfigLocalTime)Value).GetHashCode();
                     default:
                         throw new InvalidOperationException("Unknown config scalar kind: " + Kind);
                 }

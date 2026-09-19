@@ -9,16 +9,10 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (ReferenceEquals(other, null))
                 return false;
 
-            if (ReferenceEquals(this, other))
-                return true;
-
-            return EqualsNode(other);
+            return ReferenceEquals(this, other) || EqualsNode(other);
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ConfigNode);
-        }
+        public override bool Equals(object obj) => Equals(obj as ConfigNode);
 
         public abstract override int GetHashCode();
 

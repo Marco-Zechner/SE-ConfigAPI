@@ -15,24 +15,16 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         public IReadOnlyList<ConfigDefaultChange> Changes { get; }
         public bool RequiresBackup { get; }
 
-        internal ConfigPersistedLoadResult(
-            ConfigPersistedState state,
-            string activeSource,
-            string provenanceFile,
-            bool wasActiveFileMissing,
-            bool wasProvenanceMissing,
-            IReadOnlyList<ConfigDefaultChange> changes,
-            bool requiresBackup)
+        internal ConfigPersistedLoadResult(ConfigPersistedState state,
+                                           string activeSource, string provenanceFile,
+                                           bool wasActiveFileMissing, bool wasProvenanceMissing,
+                                           IReadOnlyList<ConfigDefaultChange> changes, bool requiresBackup)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
 
             if (string.IsNullOrWhiteSpace(provenanceFile))
-            {
-                throw new ArgumentException(
-                    "Provenance file must not be empty.",
-                    nameof(provenanceFile));
-            }
+                throw new ArgumentException("Provenance file must not be empty.", nameof(provenanceFile));
 
             if (changes == null)
                 throw new ArgumentNullException(nameof(changes));
@@ -49,13 +41,11 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
 
     public sealed class ConfigPersistedStateLoader
     {
-        private const string ProvenanceSuffix =
-            ".configapi.provenance";
+        private const string ProvenanceSuffix = ".configapi.provenance";
 
         private readonly IConfigTextStorage _storage;
 
-        public ConfigPersistedStateLoader(
-            IConfigTextStorage storage)
+        public ConfigPersistedStateLoader(IConfigTextStorage storage)
         {
             if (storage == null)
                 throw new ArgumentNullException(nameof(storage));
@@ -63,31 +53,18 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             _storage = storage;
         }
 
-        public static string GetProvenanceFile(
-            string activeFile)
+        public static string GetProvenanceFile(string activeFile)
         {
             if (string.IsNullOrWhiteSpace(activeFile))
-            {
-                throw new ArgumentException(
-                    "Config file must not be empty.",
-                    nameof(activeFile));
-            }
+                throw new ArgumentException("Config file must not be empty.", nameof(activeFile));
 
             return activeFile + ProvenanceSuffix;
         }
 
-        public ConfigPersistedLoadResult Load(
-            ConfigLocation location,
-            string activeFile,
-            ConfigIdentity identity,
-            ConfigDocument currentDefaults)
+        public ConfigPersistedLoadResult Load(ConfigLocation location, string activeFile, ConfigIdentity identity, ConfigDocument currentDefaults)
         {
             if (string.IsNullOrWhiteSpace(activeFile))
-            {
-                throw new ArgumentException(
-                    "Config file must not be empty.",
-                    nameof(activeFile));
-            }
+                throw new ArgumentException("Config file must not be empty.", nameof(activeFile));
 
             if (identity == null)
                 throw new ArgumentNullException(nameof(identity));
@@ -95,31 +72,18 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             if (currentDefaults == null)
                 throw new ArgumentNullException(nameof(currentDefaults));
 
-            var provenanceFile =
-                GetProvenanceFile(activeFile);
+            string provenanceFile = GetProvenanceFile(activeFile);
 
-            var activeSource =
-                _storage.Read(
-                    location,
-                    activeFile);
+            string activeSource = _storage.Read(location, activeFile);
 
-            var provenanceSource =
-                _storage.Read(
-                    location,
-                    provenanceFile);
+            string provenanceSource = _storage.Read(location, provenanceFile);
 
-            var wasActiveFileMissing =
-                activeSource == null;
+            bool wasActiveFileMissing = activeSource == null;
 
-            var wasProvenanceMissing =
-                provenanceSource == null;
+            bool wasProvenanceMissing = provenanceSource == null;
 
-            if (wasActiveFileMissing &&
-                !wasProvenanceMissing)
-            {
-                throw new InvalidOperationException(
-                    "Config provenance exists but the active TOML file is missing.");
-            }
+            if (wasActiveFileMissing && !wasProvenanceMissing)
+                throw new InvalidOperationException("Config provenance exists but the active TOML file is missing.");
 
             ConfigDocument playerValues;
             ConfigDocument baselineDefaults;
@@ -131,109 +95,56 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             }
             else
             {
-                playerValues =
-                    ConfigTomlSourceDecoder.Decode(
-                        activeSource,
-                        currentDefaults);
+                playerValues = ConfigTomlSourceDecoder.Decode(activeSource, currentDefaults);
 
                 if (wasProvenanceMissing)
                 {
-                    playerValues =
-                        FillMissingKnownValues(
-                            playerValues,
-                            currentDefaults);
-
-                    baselineDefaults =
-                        currentDefaults;
+                    playerValues = FillMissingKnownValues(playerValues, currentDefaults);
+                    baselineDefaults = currentDefaults;
                 }
                 else
                 {
-                    var provenance =
-                        ConfigProvenanceCodec.Decode(
-                            provenanceSource);
+                    ConfigProvenance provenance = ConfigProvenanceCodec.Decode(provenanceSource);
 
-                    if (!provenance.Identity.Equals(
-                        identity))
-                    {
-                        throw new InvalidOperationException(
-                            "Config provenance identity does not match the requested config identity.");
-                    }
+                    if (!provenance.Identity.Equals(identity))
+                        throw new InvalidOperationException("Config provenance identity does not match the requested config identity.");
 
-                    baselineDefaults =
-                        provenance.BaselineDefaults;
+                    baselineDefaults = provenance.BaselineDefaults;
                 }
             }
 
-            var state =
-                new ConfigPersistedState(
-                    identity,
-                    playerValues,
-                    baselineDefaults,
-                    activeFile);
+            var state = new ConfigPersistedState(identity, playerValues, baselineDefaults, activeFile);
 
-            var reconciliation =
-                ConfigPersistedStateReconciler.Reconcile(
-                    state,
-                    currentDefaults);
-
+            var reconciliationResult = ConfigPersistedStateReconciler.Reconcile(state, currentDefaults);
+            
             return new ConfigPersistedLoadResult(
-                reconciliation.State,
-                activeSource,
-                provenanceFile,
-                wasActiveFileMissing,
-                wasProvenanceMissing,
-                reconciliation.Changes,
-                reconciliation.RequiresBackup);
+                reconciliationResult.State,
+                activeSource, provenanceFile,
+                wasActiveFileMissing, wasProvenanceMissing,
+                reconciliationResult.Changes, reconciliationResult.RequiresBackup);
         }
 
-        private static ConfigDocument FillMissingKnownValues(
-            ConfigDocument playerValues,
-            ConfigDocument currentDefaults)
-        {
-            return new ConfigDocument(
-                FillMissingKnownValues(
-                    playerValues.Root,
-                    currentDefaults.Root));
-        }
+        private static ConfigDocument FillMissingKnownValues(ConfigDocument playerValues, ConfigDocument currentDefaults) 
+            => new ConfigDocument(FillMissingKnownValues(playerValues.Root, currentDefaults.Root));
 
-        private static ConfigObjectNode FillMissingKnownValues(
-            ConfigObjectNode player,
-            ConfigObjectNode currentDefaults)
+        private static ConfigObjectNode FillMissingKnownValues(ConfigObjectNode player, ConfigObjectNode currentDefaults)
         {
-            var entries =
-                new List<ConfigObjectEntry>(
-                    player.Entries.Count +
-                    currentDefaults.Entries.Count);
+            var entries = new List<ConfigObjectEntry>(player.Entries.Count + currentDefaults.Entries.Count);
 
-            for (var i = 0;
-                i < player.Entries.Count;
-                i++)
+            foreach (ConfigObjectEntry playerEntry in player.Entries)
             {
-                var playerEntry =
-                    player.Entries[i];
-
                 ConfigNode currentDefault;
 
-                if (currentDefaults.TryGet(
-                    playerEntry.Name,
-                    out currentDefault))
+                if (currentDefaults.TryGet(playerEntry.Name, out currentDefault))
                 {
-                    var playerObject =
-                        playerEntry.Value as ConfigObjectNode;
+                    var playerObject = playerEntry.Value as ConfigObjectNode;
 
-                    var defaultObject =
-                        currentDefault as ConfigObjectNode;
+                    var defaultObject = currentDefault as ConfigObjectNode;
 
-                    if (playerObject != null &&
-                        defaultObject != null)
+                    if (playerObject != null && defaultObject != null)
                     {
-                        entries.Add(
-                            new ConfigObjectEntry(
-                                playerEntry.Name,
-                                FillMissingKnownValues(
-                                    playerObject,
-                                    defaultObject)));
-
+                        ConfigObjectNode missingKnownValues = FillMissingKnownValues(playerObject, defaultObject);
+                        entries.Add(new ConfigObjectEntry(playerEntry.Name, missingKnownValues));
                         continue;
                     }
                 }
@@ -241,27 +152,17 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
                 entries.Add(playerEntry);
             }
 
-            for (var i = 0;
-                i < currentDefaults.Entries.Count;
-                i++)
+            foreach (ConfigObjectEntry defaultEntry in currentDefaults.Entries)
             {
-                var defaultEntry =
-                    currentDefaults.Entries[i];
-
                 ConfigNode ignored;
 
-                if (player.TryGet(
-                    defaultEntry.Name,
-                    out ignored))
-                {
+                if (player.TryGet(defaultEntry.Name, out ignored))
                     continue;
-                }
 
                 entries.Add(defaultEntry);
             }
 
-            return new ConfigObjectNode(
-                entries.ToArray());
+            return new ConfigObjectNode(entries.ToArray());
         }
     }
 }
