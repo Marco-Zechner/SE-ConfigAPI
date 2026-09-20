@@ -6,7 +6,7 @@ namespace Mz.ConfigApi
     {
         public const int Major = 2;
         public const int Minor = 0;
-        public const int Patch = 1;
+        public const int Patch = 2;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
 
@@ -24,6 +24,14 @@ namespace Mz.ConfigApi
             new[]
             {
                 new ChangelogEntry(
+                    "2.0.2",
+                    new[]
+                    {
+                        "Corrected the consumer contract documentation: typed configs use caller-supplied ConfigDefinition<T> serialization delegates; automatic reflection-based CLR mapping is not part of the released facade.",
+                        "Documented that CLR model shapes are consumer-defined and map through ConfigDocument semantic values.",
+                    }
+                ),
+                new ChangelogEntry(
                     "2.0.1",
                     new[]
                     {
@@ -37,10 +45,10 @@ namespace Mz.ConfigApi
                         "Introduced the typed ConfigAPI consumer facade.",
                         "Added consumer-owned semantic config documents and values without provider-domain dependencies.",
                         "Added provider-backed Open and Save operations with exact endpoint validation.",
-                        "Added reflection-based CLR config mapping and typed Open<T> and Save<T> operations for public field or public read/write property models.",
+                        "Added typed Open<T> and Save<T> operations using caller-supplied ConfigDefinition<T> serialization and deserialization delegates.",
                         "Added ConfigDefinition<T> for explicit config identity, default file selection, and on-demand current-default creation.",
                         "Added client-owned ConfigHandle<T> state with CurrentFile, Value, and fresh-disk Reload through the existing Open persistence path.",
-                        "Supported enums, nullable values, nested objects, one-dimensional arrays, List<T>, and Dictionary<string, T> in typed configs.",
+                        "Added semantic config values for null, Boolean, Integer, Float, String, Object, Array, and TOML date/time scalar kinds; consumer serializers decide how CLR models map to those values.",
                         "Reserved World configs for the server-authoritative path; direct Open and Save operations now accept only Local and Global.",
                         "Added automatic provider discovery and consumer-owned storage callback registration with reconnect-safe registration identifiers.",
                         "Accepted newer provider API versions without a hardcoded upper version ceiling.",
