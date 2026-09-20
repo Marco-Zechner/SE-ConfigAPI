@@ -111,7 +111,7 @@
                                                               }
                                                 },
                      "Mz.ConfigAPI.Consumer":  {
-                                                   "version":  "2.0.2",
+                                                   "version":  "2.0.3",
                                                    "direct":  true,
                                                    "source":  {
                                                                   "provider":  "github",
@@ -126,21 +126,21 @@
                                                                    "Mz.ConfigAPI.Consumer"
                                                                ],
                                                    "files":  {
-                                                                 "Mz.ConfigAPI.Consumer/ApiVersionFile.cs":  "ccbed434a0ffaa75dad523326415d082f2a6be013a7b96461cc1f34dbcf49f68",
+                                                                 "Mz.ConfigAPI.Consumer/ApiVersionFile.cs":  "0abcd541e664f450b3c6e7ca3273206f921fdfd68fc83774aba1f33f65592e72",
                                                                  "Mz.ConfigAPI.Consumer/ConfigApiClient.cs":  "9d6b0486f1b012c1463ad44ba2f65dad861d5fc52ee6ce25b1f6fa8751970e20",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDate.cs":  "c1e155b79b0dbfc8b35d93ffb786e6a21580c527033c6e638e99ded20581b064",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDefinition.cs":  "306b654fea89937b931f19948a53885533dbbbec1d3ec3b90bd6952969e43865",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDocument.cs":  "d11b298a3d5d94df6daeb19e841e66d7db36fa1706e127d2e8f9d46895b251b2",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDocumentWireCodec.cs":  "5f9b21ebbb0be2fd30419785662850e1b62a097d7863d39e07a7cff4c570dfbc",
                                                                  "Mz.ConfigAPI.Consumer/ConfigEntry.cs":  "7e6146812f04e0cbc43a51ba6b6b6be3d1bef1b715bb6f210ca989d6044f21ba",
-                                                                 "Mz.ConfigAPI.Consumer/ConfigHandle.cs":  "5cc6fdc7ce0070d0fc536f2f8349c42733e9aa7b14363c6e69773645375ed788",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigHandle.cs":  "bde7c52abe53801e10e16bee814ff4a303f9cdd5a5cb41e0b593b61d7551e32b",
                                                                  "Mz.ConfigAPI.Consumer/ConfigLocalDateTime.cs":  "ac616fe03f430377f880e3f7b77018ba2edaa192c40be4bd1931f7200b1f6f68",
                                                                  "Mz.ConfigAPI.Consumer/ConfigLocation.cs":  "53fc0db94fd01681f81b2d11b33269912257d662acb50e095deb40e54af58721",
                                                                  "Mz.ConfigAPI.Consumer/ConfigOffsetDateTime.cs":  "e154558d4f3aa954def7e73cf78aea83ac0e954ea5e0d8c7fff937f647a6b155",
                                                                  "Mz.ConfigAPI.Consumer/ConfigTime.cs":  "6daf7f17621f71aeca2b4abc776390a8a9ce573ebfcf3f90aca7cb6677c8bfbd",
                                                                  "Mz.ConfigAPI.Consumer/ConfigValue.cs":  "a6ab6e4ef0227d9f064017405919dde27af629d6fcd841656838bd82bb732394",
                                                                  "Mz.ConfigAPI.Consumer/ConfigValueKind.cs":  "ccd3b057799af3bf77910d262aa6b9cec50bfda5430e2cc6e393a4ed46a7f84d",
-                                                                 "Mz.ConfigAPI.Consumer/README.md":  "9e2c30dd7c874bab32cfec25354f9e9deb115b43d27588378f560560b216a549",
+                                                                 "Mz.ConfigAPI.Consumer/README.md":  "559f50fb9b73077f6e1b57de7b94a42d30ed471d2e5f3b77e1c4fe1f248ea0da",
                                                                  "Mz.ConfigAPI.Consumer/ReadOnlyList.cs":  "947c12b9643be7282c63182b815789ed2e5b45921431e183f88c603301edbf45",
                                                                  "Mz.ConfigAPI.Consumer/SpaceEngineersConfigTextStorage.cs":  "7bf1df7f481a43cd970703506f397c438f67eda87c4b96f02df56ab828d4f5c9"
                                                              }
