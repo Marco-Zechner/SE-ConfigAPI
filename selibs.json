@@ -4,7 +4,7 @@
     "dependencies":  {
                          "Mz.ApiProtocol":  "0.3.0",
                          "Mz.CommandAPI.Consumer":  "1.2.0",
-                         "Mz.ConfigAPI.Consumer":  "2.0.1",
+                         "Mz.ConfigAPI.Consumer":  "2.0.2",
                          "Mz.Logging":  "0.1.2",
                          "Mz.Networking":  "0.2.1",
                          "Mz.Toml":  "0.2.1"
