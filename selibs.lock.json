@@ -111,7 +111,7 @@
                                                               }
                                                 },
                      "Mz.ConfigAPI.Consumer":  {
-                                                   "version":  "2.0.3",
+                                                   "version":  "2.1.0",
                                                    "direct":  true,
                                                    "source":  {
                                                                   "provider":  "github",
@@ -126,8 +126,8 @@
                                                                    "Mz.ConfigAPI.Consumer"
                                                                ],
                                                    "files":  {
-                                                                 "Mz.ConfigAPI.Consumer/ApiVersionFile.cs":  "0abcd541e664f450b3c6e7ca3273206f921fdfd68fc83774aba1f33f65592e72",
-                                                                 "Mz.ConfigAPI.Consumer/ConfigApiClient.cs":  "9d6b0486f1b012c1463ad44ba2f65dad861d5fc52ee6ce25b1f6fa8751970e20",
+                                                                 "Mz.ConfigAPI.Consumer/ApiVersionFile.cs":  "f6deffcdff3aa1f620fdac703c34d9226a93a60d93f3edd0210f326fca8cb7a4",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigApiClient.cs":  "fda1e816046935a0043ff10c8a0002c9260b662654a9aa25a667fbddb6dc5792",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDate.cs":  "c1e155b79b0dbfc8b35d93ffb786e6a21580c527033c6e638e99ded20581b064",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDefinition.cs":  "306b654fea89937b931f19948a53885533dbbbec1d3ec3b90bd6952969e43865",
                                                                  "Mz.ConfigAPI.Consumer/ConfigDocument.cs":  "d11b298a3d5d94df6daeb19e841e66d7db36fa1706e127d2e8f9d46895b251b2",
@@ -140,9 +140,11 @@
                                                                  "Mz.ConfigAPI.Consumer/ConfigTime.cs":  "6daf7f17621f71aeca2b4abc776390a8a9ce573ebfcf3f90aca7cb6677c8bfbd",
                                                                  "Mz.ConfigAPI.Consumer/ConfigValue.cs":  "a6ab6e4ef0227d9f064017405919dde27af629d6fcd841656838bd82bb732394",
                                                                  "Mz.ConfigAPI.Consumer/ConfigValueKind.cs":  "ccd3b057799af3bf77910d262aa6b9cec50bfda5430e2cc6e393a4ed46a7f84d",
-                                                                 "Mz.ConfigAPI.Consumer/README.md":  "559f50fb9b73077f6e1b57de7b94a42d30ed471d2e5f3b77e1c4fe1f248ea0da",
+                                                                 "Mz.ConfigAPI.Consumer/README.md":  "e25fae496e9c869d1e0f5b3a783ab2ac34572f15caf0737f9571056b7ab7715b",
                                                                  "Mz.ConfigAPI.Consumer/ReadOnlyList.cs":  "947c12b9643be7282c63182b815789ed2e5b45921431e183f88c603301edbf45",
-                                                                 "Mz.ConfigAPI.Consumer/SpaceEngineersConfigTextStorage.cs":  "7bf1df7f481a43cd970703506f397c438f67eda87c4b96f02df56ab828d4f5c9"
+                                                                 "Mz.ConfigAPI.Consumer/SpaceEngineersConfigTextStorage.cs":  "7bf1df7f481a43cd970703506f397c438f67eda87c4b96f02df56ab828d4f5c9",
+                                                                 "Mz.ConfigAPI.Consumer/WorldConfigOperation.cs":  "468a76a99a3249b41801c03af9db7158f14bf5e1a1317e78d18982d9010f1e27",
+                                                                 "Mz.ConfigAPI.Consumer/WorldConfigResponse.cs":  "44c69c60dfcdff347af171af218a4b9f2fa280f95da294cef6b24ba7a97fde6d"
                                                              }
                                                },
                      "Mz.Logging":  {
