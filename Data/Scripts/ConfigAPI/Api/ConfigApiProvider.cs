@@ -117,9 +117,5 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             }
         }
 
-        private sealed class SystemConfigClock : IConfigClock
-        {
-            public DateTime UtcNow => DateTime.UtcNow;
-        }
     }
 }

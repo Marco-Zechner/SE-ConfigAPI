@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.ConfigAPI.V2.Api;
+using MarcoZechner.ConfigAPI.V2.Persistence;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.Networking.SpaceEngineers;
+using Sandbox.ModAPI;
 using Mz.CommandApi;
 using Mz.ConfigApi;
 using Mz.Logging;
@@ -15,6 +18,8 @@ namespace MarcoZechner.ConfigAPI.V2
     public sealed class ConfigApiSession : MySessionComponentBase
     {
         private static readonly SemanticVersion _modVersion = new SemanticVersion(0, 1, 0);
+        private const ushort WorldNetworkChannelId = 12345;
+        private const string WorldNetworkId = "MarcoZechner.ConfigAPI.World";
 
         private ConfigApiClient _configClient;
         private CommandApiClient _commandClient;
@@ -22,6 +27,8 @@ namespace MarcoZechner.ConfigAPI.V2
         private SpaceEngineersStorageLogger _logger;
         private ConfigApiProvider _provider;
         private ConfigConsumerRegistrationRegistry _registry;
+        private SpaceEngineersNetworkSession _worldNetworkSession;
+        private WorldConfigNetworkRuntime _worldNetworkRuntime;
 
         public override void LoadData()
         {
@@ -65,6 +72,70 @@ namespace MarcoZechner.ConfigAPI.V2
             }
         }
 
+        public override void BeforeStart()
+        {
+            if (_registry == null)
+                throw new InvalidOperationException("ConfigAPI provider state is unavailable before World networking startup.");
+            if (MyAPIGateway.Multiplayer == null)
+                throw new InvalidOperationException("Space Engineers multiplayer is unavailable before World networking startup.");
+
+            try
+            {
+                _worldNetworkSession = new SpaceEngineersNetworkSession(WorldNetworkChannelId, WorldNetworkId, OnWorldNetworkReceiveFailure);
+                _worldNetworkRuntime = new WorldConfigNetworkRuntime(_worldNetworkSession.Endpoint, _worldNetworkSession.Transport, _registry, new SystemConfigClock(), new SpaceEngineersWorldConfigAuthorization());
+
+                _logger.Logger.Info("ConfigAPI World networking started as " + (_worldNetworkRuntime.IsServer ? "server" : "client") + " on channel " + _worldNetworkSession.ChannelId + ".");
+            }
+            catch (Exception exception)
+            {
+                DisposeWorldNetworking();
+                _logger?.Logger.Critical("ConfigAPI World networking failed to start.", exception);
+                throw;
+            }
+        }
+
+        private void OnWorldNetworkReceiveFailure(SpaceEngineersNetworkReceiveFailure failure)
+        {
+            if (failure == null)
+                return;
+
+            _logger?.Logger.Warning("ConfigAPI World networking rejected a packet on channel " + failure.ChannelId + " from peer " + failure.SenderPeerId + ".", failure.Exception);
+        }
+
+        private void DisposeWorldNetworking()
+        {
+            if (_worldNetworkRuntime != null)
+            {
+                try
+                {
+                    _worldNetworkRuntime.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Logger.Error("ConfigAPI World network runtime failed while unloading.", exception);
+                }
+                finally
+                {
+                    _worldNetworkRuntime = null;
+                }
+            }
+
+            if (_worldNetworkSession != null)
+            {
+                try
+                {
+                    _worldNetworkSession.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Logger.Error("ConfigAPI World network session failed while unloading.", exception);
+                }
+                finally
+                {
+                    _worldNetworkSession = null;
+                }
+            }
+        }
         private void StartCommandApiIntegration(SpaceEngineersModMessageBus messageBus)
         {
             try
@@ -217,6 +288,8 @@ namespace MarcoZechner.ConfigAPI.V2
         protected override void UnloadData()
         {
             _logger?.Logger.Debug("ConfigAPI session unloading.");
+
+            DisposeWorldNetworking();
 
             try
             {
