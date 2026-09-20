@@ -40,15 +40,18 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (registrationId == Guid.Empty)
                 throw new ArgumentException("Registration ID must not be empty.", nameof(registrationId));
 
-            Registration registration;
-
-            if (!_registrations.TryGetValue(normalizedConsumerId, out registration))
-                throw new InvalidOperationException("Consumer is not registered: " + normalizedConsumerId);
+            Registration registration = GetRegistration(normalizedConsumerId);
 
             if (registration.RegistrationId != registrationId)
                 throw new InvalidOperationException("Consumer registration token is stale: " + normalizedConsumerId);
 
             return registration.Storage;
+        }
+
+        internal IConfigTextStorage GetCurrentStorage(string consumerId)
+        {
+            string normalizedConsumerId = ValidateConsumerId(consumerId);
+            return GetRegistration(normalizedConsumerId).Storage;
         }
 
         public bool Unregister(string consumerId, Guid registrationId)
@@ -67,6 +70,16 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 return false;
 
             return _registrations.Remove(normalizedConsumerId);
+        }
+
+        private Registration GetRegistration(string normalizedConsumerId)
+        {
+            Registration registration;
+
+            if (!_registrations.TryGetValue(normalizedConsumerId, out registration))
+                throw new InvalidOperationException("Consumer is not registered: " + normalizedConsumerId);
+
+            return registration;
         }
 
         private static string ValidateConsumerId(string consumerId)
