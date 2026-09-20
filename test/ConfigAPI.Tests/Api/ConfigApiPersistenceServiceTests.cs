@@ -117,6 +117,66 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Local_And_Global_Configs_With_The_Same_File_Remain_Independent()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+            var localEdited = Document(Entry("Value", Integer(20)));
+            var globalEdited = Document(Entry("Value", Integer(30)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            service.Open("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            service.Save("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(localEdited));
+            service.Save("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(globalEdited));
+
+            ConfigDocument localReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+            ConfigDocument globalReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(localReloaded, 20, "Value");
+                AssertDocumentValue(globalReloaded, 30, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 20"));
+                Assert.That(storage.Get(1, "settings.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.Not.Null);
+            });
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        public void Open_Malformed_Persisted_Toml_Fails_Without_Rewriting_Storage(int location)
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+            var identity = new ConfigIdentity("Example.Mod", "Settings");
+            const string malformed = "Value = [\n";
+            string provenance = ConfigProvenanceCodec.Encode(new ConfigProvenance(identity, defaults));
+
+            storage.Set(location, "settings.toml", malformed);
+            storage.Set(location, "settings.toml.configapi.provenance", provenance);
+            storage.ClearOperations();
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+                service.Open("Example.Mod", registrationId, "Settings", location, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Does.StartWith("Source must be valid TOML."));
+                Assert.That(storage.WriteCount(location), Is.EqualTo(0));
+                Assert.That(storage.Get(location, "settings.toml"), Is.EqualTo(malformed));
+                Assert.That(storage.Get(location, "settings.toml.configapi.provenance"), Is.EqualTo(provenance));
+                Assert.That(storage.WriteCount(location == 0 ? 1 : 0), Is.EqualTo(0));
+            });
+        }
+
+        [Test]
         public void Open_Existing_Global_Config_Reconciles_Changed_Default_And_Persists_Result()
         {
             var registrationId = Guid.NewGuid();
