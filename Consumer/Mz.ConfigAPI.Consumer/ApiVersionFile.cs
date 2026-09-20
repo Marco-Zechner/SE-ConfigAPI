@@ -6,7 +6,7 @@ namespace Mz.ConfigApi
     {
         public const int Major = 2;
         public const int Minor = 0;
-        public const int Patch = 0;
+        public const int Patch = 1;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
 
@@ -23,6 +23,13 @@ namespace Mz.ConfigApi
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "2.0.1",
+                    new[]
+                    {
+                        "Fixed ConfigHandle<T>.SwitchFile and Reload so the selected CurrentFile is actually loaded and remains active for subsequent reloads.",
+                    }
+                ),
                 new ChangelogEntry(
                     "2.0.0",
                     new[]

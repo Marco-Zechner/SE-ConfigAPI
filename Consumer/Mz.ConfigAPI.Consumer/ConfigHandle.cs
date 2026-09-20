@@ -44,7 +44,7 @@ namespace Mz.ConfigApi
 
         public T Reload()
         {
-            T value = _client.Open(_definition, Location);
+            T value = _definition.Deserialize(_client.Open(_definition.ConfigKey, Location, CurrentFile, _definition.Serialize(_definition.CreateDefaults())));
 
             Value = value;
             return value;

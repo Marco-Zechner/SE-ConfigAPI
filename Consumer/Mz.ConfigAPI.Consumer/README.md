@@ -6,7 +6,7 @@ The package contains only the consumer-facing source required by another mod to 
 
 ## SELibs dependencies
 
-`Mz.ConfigAPI.Consumer` 2.0.0 has these exact source-package dependencies:
+`Mz.ConfigAPI.Consumer` 2.0.1 has these exact source-package dependencies:
 
 - `Mz.ApiProtocol` 0.3.0
 - `Mz.SemanticVersioning` 0.2.0
@@ -17,13 +17,13 @@ Space Engineers API assemblies used by the storage adapter are game/runtime refe
 
 From the consuming mod root:
 
-    selibs add Mz.ConfigAPI.Consumer@2.0.0
+    selibs add Mz.ConfigAPI.Consumer@2.0.1
 
 SELibs installs this package under the consuming mod's `Data/Scripts/.../Libraries` tree together with its exact transitive source dependencies.
 
 ## Compatibility
 
-Consumer package version: `2.0.0`
+Consumer package version: `2.0.1`
 
 Minimum ConfigAPI provider API version: `2.0.0`
 

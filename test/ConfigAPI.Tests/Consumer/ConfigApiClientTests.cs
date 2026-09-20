@@ -262,6 +262,42 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
+        public void Handle_SwitchFile_Reloads_Requested_File_And_Keeps_Using_It()
+        {
+            var bus = new RecordingModMessageBus();
+            var openedFiles = new List<string>();
+            var endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
+                {
+                    openedFiles.Add(file);
+                    return defaults;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
+            client.Start();
+
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
+
+            handle.SwitchFile("alternate.toml");
+            handle.Reload();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.CurrentFile, Is.EqualTo("alternate.toml"));
+                Assert.That(openedFiles, Is.EqualTo(new[] { "settings.toml", "alternate.toml", "alternate.toml" }));
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
         public void Constructor_Rejects_Invalid_Consumer_Identity_And_Callbacks()
         {
             var bus = new RecordingModMessageBus();
