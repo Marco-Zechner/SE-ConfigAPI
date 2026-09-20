@@ -6,6 +6,7 @@ using MarcoZechner.ConfigAPI.V2.Persistence;
 using MarcoZechner.ConfigAPI.V2.Serialization;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.Logging;
 using Mz.SemanticVersioning;
 using NUnit.Framework;
 
@@ -302,6 +303,41 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             provider.Dispose();
         }
 
+        [Test]
+        public void Logging_Failures_Do_Not_Break_Open_Or_Save()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var logger = new Logger("ConfigAPI.Tests", new ThrowingLogSink(), LogLevel.Trace);
+            var service = new ConfigApiPersistenceService(registry, Clock(), logger);
+            var defaults = Document(Entry("Value", Integer(10)));
+            var edited = Document(Entry("Value", Integer(25)));
+            object openPayload = null;
+            object savePayload = null;
+
+            Assert.DoesNotThrow(() => openPayload = service.Open(
+                "Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.DoesNotThrow(() => savePayload = service.Save(
+                "Example.Mod", registrationId, "Settings", 0, "settings.toml",
+                ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(edited)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ConfigDocumentWireCodec.Decode(openPayload).Equals(defaults), Is.True);
+                Assert.That(ConfigDocumentWireCodec.Decode(savePayload).Equals(edited), Is.True);
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 25"));
+            });
+        }
+
+        private sealed class ThrowingLogSink : ILogSink
+        {
+            public void Write(LogEntry entry)
+            {
+                throw new InvalidOperationException("Synthetic logging failure.");
+            }
+        }
         private static ConfigConsumerRegistrationRegistry RegisteredRegistry(
             string consumerId,
             Guid registrationId,

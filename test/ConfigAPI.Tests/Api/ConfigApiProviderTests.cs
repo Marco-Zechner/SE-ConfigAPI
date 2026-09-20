@@ -4,6 +4,7 @@ using MarcoZechner.ConfigAPI.V2.Api;
 using MarcoZechner.ConfigAPI.V2.Domain;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.Logging;
 using Mz.SemanticVersioning;
 using NUnit.Framework;
 
@@ -129,6 +130,30 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Logging_Failures_Do_Not_Break_Provider_Lifecycle()
+        {
+            var bus = new RecordingModMessageBus();
+            var logger = new Logger("ConfigAPI.Tests", new ThrowingLogSink(), LogLevel.Trace);
+            var provider = new ConfigApiProvider(bus, new ConfigConsumerRegistrationRegistry(), new SemanticVersion(1, 2, 3), logger);
+
+            Assert.DoesNotThrow(() => provider.Start());
+            Assert.That(provider.IsStarted, Is.True);
+
+            Assert.DoesNotThrow(() => provider.Announce());
+            Assert.DoesNotThrow(() => provider.Stop());
+            Assert.That(provider.IsStarted, Is.False);
+
+            Assert.DoesNotThrow(() => provider.Dispose());
+        }
+
+        private sealed class ThrowingLogSink : ILogSink
+        {
+            public void Write(LogEntry entry)
+            {
+                throw new InvalidOperationException("Synthetic logging failure.");
+            }
+        }
         private sealed class RecordingModMessageBus : IModMessageBus
         {
             private readonly Dictionary<long, List<Action<object>>> _handlers =
