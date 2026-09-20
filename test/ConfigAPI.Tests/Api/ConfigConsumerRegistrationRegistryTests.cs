@@ -151,6 +151,30 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Registered_Consumer_Ids_Are_Sorted_And_Reflect_Live_Registrations()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var betaRegistrationId = Guid.NewGuid();
+            var alphaRegistrationId = Guid.NewGuid();
+
+            registry.Register("Beta.Mod", betaRegistrationId, (location, file) => null, (location, file, content) => { });
+            registry.Register("Alpha.Mod", alphaRegistrationId, (location, file) => null, (location, file, content) => { });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(registry.Count, Is.EqualTo(2));
+                Assert.That(registry.GetConsumerIds(), Is.EqualTo(new[] { "Alpha.Mod", "Beta.Mod" }));
+            });
+
+            registry.Unregister("Alpha.Mod", alphaRegistrationId);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(registry.Count, Is.EqualTo(1));
+                Assert.That(registry.GetConsumerIds(), Is.EqualTo(new[] { "Beta.Mod" }));
+            });
+        }
+        [Test]
         public void Registration_Rejects_Invalid_Identity_Token_And_Callbacks()
         {
             var registry = new ConfigConsumerRegistrationRegistry();

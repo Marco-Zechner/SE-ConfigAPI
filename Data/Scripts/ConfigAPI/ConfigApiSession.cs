@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using MarcoZechner.ConfigAPI.V2.Api;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.CommandApi;
 using Mz.ConfigApi;
 using Mz.Logging;
 using Mz.Logging.SpaceEngineers;
@@ -15,8 +17,11 @@ namespace MarcoZechner.ConfigAPI.V2
         private static readonly SemanticVersion _modVersion = new SemanticVersion(0, 1, 0);
 
         private ConfigApiClient _configClient;
+        private CommandApiClient _commandClient;
+        private readonly List<CommandRegistrationHandle> _commandRegistrations = new List<CommandRegistrationHandle>();
         private SpaceEngineersStorageLogger _logger;
         private ConfigApiProvider _provider;
+        private ConfigConsumerRegistrationRegistry _registry;
 
         public override void LoadData()
         {
@@ -26,9 +31,9 @@ namespace MarcoZechner.ConfigAPI.V2
             try
             {
                 var messageBus = new SpaceEngineersModMessageBus();
-                var registry = new ConfigConsumerRegistrationRegistry();
+                _registry = new ConfigConsumerRegistrationRegistry();
 
-                _provider = new ConfigApiProvider(messageBus, registry, _modVersion, _logger.Logger);
+                _provider = new ConfigApiProvider(messageBus, _registry, _modVersion, _logger.Logger);
                 _provider.Start();
 
                 _configClient = ConfigApiClient.CreateForSpaceEngineers(
@@ -45,6 +50,8 @@ namespace MarcoZechner.ConfigAPI.V2
                     _logger.Logger.MinimumLevel = LogLevel.Trace;
                     _logger.Logger.Error("ConfigAPI self-configuration consumer did not connect. Trace logging remains enabled.", _configClient.LastError);
                 }
+
+                StartCommandApiIntegration(messageBus);
             }
             catch (Exception exception)
             {
@@ -58,6 +65,129 @@ namespace MarcoZechner.ConfigAPI.V2
             }
         }
 
+        private void StartCommandApiIntegration(SpaceEngineersModMessageBus messageBus)
+        {
+            try
+            {
+                _commandClient = new CommandApiClient(
+                    messageBus, "ConfigAPI", "ConfigAPI", _modVersion, false, "Provides ConfigAPI administration and diagnostic commands.");
+
+                _commandClient.Connected += OnCommandApiConnected;
+                _commandClient.Disconnected += OnCommandApiDisconnected;
+                _commandClient.RegistrationFailed += OnCommandRegistrationFailed;
+
+                RegisterCommands();
+
+                _logger.Logger.Debug("Starting optional CommandAPI consumer.");
+                _commandClient.Start();
+
+                if (!_commandClient.IsConnected)
+                    _logger.Logger.Debug("CommandAPI is not currently available; ConfigAPI will continue without /cfg commands.");
+            }
+            catch (Exception exception)
+            {
+                _logger.Logger.Warning("Optional CommandAPI integration failed to start. ConfigAPI will continue without /cfg commands.", exception);
+
+                for (int index = 0; index < _commandRegistrations.Count; index++)
+                    _commandRegistrations[index].Dispose();
+
+                _commandRegistrations.Clear();
+
+                if (_commandClient != null)
+                {
+                    _commandClient.Connected -= OnCommandApiConnected;
+                    _commandClient.Disconnected -= OnCommandApiDisconnected;
+                    _commandClient.RegistrationFailed -= OnCommandRegistrationFailed;
+                    _commandClient.Dispose();
+                    _commandClient = null;
+                }
+            }
+        }
+        private void RegisterCommands()
+        {
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "help", CommandExecutionLocation.Either, null,
+                        "Lists ConfigAPI commands.",
+                        "Lists the commands currently exposed by ConfigAPI.",
+                        "help", "ConfigAPI"),
+                    HandleCommandHelp));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "status", CommandExecutionLocation.Either, null,
+                        "Reports ConfigAPI runtime status.",
+                        "Reports the local ConfigAPI provider, self-configuration consumer, and CommandAPI integration state.",
+                        "status", "ConfigAPI"),
+                    HandleCommandStatus));
+        }
+
+        private CommandResponse HandleCommandHelp(CommandRequest request)
+        {
+            if (request.Arguments.Length != 0)
+                return new CommandResponse(false, "Invalid help request", "Help does not accept arguments.", severity: CommandSeverity.Error, usageHint: "/cfg help");
+
+            return new CommandResponse(
+                true,
+                "ConfigAPI commands",
+                "Available commands: 2",
+                new[]
+                {
+                    "help - Lists ConfigAPI commands.",
+                    "status - Reports ConfigAPI runtime status."
+                });
+        }
+
+        private CommandResponse HandleCommandStatus(CommandRequest request)
+        {
+            if (request.Arguments.Length != 0)
+                return new CommandResponse(false, "Invalid status request", "Status does not accept arguments.", severity: CommandSeverity.Error, usageHint: "/cfg status");
+
+            var otherConsumers = new List<string>();
+            string[] consumerIds = _registry != null ? _registry.GetConsumerIds() : new string[0];
+
+            for (int index = 0; index < consumerIds.Length; index++)
+            {
+                if (!string.Equals(consumerIds[index], ConfigApiProvider.ApiId, StringComparison.Ordinal))
+                    otherConsumers.Add(consumerIds[index]);
+            }
+
+            var detailLines = new List<string>
+            {
+                "Provider: " + (_provider != null && _provider.IsStarted ? "started" : "stopped"),
+                "Self config: " + (_configClient != null && _configClient.IsConnected ? "connected" : "disconnected"),
+                "CommandAPI: " + (_commandClient != null && _commandClient.IsConnected ? "connected" : "disconnected"),
+                "Mod version: " + _modVersion,
+                "Other registered mods: " + otherConsumers.Count
+            };
+
+            int listedConsumerCount = otherConsumers.Count > 3 ? 2 : otherConsumers.Count;
+
+            for (int index = 0; index < listedConsumerCount; index++)
+                detailLines.Add(" - " + otherConsumers[index]);
+
+            if (listedConsumerCount < otherConsumers.Count)
+                detailLines.Add(" - ... " + (otherConsumers.Count - listedConsumerCount) + " more");
+
+            return new CommandResponse(true, "ConfigAPI status", "ConfigAPI is running.", detailLines.ToArray());
+        }
+
+        private void OnCommandApiConnected()
+        {
+            _logger?.Logger.Info("Optional CommandAPI consumer connected; /cfg commands are available.");
+        }
+
+        private void OnCommandApiDisconnected()
+        {
+            _logger?.Logger.Warning("Optional CommandAPI consumer disconnected; /cfg commands are unavailable.");
+        }
+
+        private void OnCommandRegistrationFailed(CommandRegistration registration, Exception exception)
+        {
+            _logger?.Logger.Error("CommandAPI registration failed for " + registration.Prefix + " " + registration.CanonicalName + ".", exception);
+        }
         private void OnSelfConfigConnected()
         {
             _logger.Logger.Debug("ConfigAPI self-configuration consumer connected.");
@@ -90,6 +220,30 @@ namespace MarcoZechner.ConfigAPI.V2
 
             try
             {
+                if (_commandClient != null)
+                {
+                    _commandClient.Connected -= OnCommandApiConnected;
+                    _commandClient.Disconnected -= OnCommandApiDisconnected;
+                    _commandClient.RegistrationFailed -= OnCommandRegistrationFailed;
+                }
+
+                for (int index = 0; index < _commandRegistrations.Count; index++)
+                    _commandRegistrations[index].Dispose();
+
+                _commandRegistrations.Clear();
+                _commandClient?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                _logger?.Logger.Error("Optional CommandAPI consumer failed while unloading.", exception);
+            }
+            finally
+            {
+                _commandClient = null;
+            }
+
+            try
+            {
                 if (_configClient != null)
                 {
                     _configClient.Connected -= OnSelfConfigConnected;
@@ -117,6 +271,7 @@ namespace MarcoZechner.ConfigAPI.V2
             finally
             {
                 _provider = null;
+                _registry = null;
 
                 _logger?.Logger.Info("ConfigAPI session stopped.");
                 _logger?.Dispose();
