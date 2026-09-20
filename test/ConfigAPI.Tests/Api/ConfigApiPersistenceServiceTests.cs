@@ -177,6 +177,67 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Full_Semantic_Document_RoundTrips_Through_Persistence_Including_Null()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+
+            var defaultDate = new ConfigLocalDate(2026, 9, 20);
+            var defaultTime = new ConfigLocalTime(12, 34, 56, "123");
+            var editedDate = new ConfigLocalDate(2027, 1, 2);
+            var editedTime = new ConfigLocalTime(3, 4, 5, "6789");
+
+            var defaults = Document(
+                Entry("Enabled", ConfigScalarNode.Boolean(true)),
+                Entry("Count", Integer(10)),
+                Entry("Ratio", ConfigScalarNode.Float(1.25)),
+                Entry("Name", ConfigScalarNode.String("default")),
+                Entry("Offset", ConfigScalarNode.OffsetDateTime(new ConfigOffsetDateTime(defaultDate, defaultTime, -90))),
+                Entry("LocalDateTime", ConfigScalarNode.LocalDateTime(new ConfigLocalDateTime(defaultDate, defaultTime))),
+                Entry("LocalDate", ConfigScalarNode.LocalDate(defaultDate)),
+                Entry("LocalTime", ConfigScalarNode.LocalTime(defaultTime)),
+                Entry("Nested", new ConfigObjectNode(Entry("Threshold", Integer(5)), Entry("Label", ConfigScalarNode.String("base")))),
+                Entry("Items", new ConfigArrayNode(Integer(1), ConfigScalarNode.String("two"), ConfigScalarNode.Boolean(false))),
+                Entry("Optional", ConfigScalarNode.String("fallback")));
+
+            var edited = Document(
+                Entry("Enabled", ConfigScalarNode.Boolean(false)),
+                Entry("Count", Integer(-42)),
+                Entry("Ratio", ConfigScalarNode.Float(9.5)),
+                Entry("Name", ConfigScalarNode.String("edited")),
+                Entry("Offset", ConfigScalarNode.OffsetDateTime(new ConfigOffsetDateTime(editedDate, editedTime, 120))),
+                Entry("LocalDateTime", ConfigScalarNode.LocalDateTime(new ConfigLocalDateTime(editedDate, editedTime))),
+                Entry("LocalDate", ConfigScalarNode.LocalDate(editedDate)),
+                Entry("LocalTime", ConfigScalarNode.LocalTime(editedTime)),
+                Entry("Nested", new ConfigObjectNode(Entry("Threshold", Integer(25)), Entry("Label", ConfigScalarNode.String("changed")))),
+                Entry("Items", new ConfigArrayNode(Integer(7), ConfigScalarNode.String("eight"), ConfigScalarNode.Boolean(true))),
+                Entry("Optional", ConfigNullNode.Instance));
+
+            ConfigDocument initiallyOpened = ConfigDocumentWireCodec.Decode(
+                service.Open("Example.Mod", registrationId, "Settings", 0, "semantic.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            ConfigDocument saved = ConfigDocumentWireCodec.Decode(
+                service.Save("Example.Mod", registrationId, "Settings", 0, "semantic.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(edited)));
+
+            ConfigDocument reloaded = ConfigDocumentWireCodec.Decode(
+                service.Open("Example.Mod", registrationId, "Settings", 0, "semantic.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            string activeSource = storage.Get(0, "semantic.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(initiallyOpened.Equals(defaults), Is.True);
+                Assert.That(saved.Equals(edited), Is.True);
+                Assert.That(reloaded.Equals(edited), Is.True);
+                Assert.That(activeSource, Does.Contain("#!Optional = \"fallback\""));
+                Assert.That(activeSource, Does.Contain("2027-01-02"));
+                Assert.That(activeSource, Does.Contain("9.5"));
+                Assert.That(storage.Get(0, "semantic.toml.configapi.provenance"), Is.Not.Null);
+            });
+        }
+        [Test]
         public void Open_Existing_Global_Config_Reconciles_Changed_Default_And_Persists_Result()
         {
             var registrationId = Guid.NewGuid();
