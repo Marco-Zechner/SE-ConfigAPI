@@ -8,6 +8,15 @@ namespace MarcoZechner.ConfigAPI.V2.Api
     {
         private readonly Dictionary<string, Registration> _registrations = new Dictionary<string, Registration>(StringComparer.Ordinal);
 
+        public int Count => _registrations.Count;
+
+        public string[] GetConsumerIds()
+        {
+            var consumerIds = new string[_registrations.Count];
+            _registrations.Keys.CopyTo(consumerIds, 0);
+            Array.Sort(consumerIds, StringComparer.Ordinal);
+            return consumerIds;
+        }
         public void Register(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write)
         {
             string normalizedConsumerId = ValidateConsumerId(consumerId);

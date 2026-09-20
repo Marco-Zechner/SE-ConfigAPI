@@ -82,6 +82,34 @@
                                                           "Mz.ApiProtocol.SpaceEngineers/Messaging/SpaceEngineersModMessageBus.cs":  "7165c5e62ec8cecc297451b0e7aadfa7aa6012abe8e079e904a515991c0e5513"
                                                       }
                                         },
+                     "Mz.CommandAPI.Consumer":  {
+                                                    "version":  "1.2.0",
+                                                    "direct":  true,
+                                                    "source":  {
+                                                                   "provider":  "github",
+                                                                   "repository":  "Marco-Zechner/SE-CommandAPI",
+                                                                   "releasePrefix":  "release/Mz.CommandAPI.Consumer/"
+                                                               },
+                                                    "dependencies":  {
+                                                                         "Mz.ApiProtocol":  "0.3.0",
+                                                                         "Mz.SemanticVersioning":  "0.2.0"
+                                                                     },
+                                                    "folders":  [
+                                                                    "Mz.CommandAPI.Consumer"
+                                                                ],
+                                                    "files":  {
+                                                                  "Mz.CommandAPI.Consumer/ApiVersionFile.cs":  "f6ecab76d63bafe87985575f955312ceb93394d7d7997b6175c2436aa01df35f",
+                                                                  "Mz.CommandAPI.Consumer/CommandApiClient.cs":  "f6c984973280cebb78d1989459264c3021bd96501337a3fdc46bee773b34e0c5",
+                                                                  "Mz.CommandAPI.Consumer/CommandExecutionLocation.cs":  "65cf5f19e81cf0c4b24a37b1cdf362358a53f178f9f5b04761842190b0f4ca08",
+                                                                  "Mz.CommandAPI.Consumer/CommandRegistration.cs":  "bcdbaef97a1d6e7c3ad12f1331339d372995ef4209e5bf183bb1849455b58e34",
+                                                                  "Mz.CommandAPI.Consumer/CommandRegistrationHandle.cs":  "0fb50f463d7015001922955ec639c97c9376847e4212f2c698f602fb7e846350",
+                                                                  "Mz.CommandAPI.Consumer/CommandRequest.cs":  "ce9ffa0a5dcc532283492bd73af0f2dd73cecc176efdd4d848bb16e02142b5ce",
+                                                                  "Mz.CommandAPI.Consumer/CommandResponse.cs":  "a6b4d5bd1cbe796606555c2d0e2ea3c012c361ae7b79ae6c7921758bba9ae6b4",
+                                                                  "Mz.CommandAPI.Consumer/CommandSeverity.cs":  "6c84de72f6c89215ff8993033f8eb7aab3fd2b05c2dc5f093d32c18d4d270f01",
+                                                                  "Mz.CommandAPI.Consumer/Guide.md":  "00f1e2284d68a202deff5a46fdf012c148a9a055434de2c5a509f3381a73e45c",
+                                                                  "Mz.CommandAPI.Consumer/README.md":  "334df3e0189d05de79205ab90b4f12472db9f9e954caffaa2214157bd3f396ce"
+                                                              }
+                                                },
                      "Mz.ConfigAPI.Consumer":  {
                                                    "version":  "2.0.0",
                                                    "direct":  true,
