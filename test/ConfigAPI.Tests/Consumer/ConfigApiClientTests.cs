@@ -340,6 +340,126 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
+        public void Typed_Open_Delegate_Failures_Stop_At_Expected_Provider_Boundary()
+        {
+            var bus = new RecordingModMessageBus();
+            var openCount = 0;
+            var endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
+                {
+                    openCount++;
+                    return defaults;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
+            client.Start();
+
+            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
+            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => null, value => value, document => document);
+            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
+            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => null, document => document);
+            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
+            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => null);
+
+            InvalidOperationException defaultException = Assert.Throws<InvalidOperationException>(() => client.Open(throwingDefaults, ConfigLocation.Local));
+            InvalidOperationException nullDefaultException = Assert.Throws<InvalidOperationException>(() => client.Open(nullDefaults, ConfigLocation.Local));
+            InvalidOperationException serializerException = Assert.Throws<InvalidOperationException>(() => client.Open(throwingSerializer, ConfigLocation.Local));
+            InvalidOperationException nullSerializerException = Assert.Throws<InvalidOperationException>(() => client.Open(nullSerializer, ConfigLocation.Local));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(defaultException.Message, Is.EqualTo("Synthetic default failure."));
+                Assert.That(nullDefaultException.Message, Does.Contain("default factory returned null"));
+                Assert.That(serializerException.Message, Is.EqualTo("Synthetic serializer failure."));
+                Assert.That(nullSerializerException.Message, Does.Contain("serializer returned null"));
+                Assert.That(openCount, Is.EqualTo(0));
+            });
+
+            InvalidOperationException deserializerException = Assert.Throws<InvalidOperationException>(() => client.Open(throwingDeserializer, ConfigLocation.Local));
+            Assert.That(openCount, Is.EqualTo(1));
+
+            InvalidOperationException nullDeserializerException = Assert.Throws<InvalidOperationException>(() => client.Open(nullDeserializer, ConfigLocation.Local));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(deserializerException.Message, Is.EqualTo("Synthetic deserializer failure."));
+                Assert.That(nullDeserializerException.Message, Does.Contain("deserializer returned null"));
+                Assert.That(openCount, Is.EqualTo(2));
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Typed_Save_Delegate_Failures_Stop_At_Expected_Provider_Boundary()
+        {
+            var bus = new RecordingModMessageBus();
+            var saveCount = 0;
+            var endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object encodedPlayerValues)
+                {
+                    saveCount++;
+                    return encodedPlayerValues;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
+            client.Start();
+            var playerValues = new ConfigDocument();
+
+            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
+            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => null, value => value, document => document);
+            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
+            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => null, document => document);
+            var playerSerializeCount = 0;
+            var throwingPlayerSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { playerSerializeCount++; if (playerSerializeCount == 2) throw new InvalidOperationException("Synthetic player serializer failure."); return value; }, document => document);
+            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
+            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => null);
+
+            InvalidOperationException defaultException = Assert.Throws<InvalidOperationException>(() => client.Save(throwingDefaults, ConfigLocation.Local, playerValues));
+            InvalidOperationException nullDefaultException = Assert.Throws<InvalidOperationException>(() => client.Save(nullDefaults, ConfigLocation.Local, playerValues));
+            InvalidOperationException serializerException = Assert.Throws<InvalidOperationException>(() => client.Save(throwingSerializer, ConfigLocation.Local, playerValues));
+            InvalidOperationException nullSerializerException = Assert.Throws<InvalidOperationException>(() => client.Save(nullSerializer, ConfigLocation.Local, playerValues));
+            InvalidOperationException playerSerializerException = Assert.Throws<InvalidOperationException>(() => client.Save(throwingPlayerSerializer, ConfigLocation.Local, playerValues));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(defaultException.Message, Is.EqualTo("Synthetic default failure."));
+                Assert.That(nullDefaultException.Message, Does.Contain("default factory returned null"));
+                Assert.That(serializerException.Message, Is.EqualTo("Synthetic serializer failure."));
+                Assert.That(nullSerializerException.Message, Does.Contain("serializer returned null"));
+                Assert.That(playerSerializerException.Message, Is.EqualTo("Synthetic player serializer failure."));
+                Assert.That(playerSerializeCount, Is.EqualTo(2));
+                Assert.That(saveCount, Is.EqualTo(0));
+            });
+
+            InvalidOperationException deserializerException = Assert.Throws<InvalidOperationException>(() => client.Save(throwingDeserializer, ConfigLocation.Local, playerValues));
+            Assert.That(saveCount, Is.EqualTo(1));
+
+            InvalidOperationException nullDeserializerException = Assert.Throws<InvalidOperationException>(() => client.Save(nullDeserializer, ConfigLocation.Local, playerValues));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(deserializerException.Message, Is.EqualTo("Synthetic deserializer failure."));
+                Assert.That(nullDeserializerException.Message, Does.Contain("deserializer returned null"));
+                Assert.That(saveCount, Is.EqualTo(2));
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
         public void Constructor_Rejects_Invalid_Consumer_Identity_And_Callbacks()
         {
             var bus = new RecordingModMessageBus();
