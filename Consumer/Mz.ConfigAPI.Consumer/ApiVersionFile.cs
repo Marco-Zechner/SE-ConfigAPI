@@ -12,6 +12,13 @@ namespace Mz.ConfigApi
 
         public static string VersionString => $"{Major}.{Minor}.{Patch}";
 
+        /// <summary>
+        /// Gets the exact SELibs package dependencies required by this consumer release.
+        /// </summary>
+        public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.ApiProtocol", "0.3.0"),
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+        };
         public static Changelog Changelog { get; } = new Changelog(
             VersionString,
             new[]
@@ -30,6 +37,7 @@ namespace Mz.ConfigApi
                         "Reserved World configs for the server-authoritative path; direct Open and Save operations now accept only Local and Global.",
                         "Added automatic provider discovery and consumer-owned storage callback registration with reconnect-safe registration identifiers.",
                         "Accepted newer provider API versions without a hardcoded upper version ceiling.",
+                        "Declared exact SELibs dependencies on Mz.ApiProtocol 0.3.0 and Mz.SemanticVersioning 0.2.0.",
                     }
                 ),
             }
