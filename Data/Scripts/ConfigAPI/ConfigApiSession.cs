@@ -83,6 +83,7 @@ namespace MarcoZechner.ConfigAPI.V2
             {
                 _worldNetworkSession = new SpaceEngineersNetworkSession(WorldNetworkChannelId, WorldNetworkId, OnWorldNetworkReceiveFailure);
                 _worldNetworkRuntime = new WorldConfigNetworkRuntime(_worldNetworkSession.Endpoint, _worldNetworkSession.Transport, _registry, new SystemConfigClock(), new SpaceEngineersWorldConfigAuthorization());
+                _provider.AttachWorldRuntime(_worldNetworkRuntime);
 
                 _logger.Logger.Info("ConfigAPI World networking started as " + (_worldNetworkRuntime.IsServer ? "server" : "client") + " on channel " + _worldNetworkSession.ChannelId + ".");
             }
@@ -104,6 +105,18 @@ namespace MarcoZechner.ConfigAPI.V2
 
         private void DisposeWorldNetworking()
         {
+            if (_provider != null)
+            {
+                try
+                {
+                    _provider.DetachWorldRuntime();
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Logger.Error("ConfigAPI World provider bridge failed while unloading.", exception);
+                }
+            }
+
             if (_worldNetworkRuntime != null)
             {
                 try

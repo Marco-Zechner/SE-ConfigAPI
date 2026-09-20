@@ -5,8 +5,8 @@ namespace Mz.ConfigApi
     public static class ApiVersionFile
     {
         public const int Major = 2;
-        public const int Minor = 0;
-        public const int Patch = 3;
+        public const int Minor = 1;
+        public const int Patch = 0;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
 
@@ -23,6 +23,14 @@ namespace Mz.ConfigApi
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "2.1.0",
+                    new[]
+                    {
+                        "Added optional server-authoritative World config endpoints without breaking compatibility with ConfigAPI 2.0 providers.",
+                        "Added asynchronous OpenWorld and SaveWorld operations plus WorldConfigResponse notifications for authoritative snapshots, stale responses, and errors.",
+                    }
+                ),
                 new ChangelogEntry(
                     "2.0.3",
                     new[]

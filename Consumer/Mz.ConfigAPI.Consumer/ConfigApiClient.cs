@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
 using Mz.SemanticVersioning;
@@ -11,6 +12,9 @@ namespace Mz.ConfigApi
         public const string RegisterConsumerEndpoint = "RegisterConsumer";
         public const string OpenConfigEndpoint = "OpenConfig";
         public const string SaveConfigEndpoint = "SaveConfig";
+        public const string RegisterWorldConfigEndpoint = "RegisterWorldConfig";
+        public const string OpenWorldConfigEndpoint = "OpenWorldConfig";
+        public const string SaveWorldConfigEndpoint = "SaveWorldConfig";
         private readonly ApiDiscoveryConsumer _consumer;
 
         private readonly string _consumerId;
@@ -23,6 +27,9 @@ namespace Mz.ConfigApi
         private Action _providerUnregister;
         private Guid _registrationId;
         private Func<string, Guid, string, int, string, object, object, object> _saveConfig;
+        private Action<string, Guid, string, string, object> _openWorldConfig;
+        private Action<string, Guid, string, object> _saveWorldConfig;
+        private Action _providerWorldUnregister;
 
         public ConfigApiClient(
             IModMessageBus messageBus, string consumerId, string consumerDisplayName, SemanticVersion consumerModVersion,
@@ -78,6 +85,7 @@ namespace Mz.ConfigApi
 
         public SemanticVersion ProviderModVersion { get; private set; }
         public SemanticVersion ProviderApiVersion { get; private set; }
+        public bool SupportsWorldConfigs => _providerWorldUnregister != null && _openWorldConfig != null && _saveWorldConfig != null;
 
         public Exception LastError => _lastError ?? _consumer.LastError;
 
@@ -99,6 +107,7 @@ namespace Mz.ConfigApi
 
         public event Action Connected;
         public event Action Disconnected;
+        public event Action<WorldConfigResponse> WorldConfigResponseReceived;
 
         public static ConfigApiClient CreateForSpaceEngineers(
             IModMessageBus messageBus, string consumerId, string consumerDisplayName, SemanticVersion consumerModVersion,
@@ -224,6 +233,50 @@ namespace Mz.ConfigApi
             return ConfigDocumentWireCodec.Decode(payload);
         }
 
+        public void OpenWorld<T>(ConfigDefinition<T> definition) where T : class
+        {
+            if (definition == null)
+                throw new ArgumentNullException(nameof(definition));
+
+            OpenWorld(definition.ConfigKey, definition.DefaultFile, definition.Serialize(definition.CreateDefaults()));
+        }
+
+        public void OpenWorld(string configKey, string file, ConfigDocument currentDefaults)
+        {
+            ThrowIfDisposed();
+            EnsureWorldConnected();
+
+            if (string.IsNullOrWhiteSpace(configKey))
+                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+            if (currentDefaults == null)
+                throw new ArgumentNullException(nameof(currentDefaults));
+
+            _openWorldConfig(_consumerId, _registrationId, configKey.Trim(), file, ConfigDocumentWireCodec.Encode(currentDefaults));
+        }
+
+        public void SaveWorld<T>(ConfigDefinition<T> definition, T playerValues) where T : class
+        {
+            if (definition == null)
+                throw new ArgumentNullException(nameof(definition));
+
+            SaveWorld(definition.ConfigKey, definition.Serialize(playerValues));
+        }
+
+        public void SaveWorld(string configKey, ConfigDocument playerValues)
+        {
+            ThrowIfDisposed();
+            EnsureWorldConnected();
+
+            if (string.IsNullOrWhiteSpace(configKey))
+                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
+            if (playerValues == null)
+                throw new ArgumentNullException(nameof(playerValues));
+
+            _saveWorldConfig(_consumerId, _registrationId, configKey.Trim(), ConfigDocumentWireCodec.Encode(playerValues));
+        }
+
         public void Stop()
         {
             ThrowIfDisposed();
@@ -240,6 +293,9 @@ namespace Mz.ConfigApi
                 Func<string, Guid, Func<int, string, string>, Action<int, string, string>, Action> registerConsumer;
                 Func<string, Guid, string, int, string, object, object> openConfig;
                 Func<string, Guid, string, int, string, object, object, object> saveConfig;
+                Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig;
+                Action<string, Guid, string, string, object> openWorldConfig;
+                Action<string, Guid, string, object> saveWorldConfig;
 
                 if (!eventArgs.Connection.TryGetEndpoint(RegisterConsumerEndpoint, out registerConsumer))
                 {
@@ -259,6 +315,15 @@ namespace Mz.ConfigApi
                     return;
                 }
 
+                bool hasRegisterWorldConfig = eventArgs.Connection.TryGetEndpoint(RegisterWorldConfigEndpoint, out registerWorldConfig);
+                bool hasOpenWorldConfig = eventArgs.Connection.TryGetEndpoint(OpenWorldConfigEndpoint, out openWorldConfig);
+                bool hasSaveWorldConfig = eventArgs.Connection.TryGetEndpoint(SaveWorldConfigEndpoint, out saveWorldConfig);
+                bool hasAnyWorldConfigEndpoint = hasRegisterWorldConfig || hasOpenWorldConfig || hasSaveWorldConfig;
+                bool hasWorldConfigEndpoints = hasRegisterWorldConfig && hasOpenWorldConfig && hasSaveWorldConfig;
+
+                if (hasAnyWorldConfigEndpoint && !hasWorldConfigEndpoints)
+                    throw new InvalidOperationException("The ConfigAPI provider exposes an incomplete World config endpoint set.");
+
                 var registrationId = Guid.NewGuid();
 
                 Action unregister = registerConsumer(_consumerId, registrationId, _read, _write);
@@ -267,6 +332,18 @@ namespace Mz.ConfigApi
                     throw new InvalidOperationException("The ConfigAPI provider returned no unregister action.");
 
                 _providerUnregister = unregister;
+
+                if (hasWorldConfigEndpoints)
+                {
+                    Action worldUnregister = registerWorldConfig(_consumerId, registrationId, OnWorldConfigResponse);
+                    if (worldUnregister == null)
+                        throw new InvalidOperationException("The ConfigAPI provider returned no World config unregister action.");
+
+                    _providerWorldUnregister = worldUnregister;
+                    _openWorldConfig = openWorldConfig;
+                    _saveWorldConfig = saveWorldConfig;
+                }
+
                 _openConfig = openConfig;
                 _saveConfig = saveConfig;
                 _registrationId = registrationId;
@@ -294,6 +371,21 @@ namespace Mz.ConfigApi
 
         private void ReleaseProviderRegistration()
         {
+            Action worldUnregister = _providerWorldUnregister;
+            _providerWorldUnregister = null;
+
+            if (worldUnregister != null)
+            {
+                try
+                {
+                    worldUnregister();
+                }
+                catch (Exception exception)
+                {
+                    _lastError = exception;
+                }
+            }
+
             Action unregister = _providerUnregister;
             _providerUnregister = null;
 
@@ -313,8 +405,11 @@ namespace Mz.ConfigApi
         private void ClearConnection()
         {
             _providerUnregister = null;
+            _providerWorldUnregister = null;
             _openConfig = null;
             _saveConfig = null;
+            _openWorldConfig = null;
+            _saveWorldConfig = null;
             _registrationId = Guid.Empty;
             ProviderModVersion = null;
             ProviderApiVersion = null;
@@ -331,6 +426,45 @@ namespace Mz.ConfigApi
         {
             if (!IsConnected || _openConfig == null || _saveConfig == null || _registrationId == Guid.Empty)
                 throw new InvalidOperationException("The ConfigAPI client is not connected.");
+        }
+
+        private void EnsureWorldConnected()
+        {
+            EnsureConnected();
+
+            if (!SupportsWorldConfigs)
+                throw new InvalidOperationException("The connected ConfigAPI provider does not support server-authoritative World config endpoints.");
+        }
+
+        private void OnWorldConfigResponse(IDictionary<string, object> payload)
+        {
+            try
+            {
+                RaiseWorldConfigResponseReceived(WorldConfigResponse.FromPayload(payload));
+            }
+            catch (Exception exception)
+            {
+                if (_lastError == null)
+                    _lastError = exception;
+            }
+        }
+
+        private void RaiseWorldConfigResponseReceived(WorldConfigResponse response)
+        {
+            Action<WorldConfigResponse> handlers = WorldConfigResponseReceived;
+            if (handlers == null)
+                return;
+
+            foreach (Action<WorldConfigResponse> handler in handlers.GetInvocationList())
+                try
+                {
+                    handler(response);
+                }
+                catch (Exception exception)
+                {
+                    if (_lastError == null)
+                        _lastError = exception;
+                }
         }
 
         private static int ValidateLocation(ConfigLocation location)

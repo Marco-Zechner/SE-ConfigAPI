@@ -460,6 +460,117 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
+        public void World_Endpoints_Are_Optional_And_Surface_Asynchronous_Response()
+        {
+            var bus = new RecordingModMessageBus();
+            Action<IDictionary<string, object>> worldCallback = null;
+            Guid worldRegistrationId = Guid.Empty;
+            var worldUnregisterCount = 0;
+            var opened = false;
+
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(
+                delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write)
+                {
+                    return delegate { };
+                });
+
+            endpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(
+                delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
+                {
+                    worldRegistrationId = registrationId;
+                    worldCallback = callback;
+                    return delegate { worldUnregisterCount++; };
+                });
+
+            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults)
+                {
+                    opened = true;
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    Assert.That(file, Is.EqualTo("settings.toml"));
+
+                    worldCallback(
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            { "ConfigKey", "Settings" },
+                            { "RequestId", 17UL },
+                            { "Operation", "Open" },
+                            { "TriggeredBy", 222UL },
+                            { "IsApplied", false },
+                            { "IsStale", false },
+                            { "Error", null },
+                            { "ServerIteration", 4UL },
+                            { "CurrentFile", "settings.toml" },
+                            { "Document", ConfigDocumentWireCodec.Encode(new ConfigDocument()) },
+                        });
+                });
+
+            endpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 1, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            WorldConfigResponse observed = null;
+            client.WorldConfigResponseReceived += delegate(WorldConfigResponse response) { observed = response; };
+            client.Start();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(client.IsConnected, Is.True);
+                Assert.That(client.SupportsWorldConfigs, Is.True);
+                Assert.That(worldRegistrationId, Is.Not.EqualTo(Guid.Empty));
+                Assert.That(worldCallback, Is.Not.Null);
+            });
+
+            client.OpenWorld("Settings", "settings.toml", new ConfigDocument());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(opened, Is.True);
+                Assert.That(observed, Is.Not.Null);
+                Assert.That(observed.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(observed.RequestId, Is.EqualTo(17UL));
+                Assert.That(observed.Operation, Is.EqualTo(WorldConfigOperation.Open));
+                Assert.That(observed.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(observed.IsApplied, Is.False);
+                Assert.That(observed.IsStale, Is.False);
+                Assert.That(observed.IsError, Is.False);
+                Assert.That(observed.HasSnapshot, Is.True);
+                Assert.That(observed.ServerIteration, Is.EqualTo(4UL));
+                Assert.That(observed.CurrentFile, Is.EqualTo("settings.toml"));
+                Assert.That(observed.Document, Is.Not.Null);
+            });
+
+            client.Dispose();
+            Assert.That(worldUnregisterCount, Is.EqualTo(1));
+            provider.Dispose();
+
+            var legacyBus = new RecordingModMessageBus();
+            var legacyProvider = CreateProvider(
+                legacyBus,
+                new SemanticVersion(2, 0, 0),
+                ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; }));
+
+            legacyProvider.Start();
+
+            var legacyClient = CreateClient(legacyBus, (location, file) => null, (location, file, content) => { });
+            legacyClient.Start();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(legacyClient.IsConnected, Is.True);
+                Assert.That(legacyClient.SupportsWorldConfigs, Is.False);
+                Assert.Throws<InvalidOperationException>(() => legacyClient.OpenWorld("Settings", "settings.toml", new ConfigDocument()));
+            });
+
+            legacyClient.Dispose();
+            legacyProvider.Dispose();
+        }
+
+        [Test]
         public void Constructor_Rejects_Invalid_Consumer_Identity_And_Callbacks()
         {
             var bus = new RecordingModMessageBus();

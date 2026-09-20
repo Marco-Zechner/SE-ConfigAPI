@@ -536,7 +536,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     out announcement),
                 Is.True);
 
-            Assert.That(announcement.Endpoints.Count, Is.EqualTo(3));
+            Assert.That(announcement.Endpoints.Count, Is.EqualTo(6));
 
             var open = announcement.Endpoints[ConfigApiProvider.OpenConfigEndpoint] as
                 Func<string, Guid, string, int, string, object, object>;

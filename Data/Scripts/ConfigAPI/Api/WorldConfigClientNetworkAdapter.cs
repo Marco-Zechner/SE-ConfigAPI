@@ -31,6 +31,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         public int PendingRequestCount => _pendingRequests.Count;
 
+        public ulong LocalPeerId => _transport.LocalPeerId;
+
         public event Action<WorldConfigNetworkResponse> ResponseReceived;
 
         public ulong Open(string consumerId, string configKey, string file, ConfigDocument defaults)

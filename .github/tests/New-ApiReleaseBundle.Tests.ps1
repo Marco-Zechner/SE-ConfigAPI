@@ -87,7 +87,7 @@ try {
 
     Assert-Equal -Expected 1 -Actual ([int]$manifest.schemaVersion) -Message "Manifest schema version is incorrect."
     Assert-Equal -Expected "Mz.ConfigAPI.Consumer" -Actual ([string]$manifest.id) -Message "Manifest package ID is incorrect."
-    Assert-Equal -Expected "2.0.3" -Actual ([string]$manifest.version) -Message "Manifest package version is incorrect."
+    Assert-Equal -Expected "2.1.0" -Actual ([string]$manifest.version) -Message "Manifest package version is incorrect."
     Assert-Equal -Expected "Mz.ConfigAPI.Consumer" -Actual (@($manifest.folders) -join ",") -Message "Manifest owned folder is incorrect."
     Assert-Equal -Expected 2 -Actual @($manifest.dependencies.PSObject.Properties).Count -Message "Manifest dependency count is incorrect."
     Assert-Equal -Expected "0.3.0" -Actual ([string]$manifest.dependencies."Mz.ApiProtocol") -Message "ApiProtocol dependency is incorrect."
@@ -118,7 +118,7 @@ try {
     } -ExpectedMessagePart "Invalid release tag"
 
     Assert-Throws -Action {
-        & $bundleScript -Tag "release/mz.ConfigAPI.Consumer/2.0.3" -OutputDirectory (Join-Path $testRoot "wrong-case") -SkipTests | Out-Null
+        & $bundleScript -Tag "release/mz.ConfigAPI.Consumer/2.1.0" -OutputDirectory (Join-Path $testRoot "wrong-case") -SkipTests | Out-Null
     } -ExpectedMessagePart "was not discovered exactly once"
 
     Assert-Throws -Action {

@@ -31,6 +31,25 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             _requestSubscription = endpoint.RegisterHandler(RequestMessageType, HandleRequest);
         }
 
+        public ulong LocalPeerId => _transport.LocalPeerId;
+
+        public event Action<WorldConfigNetworkResponse> ResponseSent;
+
+        public void BroadcastAppliedResponse(WorldConfigNetworkResponse response)
+        {
+            ThrowIfDisposed();
+
+            if (response == null)
+                throw new ArgumentNullException(nameof(response));
+            if (response.Kind != WorldConfigNetworkResponseKind.Snapshot || !response.IsApplied)
+                throw new ArgumentException("Only applied authoritative snapshot responses can be broadcast.", nameof(response));
+
+            byte[] payload = WorldConfigNetworkCodec.EncodeResponse(response);
+            var envelope = new NetworkEnvelope(ResponseMessageType, _transport.LocalPeerId, false, payload);
+            _transport.SendToEveryone(envelope);
+            RaiseResponseSent(response);
+        }
+
         public void Dispose()
         {
             if (_isDisposed)
@@ -50,16 +69,37 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WorldConfigNetworkRequest request = WorldConfigNetworkCodec.DecodeRequest(context.Envelope.Payload);
             ulong requesterId = context.Envelope.OriginalSenderId;
             WorldConfigNetworkResponse response = _handler.Handle(requesterId, request);
-            byte[] payload = WorldConfigNetworkCodec.EncodeResponse(response);
-
             if (response.Kind == WorldConfigNetworkResponseKind.Snapshot && response.IsApplied)
             {
-                var envelope = new NetworkEnvelope(ResponseMessageType, _transport.LocalPeerId, false, payload);
-                _transport.SendToEveryone(envelope);
+                BroadcastAppliedResponse(response);
                 return;
             }
 
+            byte[] payload = WorldConfigNetworkCodec.EncodeResponse(response);
             _endpoint.SendToPlayer(ResponseMessageType, payload, requesterId);
+            RaiseResponseSent(response);
+        }
+
+        private void RaiseResponseSent(WorldConfigNetworkResponse response)
+        {
+            Action<WorldConfigNetworkResponse> handlers = ResponseSent;
+            if (handlers == null)
+                return;
+
+            foreach (Action<WorldConfigNetworkResponse> handler in handlers.GetInvocationList())
+                try
+                {
+                    handler(response);
+                }
+                catch
+                {
+                }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (_isDisposed)
+                throw new InvalidOperationException("World config server network adapter has been disposed.");
         }
     }
 }
