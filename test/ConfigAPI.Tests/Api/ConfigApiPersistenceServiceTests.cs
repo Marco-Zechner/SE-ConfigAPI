@@ -51,6 +51,72 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Same_Consumer_Can_Persist_Multiple_Independent_Configs_With_Distinct_Files()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var settingsDefaults = Document(Entry("Value", Integer(10)));
+            var tuningDefaults = Document(Entry("Value", Integer(20)));
+            var settingsEdited = Document(Entry("Value", Integer(15)));
+            var tuningEdited = Document(Entry("Value", Integer(25)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults));
+            service.Open("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults));
+            service.Save("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults), ConfigDocumentWireCodec.Encode(settingsEdited));
+            service.Save("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults), ConfigDocumentWireCodec.Encode(tuningEdited));
+
+            ConfigDocument settingsReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults)));
+            ConfigDocument tuningReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults)));
+            ConfigProvenance settingsProvenance = ConfigProvenanceCodec.Decode(storage.Get(0, "settings.toml.configapi.provenance"));
+            ConfigProvenance tuningProvenance = ConfigProvenanceCodec.Decode(storage.Get(0, "tuning.toml.configapi.provenance"));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(settingsReloaded, 15, "Value");
+                AssertDocumentValue(tuningReloaded, 25, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 15"));
+                Assert.That(storage.Get(0, "tuning.toml"), Does.Contain("Value = 25"));
+                Assert.That(settingsProvenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(settingsProvenance.Identity.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(tuningProvenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(tuningProvenance.Identity.ConfigKey, Is.EqualTo("Tuning"));
+            });
+        }
+
+        [Test]
+        public void Same_File_Cannot_Be_Reused_By_A_Different_Config_Key()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var settingsDefaults = Document(Entry("Value", Integer(10)));
+            var tuningDefaults = Document(Entry("Value", Integer(20)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "shared.toml", ConfigDocumentWireCodec.Encode(settingsDefaults));
+            string activeBefore = storage.Get(0, "shared.toml");
+            string provenanceBefore = storage.Get(0, "shared.toml.configapi.provenance");
+            storage.ClearOperations();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.Open("Example.Mod", registrationId, "Tuning", 0, "shared.toml", ConfigDocumentWireCodec.Encode(tuningDefaults)));
+
+            ConfigProvenance provenanceAfter = ConfigProvenanceCodec.Decode(storage.Get(0, "shared.toml.configapi.provenance"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Config provenance identity does not match the requested config identity."));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+                Assert.That(storage.Get(0, "shared.toml"), Is.EqualTo(activeBefore));
+                Assert.That(storage.Get(0, "shared.toml.configapi.provenance"), Is.EqualTo(provenanceBefore));
+                Assert.That(provenanceAfter.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(provenanceAfter.Identity.ConfigKey, Is.EqualTo("Settings"));
+            });
+        }
+
+        [Test]
         public void Open_Existing_Global_Config_Reconciles_Changed_Default_And_Persists_Result()
         {
             var registrationId = Guid.NewGuid();
