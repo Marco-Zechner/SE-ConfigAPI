@@ -1,0 +1,270 @@
+{
+    "schemaVersion":  1,
+    "registry":  "https://raw.githubusercontent.com/Marco-Zechner/selibs/main/registry/packages.json",
+    "packages":  {
+                     "Mz.SemanticVersioning":  {
+                                                   "version":  "0.2.0",
+                                                   "direct":  false,
+                                                   "source":  {
+                                                                  "provider":  "github",
+                                                                  "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                                  "releasePrefix":  "release/Mz.SemanticVersioning/"
+                                                              },
+                                                   "dependencies":  {
+
+                                                                    },
+                                                   "folders":  [
+                                                                   "Mz.SemanticVersioning"
+                                                               ],
+                                                   "files":  {
+                                                                 "Mz.SemanticVersioning/Changelog.cs":  "2f055000d86a26742d0c0b667c32ce8f03cace14500a10872dc9b5d26544c80e",
+                                                                 "Mz.SemanticVersioning/ChangelogEntry.cs":  "7a541764a92a45f1ab85616696be8a5c2a76ac113c22c5ef8125392afe5cfa36",
+                                                                 "Mz.SemanticVersioning/LibraryDependency.cs":  "a2439c31dde8b815ba27cedae5debc6c96a418af95644922ee9c5c7a98f07c6c",
+                                                                 "Mz.SemanticVersioning/LibraryVersionFile.cs":  "1d80ab85acd6cf8633f2ebcfce9a76f5a4284fb13a37ea8977777d814281043f",
+                                                                 "Mz.SemanticVersioning/README.md":  "36db9fa9cf3b6014dfd178cf7cdca30943764bfcc2cce62dfac464a64311e61d",
+                                                                 "Mz.SemanticVersioning/SemanticVersion.cs":  "713b1e15240b4e44d7c09a29085645c4e1ea74d1e362bc5bc6abdf21b15364e6"
+                                                             }
+                                               },
+                     "Mz.ApiProtocol":  {
+                                            "version":  "0.3.0",
+                                            "direct":  true,
+                                            "source":  {
+                                                           "provider":  "github",
+                                                           "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                           "releasePrefix":  "release/Mz.ApiProtocol/"
+                                                       },
+                                            "dependencies":  {
+                                                                 "Mz.SemanticVersioning":  "0.2.0"
+                                                             },
+                                            "folders":  [
+                                                            "Mz.ApiProtocol.Core",
+                                                            "Mz.ApiProtocol.SpaceEngineers"
+                                                        ],
+                                            "files":  {
+                                                          "Mz.ApiProtocol.Core/Compatibility/ApiCompatibilityStatus.cs":  "69d07d54a0d3ac778aa7872269555d9d75d7579f3660749a1185283cb126e2e5",
+                                                          "Mz.ApiProtocol.Core/Compatibility/ApiDependencyDescriptor.cs":  "3f8181bb0be18e519952f2f0a2e5404c9409f60ec31dc4991064405ef793a716",
+                                                          "Mz.ApiProtocol.Core/Compatibility/ApiDependencyKind.cs":  "c5f07de14bb1fe531920575d94b5cae45e55ccc6c429e6ae27c418a268b151dd",
+                                                          "Mz.ApiProtocol.Core/Compatibility/ApiRequirement.cs":  "ccfc9ed3fe6639f1189fbde52ecf66f50d9b887d0be44aedad7716f0be1154f4",
+                                                          "Mz.ApiProtocol.Core/Compatibility/ApiVersionRange.cs":  "d1dd0b8e4695f14069ef5f3ee69a7bdedbbf442ddd4f66c4fffb206b179a31aa",
+                                                          "Mz.ApiProtocol.Core/Connections/ApiConnection.cs":  "e778d002e219f997a83caf59334dd1f0b8933fe6e622b6b3114f3e64bdf618b3",
+                                                          "Mz.ApiProtocol.Core/Connections/ApiDisconnectReason.cs":  "e61abdaa8bdbc7dd0f9d14070e2eb10f66b23285980ebb97ce3afeb08f3c64f1",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContract.cs":  "eabdbf9a8169f52b854b4c65c2a69fc8765c8d17dcbcd74eb7e964e23ee42b1b",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractException.cs":  "b3bc973395fe4b3b1d18ceae5b4d10ea878c3401aad56cad208512286fa88dee",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractIssue.cs":  "2683c082b96af5caee1ee973e2f9ced78f1a2f81fbb38d83ea34f1271eb9ba3c",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractIssueKind.cs":  "98f8b69b04c51f21b95be01dbf21c156f61cc951119b59f1f6090e67420d5b85",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointContractValidation.cs":  "023722638ee6220af7788595f47da0ef5cc3f5c0b7e6f48d358ed1be102ac488",
+                                                          "Mz.ApiProtocol.Core/Contracts/ApiEndpointRequirement.cs":  "37be10495c8e03aba38027d8fbc5b4644b3bda939cb370007a4b3f76585efffc",
+                                                          "Mz.ApiProtocol.Core/Discovery/ApiAnnouncement.cs":  "51315645e4560369300d103949aade38f1b918563c99495b1463fe13039f1c70",
+                                                          "Mz.ApiProtocol.Core/Discovery/ApiDiscoveryRequest.cs":  "3553c454e7ef9bd299edb262c8305523dc901519f9c74f8d1f6df50bfc9a13ec",
+                                                          "Mz.ApiProtocol.Core/Discovery/ApiProviderWithdrawal.cs":  "1275595df5897a7439f05adca608e4ae69c463fd45e653e91c2826efc91e07b9",
+                                                          "Mz.ApiProtocol.Core/Events/ApiConnectedEventArgs.cs":  "da7dc3cbfb8e98e6f9c12c0b032b633b6093e1dfb88d3414c3c68522aefa2d39",
+                                                          "Mz.ApiProtocol.Core/Events/ApiConsumerObservedEventArgs.cs":  "b3031278d228447b50d6a6f7b949e0f18e9b87e288de747c01338bd165513bea",
+                                                          "Mz.ApiProtocol.Core/Events/ApiDisconnectedEventArgs.cs":  "89ccb836170e09dc52462b073bc91c98010cd97a8aee80ff7f181761c3313d1b",
+                                                          "Mz.ApiProtocol.Core/Events/ApiProviderObservedEventArgs.cs":  "ae6671a44ed6490f8d4ce6fd7e2fa0300bb3d53b06b5101262027d665eda250f",
+                                                          "Mz.ApiProtocol.Core/Events/ApiWireIncompatibilityEventArgs.cs":  "e24da73a91ca10959f8c35ab8ddbb3fcba7e4558bac1dbdc950d2c8d8a583718",
+                                                          "Mz.ApiProtocol.Core/Guide.md":  "e0b25dfa8c6837195d6a3b6812e18731ad077beb07a0c85559dd7c0ff226e623",
+                                                          "Mz.ApiProtocol.Core/Identity/ApiDescriptor.cs":  "7cb01e28d42553eaf35b1b802fa75ebe509f76cec289fc0e2b7722d57813c186",
+                                                          "Mz.ApiProtocol.Core/Identity/ApiModIdentity.cs":  "963f5e5d595450b656759ac6c59c5cc18c4413ec900505d09cc0e2486216df18",
+                                                          "Mz.ApiProtocol.Core/Internal/Collections/ReadOnlyDictionaryView.cs":  "7d765189230c88a0de2fae2c403afe308ed835f23f4c1ddd509c95b07c0153f5",
+                                                          "Mz.ApiProtocol.Core/Internal/Collections/ReadOnlyListView.cs":  "64fd1d8edc7d58c592955700358758c1c524b9138b2ca9660f8b37fbc8aef1d1",
+                                                          "Mz.ApiProtocol.Core/LibraryVersionFile.cs":  "e8d64107bad9e72f8c97c97e0bf152cf40022fd606c0e5c8ed6eb1b647760a32",
+                                                          "Mz.ApiProtocol.Core/README.md":  "c24517f220f2c27bae4047bae16682dc62a9ade9434e1650c33285962807357a",
+                                                          "Mz.ApiProtocol.Core/Wire/ApiDiscoveryWireProtocol.cs":  "f0087875e3f280ae92e665275a7ad97301a1a5203bf849a821ad6913adc2550b",
+                                                          "Mz.ApiProtocol.Core/Wire/ApiProtocolInfo.cs":  "831c25a8bb144751ef006e331269c44da665aa94a43b0994fa0c222702de7f6a",
+                                                          "Mz.ApiProtocol.Core/Wire/ApiWireCompatibilityStatus.cs":  "5decddaa7b8e7c8cf139c2809c9d93aff2e92e184193f7e1f9ed0665126966ba",
+                                                          "Mz.ApiProtocol.Core/Wire/ApiWireEnvelope.cs":  "6ba5ee53f67e44974ce69d03dda6354304155ecebece9f67572bb8096da25319",
+                                                          "Mz.ApiProtocol.Core/Wire/ApiWireMessageKind.cs":  "df34f779bb098a797034cba68b1ee6be175496c0f3cad3334b1d6360a7d3193e",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Discovery/ApiDiscoveryConsumer.cs":  "19025fe4db99b9b1d03963562458db4ef7131de4f756a9c37d9e4114fa5b237e",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Discovery/ApiDiscoveryProvider.cs":  "70f2243a94d0509aaba2b3a65ccfc7cf4ce05152cbae1acd74eb17b57a013533",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Messaging/ApiProtocolChannels.cs":  "f233c0951ecfe86ca78749352cacdb7455cfb18c661bbc782f4f61030a7ee79b",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Messaging/IModMessageBus.cs":  "f5eea4eb655028f5fd4828902fc2e13cf9ee8939dd7e5cc7ea8271fca4832efd",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Messaging/ModMessageSubscription.cs":  "a2bc50da3aff6dc7dbc371428ba1774c78e400a2aff1f1195dd21723e63498aa",
+                                                          "Mz.ApiProtocol.SpaceEngineers/Messaging/SpaceEngineersModMessageBus.cs":  "7165c5e62ec8cecc297451b0e7aadfa7aa6012abe8e079e904a515991c0e5513"
+                                                      }
+                                        },
+                     "Mz.ConfigAPI.Consumer":  {
+                                                   "version":  "2.0.0",
+                                                   "direct":  true,
+                                                   "source":  {
+                                                                  "provider":  "github",
+                                                                  "repository":  "Marco-Zechner/SE-ConfigAPI",
+                                                                  "releasePrefix":  "release/Mz.ConfigAPI.Consumer/"
+                                                              },
+                                                   "dependencies":  {
+                                                                        "Mz.ApiProtocol":  "0.3.0",
+                                                                        "Mz.SemanticVersioning":  "0.2.0"
+                                                                    },
+                                                   "folders":  [
+                                                                   "Mz.ConfigAPI.Consumer"
+                                                               ],
+                                                   "files":  {
+                                                                 "Mz.ConfigAPI.Consumer/ApiVersionFile.cs":  "4353d87de287a9b4fb4911c79bee9b8dde09abde965a249b4864923dd63345f5",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigApiClient.cs":  "9d6b0486f1b012c1463ad44ba2f65dad861d5fc52ee6ce25b1f6fa8751970e20",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigDate.cs":  "c1e155b79b0dbfc8b35d93ffb786e6a21580c527033c6e638e99ded20581b064",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigDefinition.cs":  "306b654fea89937b931f19948a53885533dbbbec1d3ec3b90bd6952969e43865",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigDocument.cs":  "d11b298a3d5d94df6daeb19e841e66d7db36fa1706e127d2e8f9d46895b251b2",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigDocumentWireCodec.cs":  "5f9b21ebbb0be2fd30419785662850e1b62a097d7863d39e07a7cff4c570dfbc",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigEntry.cs":  "7e6146812f04e0cbc43a51ba6b6b6be3d1bef1b715bb6f210ca989d6044f21ba",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigHandle.cs":  "6f3abaf0991dc031b3e936c7ae96ae7e19b818387d46f72ec755979383e1c855",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigLocalDateTime.cs":  "ac616fe03f430377f880e3f7b77018ba2edaa192c40be4bd1931f7200b1f6f68",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigLocation.cs":  "53fc0db94fd01681f81b2d11b33269912257d662acb50e095deb40e54af58721",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigOffsetDateTime.cs":  "e154558d4f3aa954def7e73cf78aea83ac0e954ea5e0d8c7fff937f647a6b155",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigTime.cs":  "6daf7f17621f71aeca2b4abc776390a8a9ce573ebfcf3f90aca7cb6677c8bfbd",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigValue.cs":  "a6ab6e4ef0227d9f064017405919dde27af629d6fcd841656838bd82bb732394",
+                                                                 "Mz.ConfigAPI.Consumer/ConfigValueKind.cs":  "ccd3b057799af3bf77910d262aa6b9cec50bfda5430e2cc6e393a4ed46a7f84d",
+                                                                 "Mz.ConfigAPI.Consumer/README.md":  "9e4abc9dae2bd4e8d8975e6d11b4d7f8b8cb17e7e0f8bf180e44bb130548ff7e",
+                                                                 "Mz.ConfigAPI.Consumer/ReadOnlyList.cs":  "947c12b9643be7282c63182b815789ed2e5b45921431e183f88c603301edbf45",
+                                                                 "Mz.ConfigAPI.Consumer/SpaceEngineersConfigTextStorage.cs":  "7bf1df7f481a43cd970703506f397c438f67eda87c4b96f02df56ab828d4f5c9"
+                                                             }
+                                               },
+                     "Mz.Logging":  {
+                                        "version":  "0.1.2",
+                                        "direct":  true,
+                                        "source":  {
+                                                       "provider":  "github",
+                                                       "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                       "releasePrefix":  "release/Mz.Logging/"
+                                                   },
+                                        "dependencies":  {
+                                                             "Mz.SemanticVersioning":  "0.2.0"
+                                                         },
+                                        "folders":  [
+                                                        "Mz.Logging.Core",
+                                                        "Mz.Logging.SpaceEngineers"
+                                                    ],
+                                        "files":  {
+                                                      "Mz.Logging.Core/CompositeLogSink.cs":  "4ea21ef52568ba7d6675c6c9184f3d8a41547c953982adc17d498f95a5cabbd3",
+                                                      "Mz.Logging.Core/ILogFormatter.cs":  "48cb663cc5978471418f28c6c64cbb12effee68a71acad1b5bf8b4b2a86136b7",
+                                                      "Mz.Logging.Core/ILogSink.cs":  "293391be522451e7d7bc8042cc13a43743ee72ca05723abd4dd068c2b200e260",
+                                                      "Mz.Logging.Core/LibraryVersionFile.cs":  "0992677709a56102898b60b6159a89b9413f302220d849d750fb0579a90b8d60",
+                                                      "Mz.Logging.Core/LogEntry.cs":  "22f82e17b9bdb5cf858583ef76ec98f88743ed4401c6848d0bc0412ff2d05f07",
+                                                      "Mz.Logging.Core/Logger.cs":  "8fa9c9f8f2db4d63b21ee66d81d7322f6ea023624c3bc166fc5fc473a8922370",
+                                                      "Mz.Logging.Core/LogLevel.cs":  "7545bdb4f32b2a707be5d6f5544eac00790ae633c3c8aa019e4ae0e6eb1393e7",
+                                                      "Mz.Logging.Core/PlainTextLogFormatter.cs":  "5af9f781bc814859d52739b8f17ad5c277fb90bff5da137a5fb062de1433e809",
+                                                      "Mz.Logging.Core/README.md":  "f9df29ab5ce0d1adef6b0696b5a0aa8e95454a0cb946ae7000aa2b62584c7888",
+                                                      "Mz.Logging.Core/TextWriterLogSink.cs":  "d9d8b62032233120b0c1a6a42496b4431dc541919c89f0798a14834b55f1f329",
+                                                      "Mz.Logging.SpaceEngineers/IStorageWriterFactory.cs":  "6f629381496e160c087a633ddd49823fb75c0544ad2bbc45e67f5c804420b487",
+                                                      "Mz.Logging.SpaceEngineers/SpaceEngineersStorageLogger.cs":  "bba05632f48ec9c102f4bb07df78dbc6f7ad6fa6f131b950fc8633b6f9d3c443",
+                                                      "Mz.Logging.SpaceEngineers/SpaceEngineersStorageWriterFactory.cs":  "388effc32445905eb0735851530270e54ed02966c3ba0f35bd3b05190417dba1"
+                                                  }
+                                    },
+                     "Mz.Networking":  {
+                                           "version":  "0.2.1",
+                                           "direct":  true,
+                                           "source":  {
+                                                          "provider":  "github",
+                                                          "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                          "releasePrefix":  "release/Mz.Networking/"
+                                                      },
+                                           "dependencies":  {
+                                                                "Mz.ApiProtocol":  "0.3.0",
+                                                                "Mz.SemanticVersioning":  "0.2.0"
+                                                            },
+                                           "folders":  [
+                                                           "Mz.Networking.Core",
+                                                           "Mz.Networking.SpaceEngineers"
+                                                       ],
+                                           "files":  {
+                                                         "Mz.Networking.Core/Dispatching/NetworkMessageDispatcher.cs":  "1f11d2c405b4d9919cde6fd0df77a5282a2ebe99dc704d081a186c0e1ac4b6fe",
+                                                         "Mz.Networking.Core/Dispatching/NetworkMessageProcessor.cs":  "157dd6c7c6ade71b20bf000c0ca75c7c715d7213b9c3f895616a9d5e8099b6cb",
+                                                         "Mz.Networking.Core/Dispatching/NetworkMessageSubscription.cs":  "56c9a8bc58430d3a3a5a263d2f72262d4aa4040c921acbc5ff10970f466cee61",
+                                                         "Mz.Networking.Core/Endpoints/NetworkEndpoint.cs":  "8c960e2ea9543ca4d9d7bee2f6efa04c0dfacd95fdebb1bc96210dbb4bf153ad",
+                                                         "Mz.Networking.Core/Guide.md":  "3ab009454d137a69b717018dac02457658fcc0c27aa8797f9934860d20069069",
+                                                         "Mz.Networking.Core/LibraryVersionFile.cs":  "5210e649ae5ae40a9219c0bbb036f891271b795a874ef6a416d7317011485cca",
+                                                         "Mz.Networking.Core/Messages/NetworkDeliveryMode.cs":  "6c7d22f04c2dd252ce63f497999fbc2b6110c72d8674ff3256fed78e0ff976de",
+                                                         "Mz.Networking.Core/Messages/NetworkEnvelope.cs":  "c8e73d7aafd8841b76b7469416dba67ac1aaf2abe137ef94a540b3581c039f4e",
+                                                         "Mz.Networking.Core/Messages/NetworkReceiveContext.cs":  "e4d81736046b020eee690ce43253ec6588abdb1912ba98b4c4d1cb0df7fdad81",
+                                                         "Mz.Networking.Core/Messages/NetworkRelayMode.cs":  "c3816524b2045ae202657ac7b2da2e4654e13574cc850aaecf98f2ecb4438e49",
+                                                         "Mz.Networking.Core/Messages/NetworkSequence.cs":  "dc7f29589ad6bd30c036150575d0f794c967f4c1fee477761833eb362122497f",
+                                                         "Mz.Networking.Core/Messages/NetworkSequenceTracker.cs":  "d019a156e66313b61a214dabaf2bbbdfbc040a9a4aa9bd518cfcb1f5a1b95601",
+                                                         "Mz.Networking.Core/README.md":  "d13bea4481126c9ab54f784b6f257b6b39cb0cf92886238e0d795f38fe4c929f",
+                                                         "Mz.Networking.Core/Transport/INetworkDeliveryTransport.cs":  "7dfbdd9a752ffe45af53bb00352a04bc6af7b94497e579701607ec1073e1d387",
+                                                         "Mz.Networking.Core/Transport/INetworkTransport.cs":  "fa2ed14e8b3f66bf6c4aa751c9ddae0d6f4dda6fb6caed00ee7e64ec53479d7a",
+                                                         "Mz.Networking.SpaceEngineers/Diagnostics/SpaceEngineersNetworkDiagnosticBuilder.cs":  "661cca1a2dd59243c7623e2c9e9e50b4e9c4432ef7529704dd683873f9956049",
+                                                         "Mz.Networking.SpaceEngineers/Diagnostics/SpaceEngineersNetworkDiagnosticSeverity.cs":  "7325da53eb2be2f4407f6830c007044211cf18319049d2f053c8e18a319afb8a",
+                                                         "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkDeliveryGateway.cs":  "834f3b2e964cb790ddb0cd9836f16ce49531014812ba127b7605cf591d9091fe",
+                                                         "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkDiagnosticGateway.cs":  "4f8b058193d3a575c65980ae635c376f0e2e4c21276853d48d67bca3ee24dee7",
+                                                         "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkGateway.cs":  "b4886c1b90fa3742e94ec451524688ef9a466956dbefca91fb6ab11a73a18596",
+                                                         "Mz.Networking.SpaceEngineers/Gateway/ISpaceEngineersNetworkSchedulingGateway.cs":  "6b9bf072d6a92932f318a02136d5ab327324236a42d932328dfbc65a0ce931c5",
+                                                         "Mz.Networking.SpaceEngineers/Gateway/SpaceEngineersNetworkGateway.cs":  "b985560befb2294f3d69d826ec92adefb2df857d3325b908be4741fbec6dd767",
+                                                         "Mz.Networking.SpaceEngineers/Managed/NetworkManagerApiContract.cs":  "092b86b18bc5bf59d49903fd380f8213482c7f0e57cdd7c0510ae15ac5a2bce1",
+                                                         "Mz.Networking.SpaceEngineers/Managed/SpaceEngineersManagedNetworkConfiguration.cs":  "a1590528d097430839a3e1b5df91353605275e3b05bb0c4322e70032ea1217d0",
+                                                         "Mz.Networking.SpaceEngineers/Managed/SpaceEngineersNetworkChannelAssignmentEventArgs.cs":  "debf96219a8db3378540ff3f30132886b95bbd2c0644edf0c66cfda93cd41ed3",
+                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkReceiveFailure.cs":  "7e23f4c2b8516e9ea54936b59dfb6d82ea43c5b0a524dbc4cee6d6d43b478a99",
+                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkReceiveFailureKind.cs":  "75a8a03a39658e5adbce7917a90d5fec1c1ce7e2c6a98ae2e64d9edb16bd7df2",
+                                                         "Mz.Networking.SpaceEngineers/Sessions/SpaceEngineersNetworkSession.cs":  "f189529802c3cf22b8eaedb024fa32c7927a8c4b58055194b18ca5174cd702cd",
+                                                         "Mz.Networking.SpaceEngineers/Transport/SpaceEngineersNetworkTransport.cs":  "66c5ad4638733eda3f7eff9646ff56eb3d3d2bcf18fd05aa7abfd4fc23c14490",
+                                                         "Mz.Networking.SpaceEngineers/Wire/NetworkEnvelopeWire.cs":  "2b940038a45ed024456dece74c12de4b8f49665e1e68932e761eecf86f262ed3",
+                                                         "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkIdentity.cs":  "21da0e962237a94624de62d7afdda356b78483f741cd4d0d8060d40d14977be4",
+                                                         "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkWireCodec.cs":  "8216b3e5b285e065052dd644356514f7cd7bd6edae6ba6bc18ef5d20e94826b1"
+                                                     }
+                                       },
+                     "Mz.Toml":  {
+                                     "version":  "0.2.1",
+                                     "direct":  true,
+                                     "source":  {
+                                                    "provider":  "github",
+                                                    "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                    "releasePrefix":  "release/Mz.Toml/"
+                                                },
+                                     "dependencies":  {
+                                                          "Mz.SemanticVersioning":  "0.2.0"
+                                                      },
+                                     "folders":  [
+                                                     "Mz.Toml"
+                                                 ],
+                                     "files":  {
+                                                   "Mz.Toml/Guide.md":  "1c411a27e20c22e304065edbf63e1438e7f477b9af724cce004721e888aceefc",
+                                                   "Mz.Toml/Internal/TomlArrayDefinitionKind.cs":  "7e4902d71441453830fb3943ae63e92de78f4d85bf66fc5533314453d70b0a4b",
+                                                   "Mz.Toml/Internal/TomlKeyPart.cs":  "c57c37b356259fb0bdd818098ee61b19709bf53b4c8c6b75fb8f4b2e9a2cfbda",
+                                                   "Mz.Toml/Internal/TomlParser.Assignments.cs":  "64b6c69ce68e0d9eb9a6ffc33a4f633ee4cd07e9b670ab10b92ccea67782fdce",
+                                                   "Mz.Toml/Internal/TomlParser.Collections.cs":  "f500a796ede99a30064b0146c812ac48f6d4f3fb2a4e7f675eba194a830606a7",
+                                                   "Mz.Toml/Internal/TomlParser.cs":  "1e774265ef7d345d312e2fca6b0b2293e6d685a670b8230e46f551ce5f63082d",
+                                                   "Mz.Toml/Internal/TomlParser.Escapes.cs":  "329c724f1c56c128e58eb4532e7cd96523e29c173ba4c6b4d03de1034b9a057f",
+                                                   "Mz.Toml/Internal/TomlParser.Headers.cs":  "f91bc2f31025f6ca56eb7cddfeea5de62e5bad385ba117925e8771d4d5cd05b7",
+                                                   "Mz.Toml/Internal/TomlParser.Keys.cs":  "61f33f48c5cb46fa4cd887fb1fafd9c6c169d0cc98462f86c72d2415d4fadf34",
+                                                   "Mz.Toml/Internal/TomlParser.MultilineStrings.cs":  "2a81c2f41c6b73db50203a687eac33d3e7ab50fb52df39af0e50769ea6a79c4f",
+                                                   "Mz.Toml/Internal/TomlParser.Numbers.cs":  "3e72e459f8d843e69c3408835dce0f8de34ac74efebd86ac00306857b7413ce2",
+                                                   "Mz.Toml/Internal/TomlParser.Scalars.cs":  "b54605ef6c6161d2bf22661089d1fc4f9062a1c49ca82906e21bee9599aed716",
+                                                   "Mz.Toml/Internal/TomlParser.Scanner.cs":  "b52b950e45e107d3db3b3c062f449c9e43ed1a3ab03f326b3be3236d46aa6f1d",
+                                                   "Mz.Toml/Internal/TomlParser.Strings.cs":  "59e5b6668430ab2cd05fc32f13dfe6c46fcbc2ef0d8a7ea49bb9eb194797a7e1",
+                                                   "Mz.Toml/Internal/TomlParser.Tables.cs":  "0da7e65e25bc8d361d9b5ef3f490e14831dfbadf0698701a8b8c911a7d64486d",
+                                                   "Mz.Toml/Internal/TomlParser.Values.cs":  "1645c9b4ea6d0e3b6a8866475300aadf163549ede1529687d00c333eb6664e62",
+                                                   "Mz.Toml/Internal/TomlReadOnlyList.cs":  "6c17b98b9e62162f6cedd54dbaecf3d91d47df474013985c2ad6bf46773b9f00",
+                                                   "Mz.Toml/Internal/TomlTableDefinitionKind.cs":  "25de8c359feb07654285dfb19c02129605d467f3590766580e9e1173a84a124b",
+                                                   "Mz.Toml/Internal/TomlTemporalParser.cs":  "217a30000b3fafe0c6524f3e2c0cbc7482c9362c7f8b8d6e7c31277257367441",
+                                                   "Mz.Toml/Internal/TomlWriter.cs":  "4747a0d9f15cb9e4145b343def30237e9f47aba69e1c7e82f5516f6e5b5a51f3",
+                                                   "Mz.Toml/Internal/TomlWriter.Strings.cs":  "703b5633e080cba3a5fc785f6bd3f43a221c0ede2bbcf67bbfb83c81540471d1",
+                                                   "Mz.Toml/Internal/TomlWriter.Tables.cs":  "0ce721754fdf2482469e89b44cbe433a89658c2bf0a93343d820f6719a9cd102",
+                                                   "Mz.Toml/Internal/TomlWriter.Validation.cs":  "f93a439298514ba7b068abb9dae5d3090d4d8351096b45d5c8aab7f8aec4451a",
+                                                   "Mz.Toml/Internal/TomlWriter.Values.cs":  "1785dd4b9b72a2781d7569a467dc3382cc00cb09625cbb438d3f1125ac8b4102",
+                                                   "Mz.Toml/LibraryVersionFile.cs":  "00466d5f3e2e512524d863ac4f3018ad672492b765027cbb81ec2070efd03753",
+                                                   "Mz.Toml/README.md":  "b592779b68b0105560b61cfa7c6d273d88090e1a8f361dd62541615c93d5ea2d",
+                                                   "Mz.Toml/Toml.cs":  "8b5854c2ed137f82c2464746249fe8a2289c37c7e39f27848a21d70847a96bd0",
+                                                   "Mz.Toml/TomlArray.cs":  "46fdd50076735aaf57ecaba7dd4194d0583f172ba570df505b71ced9528b3ffb",
+                                                   "Mz.Toml/TomlDiagnostic.cs":  "9111dd70e16ba9a8c0b1f8ff5a6cd42697ebb956e3d5d0244b79722d9c8b9522",
+                                                   "Mz.Toml/TomlDiagnosticCode.cs":  "978f57059a786f39d451cf1693e5bf62f7140817d420c7bd504c5759f2e54ef3",
+                                                   "Mz.Toml/TomlDocument.cs":  "9dbb568f87ad09c6a2ab8d20b8606add627d6a58c21d99b0ea94a18346330873",
+                                                   "Mz.Toml/TomlLocalDate.cs":  "5577886b95b6dbaef3d3f4f4c4d3458dd3de9a1b46aa970d9173e415dc6e4901",
+                                                   "Mz.Toml/TomlLocalDateTime.cs":  "3043fc5b37a02c755b61aa734c8c1e1f16e7c7816abd8bf08d89609a1f7929ef",
+                                                   "Mz.Toml/TomlLocalTime.cs":  "7dd52dca522aa213bbe4084f89a239a83a15c9beb41d04365333381c276f4d8a",
+                                                   "Mz.Toml/TomlNode.cs":  "bbb439011df176a0ecf31b1726eb2e52af623a129b2a88257c10e4d15a29c0b1",
+                                                   "Mz.Toml/TomlNodeKind.cs":  "f70b55ffcde93843988bb3761231207d610e0b2fcfc2464de96c45019e47e874",
+                                                   "Mz.Toml/TomlOffsetDateTime.cs":  "c15742dae0168d3e27cba4056df3c6b2a6ce773fd416a834b5392b8555047588",
+                                                   "Mz.Toml/TomlParseException.cs":  "c5336f278ee81bad9e05a79dae75528c7fd94a99bf09d2a721502e648d90afa4",
+                                                   "Mz.Toml/TomlParseResult.cs":  "662ed393daab041ced916d214b765dcba5522f20bccc5640b2bbace139f79cd9",
+                                                   "Mz.Toml/TomlSourceEditor.cs":  "398b1210520a089be7cf07bc0ad69ae52e1b507fa8667771703b25f52fe8ea51",
+                                                   "Mz.Toml/TomlSourceSpan.cs":  "4c07dad6c8fabe513e7834f43ab799c7531234e741e73c0d842edd8be5f1c660",
+                                                   "Mz.Toml/TomlSyntaxDocument.cs":  "62dedab4a0867d45c7bcc18cf5d7087faf4f8a0df1c51d34faacd98c47753863",
+                                                   "Mz.Toml/TomlSyntaxNode.cs":  "0b74adc2a812069a27b71273faf995b60320450a70cb8605b3f19d2f0d2df364",
+                                                   "Mz.Toml/TomlSyntaxNodeKind.cs":  "9466cfaab118d08c177811267ce620d624cf8c1353e29df880ce917a880a7005",
+                                                   "Mz.Toml/TomlSyntaxTrivia.cs":  "7cf3c7aa1d40d453d99bc612e24d0cce9fbd8dcdf89dc1c3e8f48a8f40efe9da",
+                                                   "Mz.Toml/TomlSyntaxTriviaKind.cs":  "5722727e62d5ea27ff8897d7affd69d3de559460fd0dd99aca0dfd6da4fcabc7",
+                                                   "Mz.Toml/TomlSyntaxTriviaPlacement.cs":  "21686ef2175b2edb28dbeb267aedb6592f7d112097b4479c6fe01e26e9c8ed6d",
+                                                   "Mz.Toml/TomlTable.cs":  "40e49fd4c5f1c5145d0d2830de1421721283640df1aad3436a5c2cd8b2ceb7fe",
+                                                   "Mz.Toml/TomlValue.cs":  "3db84060fe113b885bc3310fcabfc7ee20689d28ab37d709687f961cdd5f10f5",
+                                                   "Mz.Toml/TomlValueKind.cs":  "a5fe86101d963eab13d508cf67924be1e90b5e614845aa231eef986e51db671c"
+                                               }
+                                 }
+                 }
+}

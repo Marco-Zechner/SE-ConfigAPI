@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>6</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <IsTestProject>true</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.4.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Consumer\Mz.ConfigAPI.Consumer\**\*.cs" Link="Consumer\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.ApiProtocol.Core\**\*.cs" Link="Libraries\Mz.ApiProtocol.Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\**\*.cs" Exclude="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\Messaging\SpaceEngineersModMessageBus.cs" Link="Libraries\Mz.ApiProtocol.SpaceEngineers\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.SemanticVersioning\**\*.cs" Link="Libraries\Mz.SemanticVersioning\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\ConfigAPI.Tests\Consumer\**\*.cs" Link="Tests\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="SpaceEngineersApiStubs.cs" />
+  </ItemGroup>
+</Project>

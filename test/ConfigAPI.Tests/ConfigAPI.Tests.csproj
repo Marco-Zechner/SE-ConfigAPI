@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <Platforms>x64</Platforms>
@@ -22,6 +22,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="Sandbox.Common">
+      <HintPath>E:\SteamLibrary\SteamApps\common\SpaceEngineers\Bin64\Sandbox.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="VRage.Game">
+      <HintPath>E:\SteamLibrary\SteamApps\common\SpaceEngineers\Bin64\VRage.Game.dll</HintPath>
+    </Reference>
     <Reference Include="VRage.Library">
       <HintPath>E:\SteamLibrary\SteamApps\common\SpaceEngineers\Bin64\VRage.Library.dll</HintPath>
     </Reference>
