@@ -246,6 +246,15 @@ namespace MarcoZechner.ConfigAPI.V2
                         "Reports the most recent World smoke response observed on the side where this command executes.",
                         "world-status", "ConfigAPI"),
                     HandleCommandWorldStatus));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "world-save-stale", CommandExecutionLocation.Client, null,
+                        "Submits two immediate World smoke saves from this player.",
+                        "Submits two saves without waiting for the first response so both use the same base iteration and the second should be rejected as stale.",
+                        "world-save-stale <first-value> <second-value>", "ConfigAPI"),
+                    HandleCommandWorldSaveStale));
         }
 
         private CommandResponse HandleCommandHelp(CommandRequest request)
@@ -256,7 +265,7 @@ namespace MarcoZechner.ConfigAPI.V2
             return new CommandResponse(
                 true,
                 "ConfigAPI commands",
-                "Available commands: 6",
+                "Available commands: 7",
                 new[]
                 {
                     "help - Lists ConfigAPI commands.",
@@ -264,6 +273,7 @@ namespace MarcoZechner.ConfigAPI.V2
                     "world-open - Opens the shared World smoke config on this client.",
                     "world-open-server - Opens the shared World smoke config on the server.",
                     "world-save <value> - Attempts a player-authorized World save.",
+                    "world-save-stale <first-value> <second-value> - Submits two immediate saves to exercise stale-write correction.",
                     "world-status - Reports the last World smoke response on this execution side."
                 });
         }
@@ -318,6 +328,37 @@ namespace MarcoZechner.ConfigAPI.V2
             catch (Exception exception)
             {
                 return new CommandResponse(false, "World smoke save failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+
+        private CommandResponse HandleCommandWorldSaveStale(CommandRequest request)
+        {
+            if (request.Arguments.Length != 2 || string.IsNullOrWhiteSpace(request.Arguments[0]) || string.IsNullOrWhiteSpace(request.Arguments[1]))
+                return new CommandResponse(false, "Invalid stale World save request", "Expected exactly two non-empty string values.", severity: CommandSeverity.Error, usageHint: "/cfg world-save-stale <first-value> <second-value>");
+
+            if (_configClient == null || !_configClient.SupportsWorldConfigs)
+                return new CommandResponse(false, "World configs unavailable", "The local ConfigAPI consumer is not connected to the World facade.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _configClient.SaveWorld(WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[0]));
+                _configClient.SaveWorld(WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[1]));
+                return new CommandResponse(
+                    true,
+                    "World stale smoke saves requested",
+                    "Two asynchronous saves were submitted back-to-back without waiting for the first response.",
+                    new[]
+                    {
+                        "First value: " + request.Arguments[0],
+                        "Second value: " + request.Arguments[1],
+                        "Expected result: first save applies; second save returns Stale=True with the first authoritative value.",
+                        "Run /cfg world-status after both responses arrive."
+                    },
+                    CommandSeverity.Information);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World stale smoke save failed", exception.Message, severity: CommandSeverity.Error);
             }
         }
 

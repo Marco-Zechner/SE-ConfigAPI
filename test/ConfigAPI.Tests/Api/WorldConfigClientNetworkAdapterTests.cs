@@ -158,6 +158,33 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Back_To_Back_Saves_Before_Response_Use_The_Same_Base_Iteration()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(20))));
+            ulong firstRequestId = rig.Adapter.Save("Example.Mod", "Settings");
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(30))));
+            ulong secondRequestId = rig.Adapter.Save("Example.Mod", "Settings");
+
+            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(2));
+            WorldConfigNetworkRequest first = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[0].Payload);
+            WorldConfigNetworkRequest second = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[1].Payload);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(firstRequestId, Is.EqualTo(2UL));
+                Assert.That(secondRequestId, Is.EqualTo(3UL));
+                Assert.That(first.BaseIteration, Is.EqualTo(4UL));
+                Assert.That(second.BaseIteration, Is.EqualTo(4UL));
+                AssertDocumentValue(first.Document, 20, "Value");
+                AssertDocumentValue(second.Document, 30, "Value");
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(2));
+            });
+        }
+
         private static TestRig CreateRig()
         {
             var transport = new RecordingClientTransport();
