@@ -1,0 +1,67 @@
+name: API Consumer Releases
+
+on:
+  push:
+    tags:
+      - "release/*/*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: api-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Validate API release tooling
+        shell: pwsh
+        run: |
+          & ".\.github\tests\ApiReleaseMetadata.Tests.ps1"
+          if ($LASTEXITCODE -ne 0) {
+              throw "API release metadata tests failed."
+          }
+
+          & ".\.github\tests\New-ApiReleaseBundle.Tests.ps1"
+          if ($LASTEXITCODE -ne 0) {
+              throw "API package-format tests failed."
+          }
+
+      - name: Test and create SELibs API package
+        id: bundle
+        shell: pwsh
+        run: |
+          & ".\.github\scripts\New-ApiReleaseBundle.ps1" `
+              -Tag "${{ github.ref_name }}" `
+              -OutputDirectory "$env:RUNNER_TEMP\api-release"
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & gh release create `
+              "${{ github.ref_name }}" `
+              "${{ steps.bundle.outputs.manifest_path }}" `
+              "${{ steps.bundle.outputs.component_path }}" `
+              --verify-tag `
+              --latest=false `
+              --title "${{ steps.bundle.outputs.release_title }}" `
+              --notes-file "${{ steps.bundle.outputs.release_notes_path }}"
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "GitHub release creation failed."
+          }
