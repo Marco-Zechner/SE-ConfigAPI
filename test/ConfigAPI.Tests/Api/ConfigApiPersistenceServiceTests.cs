@@ -146,6 +146,47 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Local_And_Global_Configs_Survive_Fresh_Service_And_Registration()
+        {
+            var storage = new ConsumerStorage();
+            var defaults = Document(Entry("Value", Integer(10)));
+            var localEdited = Document(Entry("Value", Integer(20)));
+            var globalEdited = Document(Entry("Value", Integer(30)));
+
+            Guid firstRegistrationId = Guid.NewGuid();
+            var firstRegistry = RegisteredRegistry("Example.Mod", firstRegistrationId, storage);
+            var firstService = new ConfigApiPersistenceService(firstRegistry, Clock());
+
+            firstService.Open("Example.Mod", firstRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            firstService.Open("Example.Mod", firstRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            firstService.Save("Example.Mod", firstRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(localEdited));
+            firstService.Save("Example.Mod", firstRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(globalEdited));
+
+            string localProvenanceBefore = storage.Get(0, "settings.toml.configapi.provenance");
+            string globalProvenanceBefore = storage.Get(1, "settings.toml.configapi.provenance");
+            storage.ClearOperations();
+
+            Guid secondRegistrationId = Guid.NewGuid();
+            var secondRegistry = RegisteredRegistry("Example.Mod", secondRegistrationId, storage);
+            var secondService = new ConfigApiPersistenceService(secondRegistry, Clock());
+
+            ConfigDocument localReloaded = ConfigDocumentWireCodec.Decode(secondService.Open("Example.Mod", secondRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+            ConfigDocument globalReloaded = ConfigDocumentWireCodec.Decode(secondService.Open("Example.Mod", secondRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(localReloaded, 20, "Value");
+                AssertDocumentValue(globalReloaded, 30, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 20"));
+                Assert.That(storage.Get(1, "settings.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.EqualTo(localProvenanceBefore));
+                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.EqualTo(globalProvenanceBefore));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+                Assert.That(storage.WriteCount(1), Is.EqualTo(0));
+            });
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void Open_Malformed_Persisted_Toml_Fails_Without_Rewriting_Storage(int location)
