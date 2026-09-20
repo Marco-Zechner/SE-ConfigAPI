@@ -3,6 +3,7 @@
     "librariesPath":  "Data/Scripts/ConfigAPI/Libraries",
     "dependencies":  {
                          "Mz.ApiProtocol":  "0.3.0",
+                         "Mz.ConfigAPI.Consumer":  "2.0.0",
                          "Mz.Logging":  "0.1.2",
                          "Mz.Networking":  "0.2.1",
                          "Mz.Toml":  "0.2.1"

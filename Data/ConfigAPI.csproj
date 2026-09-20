@@ -16,7 +16,6 @@
         <PackageReference Include="Mal.Mdk2.References" Version="*" />
     </ItemGroup>
     <ItemGroup>
-        <Compile Include="..\Consumer\Mz.ConfigAPI.Consumer\**\*.cs" Link="Consumer\%(RecursiveDir)%(Filename)%(Extension)" />
         <Compile Remove="Scripts\ConfigAPI\Client\**\*.cs" />
         <Compile Remove="Scripts\ConfigAPI\Main\**\*.cs" />
         <Compile Remove="Scripts\ConfigAPI\Shared\**\*.cs" />
