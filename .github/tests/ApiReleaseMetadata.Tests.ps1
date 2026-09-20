@@ -51,7 +51,7 @@ Assert-Equal -Expected 1 -Actual $configPackage.Count -Message "Mz.ConfigAPI.Con
 $package = $configPackage[0]
 
 Assert-Equal -Expected "Mz.ConfigAPI.Consumer" -Actual ([string]$package.PackageId) -Message "Package ID was not derived from the Consumer folder."
-Assert-Equal -Expected "2.0.2" -Actual ([string]$package.Version) -Message "API package version was parsed incorrectly."
+Assert-Equal -Expected "2.0.3" -Actual ([string]$package.Version) -Message "API package version was parsed incorrectly."
 Assert-Equal -Expected "Mz.ConfigAPI.Consumer.Tests" -Actual ([System.IO.Path]::GetFileNameWithoutExtension($package.TestProjectPath)) -Message "Dedicated consumer test project was not selected."
 Assert-Equal -Expected "0.3.0" -Actual ([string]$package.Dependencies["Mz.ApiProtocol"]) -Message "ApiProtocol declaration was parsed incorrectly."
 Assert-Equal -Expected "0.2.0" -Actual ([string]$package.Dependencies["Mz.SemanticVersioning"]) -Message "SemanticVersioning declaration was parsed incorrectly."

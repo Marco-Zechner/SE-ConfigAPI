@@ -6,7 +6,7 @@ namespace Mz.ConfigApi
     {
         public const int Major = 2;
         public const int Minor = 0;
-        public const int Patch = 2;
+        public const int Patch = 3;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
 
@@ -23,6 +23,13 @@ namespace Mz.ConfigApi
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "2.0.3",
+                    new[]
+                    {
+                        "Made ConfigHandle<T>.SwitchFile failure-atomic so a failed load preserves the previous CurrentFile and Value.",
+                    }
+                ),
                 new ChangelogEntry(
                     "2.0.2",
                     new[]

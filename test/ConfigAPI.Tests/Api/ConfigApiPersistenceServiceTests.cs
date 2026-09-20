@@ -387,6 +387,28 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Save_Unrepresentable_Semantic_Null_Fails_Without_Writing_Storage()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var values = Document(Entry("Optional", ConfigNullNode.Instance));
+            object payload = ConfigDocumentWireCodec.Encode(values);
+
+            NotSupportedException exception = Assert.Throws<NotSupportedException>(() =>
+                service.Save("Example.Mod", registrationId, "Settings", 0, "settings.toml", payload, payload));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Does.Contain("semantic null"));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+                Assert.That(storage.Get(0, "settings.toml"), Is.Null);
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Null);
+            });
+        }
+
+        [Test]
         public void Open_Rejects_Stale_Registration_And_Unsupported_Location()
         {
             var registrationId = Guid.NewGuid();
