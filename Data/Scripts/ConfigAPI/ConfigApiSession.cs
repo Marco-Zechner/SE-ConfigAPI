@@ -22,6 +22,7 @@ namespace MarcoZechner.ConfigAPI.V2
         private const string WorldNetworkId = "MarcoZechner.ConfigAPI.World";
         private const string WorldSmokeConfigKey = "WorldSmoke";
         private const string WorldSmokeFile = "ConfigAPI.WorldSmoke.toml";
+        private const string WorldFileSmokeFile = "ConfigAPI.WorldFileSmoke.toml";
 
         private ConfigApiClient _configClient;
         private CommandApiClient _commandClient;
@@ -31,6 +32,7 @@ namespace MarcoZechner.ConfigAPI.V2
         private ConfigConsumerRegistrationRegistry _registry;
         private SpaceEngineersNetworkSession _worldNetworkSession;
         private WorldConfigNetworkRuntime _worldNetworkRuntime;
+        private WorldConfigFileOperationSmokeClient _worldFileSmokeClient;
         private WorldConfigResponse _worldSmokeLastResponse;
 
         public override void LoadData()
@@ -62,6 +64,7 @@ namespace MarcoZechner.ConfigAPI.V2
                     _logger.Logger.Error("ConfigAPI self-configuration consumer did not connect. Trace logging remains enabled.", _configClient.LastError);
                 }
 
+                StartWorldFileSmokeClient(messageBus);
                 StartCommandApiIntegration(messageBus);
             }
             catch (Exception exception)
@@ -153,6 +156,32 @@ namespace MarcoZechner.ConfigAPI.V2
                 }
             }
         }
+        private void StartWorldFileSmokeClient(SpaceEngineersModMessageBus messageBus)
+        {
+            try
+            {
+                _worldFileSmokeClient = new WorldConfigFileOperationSmokeClient(messageBus, _modVersion);
+                _worldFileSmokeClient.ResponseReceived += OnWorldConfigResponseReceived;
+                _worldFileSmokeClient.Start();
+
+                if (_worldFileSmokeClient.IsConnected)
+                    _logger.Logger.Debug("ConfigAPI 2.2 World file-operation smoke client connected.");
+                else
+                    _logger.Logger.Warning("ConfigAPI 2.2 World file-operation smoke client did not connect.", _worldFileSmokeClient.LastError);
+            }
+            catch (Exception exception)
+            {
+                _logger.Logger.Warning("ConfigAPI 2.2 World file-operation smoke client failed to start.", exception);
+
+                if (_worldFileSmokeClient != null)
+                {
+                    _worldFileSmokeClient.ResponseReceived -= OnWorldConfigResponseReceived;
+                    _worldFileSmokeClient.Dispose();
+                    _worldFileSmokeClient = null;
+                }
+            }
+        }
+
         private void StartCommandApiIntegration(SpaceEngineersModMessageBus messageBus)
         {
             try
@@ -232,6 +261,51 @@ namespace MarcoZechner.ConfigAPI.V2
             _commandRegistrations.Add(
                 _commandClient.Register(
                     new CommandRegistration(
+                        "/cfg", "world-file-open", CommandExecutionLocation.Client, null,
+                        "Opens the ConfigAPI 2.2 World file-operation smoke config.",
+                        "Primes the separate diagnostic consumer used to exercise the unpublished 2.2 World file-operation endpoints.",
+                        "world-file-open", "ConfigAPI"),
+                    HandleCommandWorldFileOpen));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "world-reload", CommandExecutionLocation.Client, null,
+                        "Reloads the current World file-operation smoke file.",
+                        "Exercises ConfigAPI 2.2 Reload through the real client-to-server path.",
+                        "world-reload", "ConfigAPI"),
+                    HandleCommandWorldReload));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "world-load-switch", CommandExecutionLocation.Client, null,
+                        "Loads and switches the World file-operation smoke config.",
+                        "Exercises ConfigAPI 2.2 LoadAndSwitch through the real client-to-server path.",
+                        "world-load-switch <file>", "ConfigAPI"),
+                    HandleCommandWorldLoadSwitch));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "world-save-switch", CommandExecutionLocation.Client, null,
+                        "Saves and switches the World file-operation smoke config.",
+                        "Exercises ConfigAPI 2.2 SaveAndSwitch through the real client-to-server path.",
+                        "world-save-switch <file> <value>", "ConfigAPI"),
+                    HandleCommandWorldSaveSwitch));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "world-export", CommandExecutionLocation.Client, null,
+                        "Exports the World file-operation smoke config.",
+                        "Exercises ConfigAPI 2.2 Export without changing authoritative state.",
+                        "world-export <file> <value> [overwrite]", "ConfigAPI"),
+                    HandleCommandWorldExport));
+
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
                         "/cfg", "world-save", CommandExecutionLocation.Client, null,
                         "Attempts a World smoke save from this player.",
                         "Saves one string value through the client World path. Server authorization must accept admins and reject non-admins.",
@@ -265,13 +339,18 @@ namespace MarcoZechner.ConfigAPI.V2
             return new CommandResponse(
                 true,
                 "ConfigAPI commands",
-                "Available commands: 7",
+                "Available commands: 12",
                 new[]
                 {
                     "help - Lists ConfigAPI commands.",
                     "status - Reports ConfigAPI runtime status.",
                     "world-open - Opens the shared World smoke config on this client.",
                     "world-open-server - Opens the shared World smoke config on the server.",
+                    "world-file-open - Opens the separate ConfigAPI 2.2 World file-operation smoke config.",
+                    "world-reload - Reloads its current file from server World storage.",
+                    "world-load-switch <file> - Loads and switches to another World smoke file.",
+                    "world-save-switch <file> <value> - Saves a value and switches to that file.",
+                    "world-export <file> <value> [overwrite] - Exports without changing authoritative state.",
                     "world-save <value> - Attempts a player-authorized World save.",
                     "world-save-stale <first-value> <second-value> - Submits two immediate saves to exercise stale-write correction.",
                     "world-status - Reports the last World smoke response on this execution side."
@@ -299,6 +378,100 @@ namespace MarcoZechner.ConfigAPI.V2
             catch (Exception exception)
             {
                 return new CommandResponse(false, "World smoke open failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+
+        private CommandResponse HandleCommandWorldFileOpen(CommandRequest request)
+        {
+            if (request.Arguments.Length != 0)
+                return new CommandResponse(false, "Invalid World file smoke open request", "World file smoke open does not accept arguments.", severity: CommandSeverity.Error, usageHint: "/cfg world-file-open");
+            if (_worldFileSmokeClient == null || !_worldFileSmokeClient.IsConnected)
+                return new CommandResponse(false, "World file operations unavailable", "The ConfigAPI 2.2 World file-operation smoke client is not connected.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _worldFileSmokeClient.Open(WorldSmokeConfigKey, WorldFileSmokeFile, CreateWorldSmokeDocument("initial"));
+                return new CommandResponse(true, "World file smoke open requested", "The ConfigAPI 2.2 diagnostic World config was opened through the client path.", new[] { "Run /cfg world-status after the response arrives." }, CommandSeverity.Success);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World file smoke open failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+
+        private CommandResponse HandleCommandWorldReload(CommandRequest request)
+        {
+            if (request.Arguments.Length != 0)
+                return new CommandResponse(false, "Invalid World reload request", "World reload does not accept arguments.", severity: CommandSeverity.Error, usageHint: "/cfg world-reload");
+            if (_worldFileSmokeClient == null || !_worldFileSmokeClient.IsConnected)
+                return new CommandResponse(false, "World file operations unavailable", "The ConfigAPI 2.2 World file-operation smoke client is not connected.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _worldFileSmokeClient.Reload(WorldSmokeConfigKey);
+                return new CommandResponse(true, "World reload requested", "Reload was submitted through the ConfigAPI 2.2 client path.", new[] { "Run /cfg world-status after the response arrives." }, CommandSeverity.Information);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World reload failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+
+        private CommandResponse HandleCommandWorldLoadSwitch(CommandRequest request)
+        {
+            if (request.Arguments.Length != 1 || string.IsNullOrWhiteSpace(request.Arguments[0]))
+                return new CommandResponse(false, "Invalid World load-and-switch request", "Expected exactly one non-empty target file.", severity: CommandSeverity.Error, usageHint: "/cfg world-load-switch <file>");
+            if (_worldFileSmokeClient == null || !_worldFileSmokeClient.IsConnected)
+                return new CommandResponse(false, "World file operations unavailable", "The ConfigAPI 2.2 World file-operation smoke client is not connected.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _worldFileSmokeClient.LoadAndSwitch(WorldSmokeConfigKey, request.Arguments[0]);
+                return new CommandResponse(true, "World load-and-switch requested", "LoadAndSwitch was submitted through the ConfigAPI 2.2 client path.", new[] { "Target file: " + request.Arguments[0], "Run /cfg world-status after the response arrives." }, CommandSeverity.Information);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World load-and-switch failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+
+        private CommandResponse HandleCommandWorldSaveSwitch(CommandRequest request)
+        {
+            if (request.Arguments.Length != 2 || string.IsNullOrWhiteSpace(request.Arguments[0]) || string.IsNullOrWhiteSpace(request.Arguments[1]))
+                return new CommandResponse(false, "Invalid World save-and-switch request", "Expected a target file and one non-empty string value.", severity: CommandSeverity.Error, usageHint: "/cfg world-save-switch <file> <value>");
+            if (_worldFileSmokeClient == null || !_worldFileSmokeClient.IsConnected)
+                return new CommandResponse(false, "World file operations unavailable", "The ConfigAPI 2.2 World file-operation smoke client is not connected.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _worldFileSmokeClient.SaveAndSwitch(WorldSmokeConfigKey, request.Arguments[0], CreateWorldSmokeDocument(request.Arguments[1]));
+                return new CommandResponse(true, "World save-and-switch requested", "SaveAndSwitch was submitted through the ConfigAPI 2.2 client path.", new[] { "Target file: " + request.Arguments[0], "Requested value: " + request.Arguments[1], "Run /cfg world-status after the response arrives." }, CommandSeverity.Information);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World save-and-switch failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+
+        private CommandResponse HandleCommandWorldExport(CommandRequest request)
+        {
+            if ((request.Arguments.Length != 2 && request.Arguments.Length != 3) || string.IsNullOrWhiteSpace(request.Arguments[0]) || string.IsNullOrWhiteSpace(request.Arguments[1]))
+                return new CommandResponse(false, "Invalid World export request", "Expected a target file, one non-empty string value, and optional overwrite boolean.", severity: CommandSeverity.Error, usageHint: "/cfg world-export <file> <value> [overwrite]");
+
+            bool overwrite = false;
+            if (request.Arguments.Length == 3 && !bool.TryParse(request.Arguments[2], out overwrite))
+                return new CommandResponse(false, "Invalid World export request", "Overwrite must be true or false.", severity: CommandSeverity.Error, usageHint: "/cfg world-export <file> <value> [overwrite]");
+            if (_worldFileSmokeClient == null || !_worldFileSmokeClient.IsConnected)
+                return new CommandResponse(false, "World file operations unavailable", "The ConfigAPI 2.2 World file-operation smoke client is not connected.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _worldFileSmokeClient.Export(WorldSmokeConfigKey, request.Arguments[0], CreateWorldSmokeDocument(request.Arguments[1]), overwrite);
+                return new CommandResponse(true, "World export requested", "Export was submitted through the ConfigAPI 2.2 client path and should not change authoritative state.", new[] { "Target file: " + request.Arguments[0], "Exported value: " + request.Arguments[1], "Overwrite: " + overwrite, "Run /cfg world-status after the response arrives." }, CommandSeverity.Information);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World export failed", exception.Message, severity: CommandSeverity.Error);
             }
         }
 
@@ -370,7 +543,8 @@ namespace MarcoZechner.ConfigAPI.V2
             var detailLines = new List<string>
             {
                 "Execution side: " + (request.IsServer ? "server" : "client"),
-                "World facade: " + (_configClient != null && _configClient.SupportsWorldConfigs ? "available" : "unavailable")
+                "World facade: " + (_configClient != null && _configClient.SupportsWorldConfigs ? "available" : "unavailable"),
+                "World file operations: " + (_worldFileSmokeClient != null && _worldFileSmokeClient.IsConnected ? "available" : "unavailable")
             };
 
             WorldConfigResponse response = _worldSmokeLastResponse;
@@ -533,6 +707,23 @@ namespace MarcoZechner.ConfigAPI.V2
             finally
             {
                 _commandClient = null;
+            }
+
+            try
+            {
+                if (_worldFileSmokeClient != null)
+                {
+                    _worldFileSmokeClient.ResponseReceived -= OnWorldConfigResponseReceived;
+                    _worldFileSmokeClient.Dispose();
+                }
+            }
+            catch (Exception exception)
+            {
+                _logger?.Logger.Error("ConfigAPI 2.2 World file-operation smoke client failed while unloading.", exception);
+            }
+            finally
+            {
+                _worldFileSmokeClient = null;
             }
 
             try
