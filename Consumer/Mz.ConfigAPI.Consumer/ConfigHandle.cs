@@ -45,6 +45,15 @@ namespace Mz.ConfigApi
             return value;
         }
 
+        public T SavePreset(string presetFile, bool overwrite = false)
+        {
+            if (string.IsNullOrWhiteSpace(presetFile))
+                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
+            if (string.Equals(_definition.DefaultFile, presetFile, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Preset target must not be the canonical active config file: " + presetFile);
+
+            return _definition.Deserialize(_client.SavePreset(_definition.ConfigKey, Location, _definition.DefaultFile, presetFile, _definition.Serialize(_definition.CreateDefaults()), _definition.Serialize(Value), overwrite));
+        }
         public T ApplyPreset(string presetFile)
         {
             if (string.IsNullOrWhiteSpace(presetFile))

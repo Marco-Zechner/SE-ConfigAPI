@@ -30,6 +30,8 @@ namespace Mz.ConfigApi
                         "Added optional ApplyPreset support for Local and Global configs while preserving the canonical ConfigDefinition<T>.DefaultFile as the active config file.",
                         "Added optional asynchronous ApplyPresetWorld support for server-authoritative World configs without changing the existing ConfigAPI 2.2 World file-operation capability group.",
                         "Added SupportsPresets and SupportsWorldPresets; older 2.0-2.2 providers remain compatible and simply report these capabilities as unavailable.",
+                        "Added optional SavePreset support for Local and Global configs with overwrite disabled by default; preset saves do not change active config identity.",
+                        "Added optional asynchronous SavePresetWorld support plus SupportsPresetSaving and SupportsWorldPresetSaving; World preset saves do not switch CurrentFile or advance ServerIteration.",
                     }
                 ),
                 new ChangelogEntry(

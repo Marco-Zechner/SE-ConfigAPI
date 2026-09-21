@@ -303,6 +303,30 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void SavePreset_Request_Uses_Current_Draft_And_Overwrite_Flag()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(25))));
+
+            ulong requestId = rig.Adapter.SavePreset("Example.Mod", "Settings", "preset.toml", true);
+
+            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(1));
+            WorldConfigNetworkRequest request = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[0].Payload);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(requestId, Is.EqualTo(2UL));
+                Assert.That(request.Operation, Is.EqualTo(WorldConfigNetworkOperation.SavePreset));
+                Assert.That(request.BaseIteration, Is.EqualTo(4UL));
+                Assert.That(request.File, Is.EqualTo("preset.toml"));
+                Assert.That(request.Overwrite, Is.True);
+                Assert.That(request.Defaults, Is.Null);
+                AssertDocumentValue(request.Document, 25, "Value");
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(1));
+            });
+        }
+        [Test]
         public void ApplyPreset_Request_Uses_Current_Authority_And_Preset_File()
         {
             TestRig rig = CreateRig();

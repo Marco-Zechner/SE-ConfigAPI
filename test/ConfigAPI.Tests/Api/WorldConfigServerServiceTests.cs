@@ -282,6 +282,61 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
         [Test]
+        public void SavePreset_Writes_Retained_Preset_Without_Mutating_Authority()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.ClearOperations();
+
+            WorldConfigExport saved = service.SavePreset("Example.Mod", "Settings", Document(Entry("Value", Integer(40))), "preset.toml", false);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(saved.Authoritative, opened), Is.True);
+                Assert.That(saved.Authoritative.ServerIteration, Is.EqualTo(0UL));
+                Assert.That(saved.Authoritative.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(saved.Authoritative.Document, 10, "Value");
+                Assert.That(storage.Get(2, "preset.toml"), Does.Contain("Value = 40"));
+                Assert.That(storage.Get(2, "preset.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.TotalWrites, Is.EqualTo(2));
+            });
+
+            storage.ClearOperations();
+            Assert.Throws<InvalidOperationException>(() =>
+                service.SavePreset("Example.Mod", "Settings", Document(Entry("Value", Integer(50))), "preset.toml", false));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(storage.Get(2, "preset.toml"), Does.Contain("Value = 40"));
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void SavePreset_Rejects_Current_Authoritative_File_Target()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.ClearOperations();
+
+            Assert.Throws<InvalidOperationException>(() =>
+                service.SavePreset("Example.Mod", "Settings", Document(Entry("Value", Integer(40))), "settings.toml", true));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10)))), Is.SameAs(opened));
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+        [Test]
         public void Export_Writes_Target_Without_Mutating_Authority_And_Respects_Overwrite()
         {
             var registry = new ConfigConsumerRegistrationRegistry();

@@ -45,6 +45,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                     return HandleExport(requesterId, request);
                 case WorldConfigNetworkOperation.ApplyPreset:
                     return HandleApplyPreset(requesterId, request);
+                case WorldConfigNetworkOperation.SavePreset:
+                    return HandleSavePreset(requesterId, request);
                 default:
                     throw new ArgumentException("Unsupported World config network operation: " + request.Operation, nameof(request));
             }
@@ -105,6 +107,16 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
         }
 
+        private WorldConfigNetworkResponse HandleSavePreset(ulong requesterId, WorldConfigNetworkRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.File))
+                return Error(request, requesterId, "SavePreset requires a preset file.");
+            if (request.Document == null)
+                return Error(request, requesterId, "SavePreset requires a config document.");
+
+            WorldConfigExport saved = _service.SavePreset(request.ConsumerId, request.ConfigKey, request.Document, request.File, request.Overwrite);
+            return new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Exported, requesterId, false, false, saved.Authoritative, null);
+        }
         private WorldConfigNetworkResponse HandleExport(ulong requesterId, WorldConfigNetworkRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.File))

@@ -42,7 +42,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(announcement.Provider.Version.ToString(), Is.EqualTo("0.0.0"));
                 Assert.That(announcement.Descriptor.ApiId, Is.EqualTo("MarcoZechner.ConfigAPI"));
                 Assert.That(announcement.Descriptor.Version.ToString(), Is.EqualTo("2.3.0"));
-                Assert.That(announcement.Endpoints.Count, Is.EqualTo(12));
+                Assert.That(announcement.Endpoints.Count, Is.EqualTo(14));
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.RegisterWorldConfigEndpoint), Is.True);
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.OpenWorldConfigEndpoint), Is.True);
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.SaveWorldConfigEndpoint), Is.True);
@@ -52,6 +52,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.ExportWorldConfigEndpoint), Is.True);
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.ApplyPresetConfigEndpoint), Is.True);
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.ApplyPresetWorldConfigEndpoint), Is.True);
+                Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.SavePresetConfigEndpoint), Is.True);
+                Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.SavePresetWorldConfigEndpoint), Is.True);
             });
 
             Delegate endpoint =

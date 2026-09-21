@@ -795,6 +795,97 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
+        public void Preset_Saving_Is_Independent_And_Does_Not_Change_Handle_Current_File()
+        {
+            var bus = new RecordingModMessageBus();
+            string canonicalFile = null;
+            string localPresetFile = null;
+            string worldPresetFile = null;
+            ConfigDocument localDocument = null;
+            ConfigDocument worldDocument = null;
+            var localOverwrite = false;
+            var worldOverwrite = true;
+            Action<IDictionary<string, object>> worldCallback = null;
+            var values = new ConfigDocument(new ConfigEntry("Value", ConfigValue.Integer(30)));
+
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["SavePresetConfig"] = new Func<string, Guid, string, int, string, string, object, object, bool, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string canonical, string preset, object defaults, object document, bool overwrite)
+                {
+                    canonicalFile = canonical;
+                    localPresetFile = preset;
+                    localDocument = ConfigDocumentWireCodec.Decode(document);
+                    localOverwrite = overwrite;
+                    return document;
+                });
+            endpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(
+                delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
+                {
+                    worldCallback = callback;
+                    return delegate { };
+                });
+            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
+            endpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+            endpoints["SavePresetWorldConfig"] = new Action<string, Guid, string, string, object, bool>(
+                delegate(string consumerId, Guid registrationId, string configKey, string preset, object document, bool overwrite)
+                {
+                    worldPresetFile = preset;
+                    worldDocument = ConfigDocumentWireCodec.Decode(document);
+                    worldOverwrite = overwrite;
+                    worldCallback(new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        { "ConfigKey", configKey },
+                        { "RequestId", 23UL },
+                        { "Operation", "SavePreset" },
+                        { "TriggeredBy", 222UL },
+                        { "IsApplied", false },
+                        { "IsStale", false },
+                        { "Error", null },
+                        { "ServerIteration", 4UL },
+                        { "CurrentFile", "settings.toml" },
+                        { "Document", ConfigDocumentWireCodec.Encode(values) },
+                    });
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 3, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            WorldConfigResponse observed = null;
+            client.WorldConfigResponseReceived += delegate(WorldConfigResponse response) { observed = response; };
+            client.Start();
+
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => values, value => value, document => document);
+            ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
+            handle.SwitchFile("legacy.toml");
+            ConfigDocument saved = handle.SavePreset("local-preset.toml", true);
+            client.SavePresetWorld("Settings", "world-preset.toml", values);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(client.SupportsPresets, Is.False);
+                Assert.That(client.SupportsPresetSaving, Is.True);
+                Assert.That(client.SupportsWorldPresets, Is.False);
+                Assert.That(client.SupportsWorldPresetSaving, Is.True);
+                Assert.That(canonicalFile, Is.EqualTo("settings.toml"));
+                Assert.That(localPresetFile, Is.EqualTo("local-preset.toml"));
+                Assert.That(localDocument.Equals(values), Is.True);
+                Assert.That(localOverwrite, Is.True);
+                Assert.That(handle.CurrentFile, Is.EqualTo("legacy.toml"));
+                Assert.That(handle.Value.Equals(values), Is.True);
+                Assert.That(saved.Equals(values), Is.True);
+                Assert.That(worldPresetFile, Is.EqualTo("world-preset.toml"));
+                Assert.That(worldDocument.Equals(values), Is.True);
+                Assert.That(worldOverwrite, Is.False);
+                Assert.That(observed.Operation, Is.EqualTo(WorldConfigOperation.SavePreset));
+                Assert.That(observed.IsApplied, Is.False);
+                Assert.That(observed.ServerIteration, Is.EqualTo(4UL));
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
         public void Preset_Capabilities_Remain_Optional_For_22_Provider()
         {
             var bus = new RecordingModMessageBus();
@@ -809,8 +900,12 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 Assert.That(client.IsConnected, Is.True);
                 Assert.That(client.SupportsPresets, Is.False);
                 Assert.That(client.SupportsWorldPresets, Is.False);
+                Assert.That(client.SupportsPresetSaving, Is.False);
+                Assert.That(client.SupportsWorldPresetSaving, Is.False);
                 Assert.Throws<InvalidOperationException>(() => client.ApplyPreset("Settings", ConfigLocation.Local, "settings.toml", "preset.toml", new ConfigDocument()));
                 Assert.Throws<InvalidOperationException>(() => client.ApplyPresetWorld("Settings", "preset.toml"));
+                Assert.Throws<InvalidOperationException>(() => client.SavePreset("Settings", ConfigLocation.Local, "settings.toml", "preset.toml", new ConfigDocument(), new ConfigDocument()));
+                Assert.Throws<InvalidOperationException>(() => client.SavePresetWorld("Settings", "preset.toml", new ConfigDocument()));
             });
 
             client.Dispose();

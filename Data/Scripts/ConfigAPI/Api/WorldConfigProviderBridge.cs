@@ -211,6 +211,41 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, RuntimeUnavailableError);
         }
 
+        public void SavePreset(string consumerId, Guid registrationId, string configKey, string presetFile, object documentPayload, bool overwrite)
+        {
+            ThrowIfDisposed();
+
+            Registration registration = GetRequiredRegistration(consumerId, registrationId);
+            ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
+
+            if (string.IsNullOrWhiteSpace(presetFile))
+                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
+
+            ConfigDocument document = ConfigDocumentWireCodec.Decode(documentPayload);
+
+            if (_clientAdapter != null)
+            {
+                try
+                {
+                    _clientAdapter.SetDraft(identity.OwnerId, identity.ConfigKey, document);
+                    SendClientRequest(registration, identity, WorldConfigNetworkOperation.SavePreset, () => _clientAdapter.SavePreset(identity.OwnerId, identity.ConfigKey, presetFile, overwrite));
+                }
+                catch (Exception exception)
+                {
+                    NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SavePreset, exception.Message);
+                }
+
+                return;
+            }
+
+            if (_serverService != null && _serverAdapter != null)
+            {
+                SavePresetServer(registration, identity, presetFile, document, overwrite);
+                return;
+            }
+
+            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SavePreset, RuntimeUnavailableError);
+        }
         public void ApplyPreset(string consumerId, Guid registrationId, string configKey, string presetFile)
         {
             ThrowIfDisposed();
@@ -488,6 +523,23 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             }
         }
 
+        private void SavePresetServer(Registration registration, ConfigIdentity identity, string presetFile, ConfigDocument document, bool overwrite)
+        {
+            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.SavePreset);
+            if (current == null)
+                return;
+
+            try
+            {
+                WorldConfigExport saved = _serverService.SavePreset(identity.OwnerId, identity.ConfigKey, document, presetFile, overwrite);
+                var response = new WorldConfigNetworkResponse(0UL, WorldConfigNetworkOperation.SavePreset, WorldConfigNetworkResponseKind.Exported, _serverAdapter.LocalPeerId, false, false, saved.Authoritative, null);
+                Notify(registration, identity, response, saved.Authoritative);
+            }
+            catch (Exception exception)
+            {
+                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SavePreset, exception.Message);
+            }
+        }
         private void ApplyPresetServer(Registration registration, ConfigIdentity identity, string presetFile)
         {
             WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.ApplyPreset);

@@ -569,6 +569,67 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
         [Test]
+        public void SavePreset_Writes_Retained_Preset_Without_Changing_Canonical_File()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+            var values = Document(Entry("Value", Integer(30)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            string activeBefore = storage.Get(0, "settings.toml");
+            string provenanceBefore = storage.Get(0, "settings.toml.configapi.provenance");
+            storage.ClearOperations();
+
+            ConfigDocument saved = ConfigDocumentWireCodec.Decode(
+                service.SavePreset("Example.Mod", registrationId, "Settings", 0, "settings.toml", "preset.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(values), false));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(saved, 30, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Is.EqualTo(activeBefore));
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.EqualTo(provenanceBefore));
+                Assert.That(storage.Get(0, "preset.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(0, "preset.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.WriteCount(0), Is.EqualTo(2));
+            });
+
+            storage.ClearOperations();
+            Assert.Throws<InvalidOperationException>(() =>
+                service.SavePreset("Example.Mod", registrationId, "Settings", 0, "settings.toml", "preset.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(Document(Entry("Value", Integer(40)))), false));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(storage.Get(0, "preset.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void SavePreset_Rejects_Canonical_File_Target()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            string activeBefore = storage.Get(1, "settings.toml");
+            storage.ClearOperations();
+
+            Assert.Throws<InvalidOperationException>(() =>
+                service.SavePreset("Example.Mod", registrationId, "Settings", 1, "settings.toml", "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(defaults), true));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(storage.Get(1, "settings.toml"), Is.EqualTo(activeBefore));
+                Assert.That(storage.WriteCount(1), Is.EqualTo(0));
+            });
+        }
+        [Test]
         public void Provider_Publishes_Exact_Open_And_Save_Endpoints()
         {
             var bus = new RecordingModMessageBus();
@@ -588,7 +649,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     out announcement),
                 Is.True);
 
-            Assert.That(announcement.Endpoints.Count, Is.EqualTo(12));
+            Assert.That(announcement.Endpoints.Count, Is.EqualTo(14));
 
             var open = announcement.Endpoints[ConfigApiProvider.OpenConfigEndpoint] as
                 Func<string, Guid, string, int, string, object, object>;

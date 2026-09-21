@@ -216,6 +216,22 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             return Save(normalizedConsumerId, normalizedConfigKey, baseIteration, preset.State.PlayerValues);
         }
+        public WorldConfigExport SavePreset(string consumerId, string configKey, ConfigDocument document, string presetFile, bool overwrite)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+
+            if (document == null)
+                throw new ArgumentNullException(nameof(document));
+
+            RequireFile(presetFile);
+            ServerState state = GetRequiredState(StateKey(normalizedConsumerId, normalizedConfigKey), normalizedConsumerId, normalizedConfigKey);
+
+            if (string.Equals(state.Snapshot.CurrentFile, presetFile, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Preset target must not be the current authoritative config file: " + presetFile);
+
+            return Export(normalizedConsumerId, normalizedConfigKey, document, presetFile, overwrite);
+        }
         public WorldConfigExport Export(string consumerId, string configKey, ConfigDocument document, string file, bool overwrite)
         {
             string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));

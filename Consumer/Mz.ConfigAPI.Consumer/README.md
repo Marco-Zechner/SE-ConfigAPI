@@ -35,11 +35,13 @@ Providers at API 2.1.0 or newer may expose the optional server-authoritative Wor
 
 Providers at API 2.2.0 or newer may additionally expose the complete World file-operation set. `SupportsWorldFileOperations` reports whether `ReloadWorld(...)`, `LoadAndSwitchWorld(...)`, `SaveAndSwitchWorld(...)`, and `ExportWorld(...)` are available. Providers that expose only the 2.1 World contract remain compatible.
 
-Providers at API 2.3.0 or newer may additionally expose preset endpoints. `SupportsPresets` reports whether synchronous Local/Global `ApplyPreset(...)` is available. `SupportsWorldPresets` reports whether asynchronous `ApplyPresetWorld(...)` is available together with the base World config contract. These preset capabilities are independent of `SupportsWorldFileOperations`, so 2.0-2.2 providers remain compatible.
+Providers at API 2.3.0 or newer may additionally expose independent preset capabilities. `SupportsPresets` reports synchronous Local/Global `ApplyPreset(...)`; `SupportsPresetSaving` reports synchronous Local/Global `SavePreset(...)`. `SupportsWorldPresets` reports asynchronous `ApplyPresetWorld(...)`; `SupportsWorldPresetSaving` reports asynchronous `SavePresetWorld(...)`. The World preset capabilities require the base World config contract but remain independent of `SupportsWorldFileOperations`, so 2.0-2.2 providers remain compatible.
 
 All World operations are asynchronous requests. Authoritative snapshots, stale-write corrections, export confirmations, and errors are delivered through `WorldConfigResponseReceived`. Reload, LoadAndSwitch, Save, and SaveAndSwitch operate against the authoritative server iteration. Export writes the requested target file without switching authoritative state or advancing its iteration. Local and Global `Open`/`Save` remain synchronous and unchanged.
 
 Applying a preset copies the preset's semantic config values into the canonical active file. For typed Local/Global configs, that canonical file is `ConfigDefinition<T>.DefaultFile`; `ConfigHandle<T>.ApplyPreset(...)` returns to that canonical filename even if legacy `SwitchFile(...)` previously selected another file. The preset file itself is retained and is not made the active config identity. Missing presets fail instead of synthesizing defaults.
+
+Saving a preset writes the supplied semantic config values to a retained preset file with normal provenance and defaults to `overwrite: false`. It does not change `ConfigHandle<T>.CurrentFile`, the canonical active file, World `CurrentFile`, or World `ServerIteration`. Local/Global preset targets may not be `ConfigDefinition<T>.DefaultFile`; World preset targets may not be the current authoritative file.
 
 ## Serialization contract
 

@@ -239,6 +239,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             WorldConfigNetworkResponse save = handler.Handle(222UL, new WorldConfigNetworkRequest(3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SaveAndSwitch, 0UL, "alternate.toml", false, null, null));
             WorldConfigNetworkResponse export = handler.Handle(222UL, new WorldConfigNetworkRequest(4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Export, 0UL, "copy.toml", false, null, null));
             WorldConfigNetworkResponse preset = handler.Handle(222UL, new WorldConfigNetworkRequest(5UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.ApplyPreset, 0UL, null, false, null, null));
+            WorldConfigNetworkResponse savePresetFile = handler.Handle(222UL, new WorldConfigNetworkRequest(6UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SavePreset, 0UL, null, false, null, Document(Entry("Value", Integer(30)))));
+            WorldConfigNetworkResponse savePresetDocument = handler.Handle(222UL, new WorldConfigNetworkRequest(7UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SavePreset, 0UL, "preset.toml", false, null, null));
 
             Assert.Multiple(() =>
             {
@@ -250,10 +252,39 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(export.Error, Does.Contain("config document"));
                 Assert.That(preset.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
                 Assert.That(preset.Error, Does.Contain("preset file"));
+                Assert.That(savePresetFile.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(savePresetFile.Error, Does.Contain("preset file"));
+                Assert.That(savePresetDocument.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(savePresetDocument.Error, Does.Contain("config document"));
                 Assert.That(rig.Storage.TotalWrites, Is.EqualTo(0));
             });
         }
 
+        [Test]
+        public void SavePreset_By_Admin_Returns_Exported_Without_Mutating_Authority()
+        {
+            TestRig rig = CreateRig(222UL);
+            var handler = new WorldConfigServerRequestHandler(rig.Service, rig.Authorization);
+
+            handler.Handle(111UL, new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, "settings.toml", false, Document(Entry("Value", Integer(10))), null));
+            rig.Storage.ClearOperations();
+
+            WorldConfigNetworkResponse response = handler.Handle(222UL, new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SavePreset, 999UL, "preset.toml", false, null, Document(Entry("Value", Integer(40)))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(response.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Exported));
+                Assert.That(response.Operation, Is.EqualTo(WorldConfigNetworkOperation.SavePreset));
+                Assert.That(response.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(response.IsApplied, Is.False);
+                Assert.That(response.IsStale, Is.False);
+                Assert.That(response.Snapshot.ServerIteration, Is.EqualTo(0UL));
+                Assert.That(response.Snapshot.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(response.Snapshot.Document, 10, "Value");
+                Assert.That(rig.Storage.Get(2, "preset.toml"), Does.Contain("Value = 40"));
+                Assert.That(rig.Authorization.CheckedPlayerIds, Is.EqualTo(new[] { 222UL }));
+            });
+        }
         [Test]
         public void ApplyPreset_By_Admin_Uses_Authoritative_Iteration_And_Preserves_Current_File()
         {
