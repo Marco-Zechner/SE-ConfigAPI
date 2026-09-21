@@ -21,7 +21,7 @@ namespace Mz.Toml
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 1;
+        public const int Patch = 2;
 
         /// <summary>
         /// Gets the version string.
@@ -32,6 +32,7 @@ namespace Mz.Toml
         /// Gets the exact package dependencies required by this release.
         /// </summary>
         public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.Collections", "0.1.0"),
             new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
         };
 
@@ -42,6 +43,11 @@ namespace Mz.Toml
             VersionString,
             new[]
             {
+                new ChangelogEntry("0.2.2", new[]
+                {
+                    "Replaced the duplicated internal read-only list wrapper with Mz.Collections 0.1.0.",
+                    "Declared the exact Mz.Collections 0.1.0 package dependency."
+                }),
                 new ChangelogEntry(
                     "0.2.1",
                     new[]

@@ -4,9 +4,9 @@
 writer, and source-preserving syntax/editor library designed for source-copy use
 in Space Engineers mods and ordinary .NET projects.
 
-The package has an exact dependency on `Mz.SemanticVersioning` `0.1.1`,
-matching the shared version and changelog model used by the other libraries in
-this repository.
+The package has exact dependencies on `Mz.Collections` `0.1.0` and
+`Mz.SemanticVersioning` `0.2.0`. The collection package supplies the reusable
+live read-only views used by the TOML document model.
 
 The library supports:
 
@@ -39,13 +39,14 @@ From the root of a mod project:
 
 ```shell
 selibs init
-selibs add Mz.Toml@0.2.0
+selibs add Mz.Toml@0.2.2
 ```
 
 Skip `selibs init` when the project already contains `selibs.json`.
 
-SELibs installs `Mz.Toml` and its exact `Mz.SemanticVersioning` dependency.
-It records the installed versions and managed file checksums.
+SELibs installs `Mz.Toml` and its exact `Mz.Collections` and
+`Mz.SemanticVersioning` dependencies. It records the installed versions and
+managed file checksums.
 
 Inspect installed state with:
 
@@ -55,9 +56,10 @@ selibs status
 
 ### Install manually
 
-Use source from the matching release tags and copy both complete folders:
+Use source from the matching release tags and copy these complete folders:
 
 ```text
+src/Mz.Collections
 src/Mz.SemanticVersioning
 src/Mz.Toml
 ```
@@ -65,13 +67,14 @@ src/Mz.Toml
 Place them as sibling folders under the mod's script library directory:
 
 ```text
+Data/Scripts/ExampleMod/Libraries/Mz.Collections
 Data/Scripts/ExampleMod/Libraries/Mz.SemanticVersioning
 Data/Scripts/ExampleMod/Libraries/Mz.Toml
 ```
 
-For `Mz.Toml` `0.2.0`, use `Mz.SemanticVersioning` `0.1.1`.
+For `Mz.Toml` `0.2.2`, use `Mz.Collections` `0.1.0` and `Mz.SemanticVersioning` `0.2.0`.
 
-Keep both folder structures intact and compile every contained `.cs` file as
+Keep all folder structures intact and compile every contained `.cs` file as
 part of the mod. Do not combine source files from different release versions.
 
 ## Parse TOML

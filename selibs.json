@@ -2,11 +2,12 @@
     "schemaVersion":  1,
     "librariesPath":  "Data/Scripts/ConfigAPI/Libraries",
     "dependencies":  {
-                         "Mz.ApiProtocol":  "0.3.0",
+                         "Mz.ApiProtocol":  "0.3.1",
                          "Mz.CommandAPI.Consumer":  "1.2.0",
                          "Mz.ConfigAPI.Consumer":  "2.1.0",
                          "Mz.Logging":  "0.1.2",
-                         "Mz.Networking":  "0.2.1",
-                         "Mz.Toml":  "0.2.1"
+                         "Mz.Networking":  "0.2.2",
+                         "Mz.Storage":  "0.1.0",
+                         "Mz.Toml":  "0.2.2"
                      }
 }

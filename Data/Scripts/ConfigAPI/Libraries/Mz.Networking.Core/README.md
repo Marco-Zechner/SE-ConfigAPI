@@ -10,8 +10,9 @@ The package contains:
 - `Mz.Networking.SpaceEngineers`  -  secure-message serialization, transport,
   and session lifecycle integration.
 
-`Mz.Networking` has exact package dependencies on `Mz.ApiProtocol` `0.2.5`
-and `Mz.SemanticVersioning` `0.1.1`.
+`Mz.Networking` has exact package dependencies on `Mz.ApiProtocol` `0.3.1`
+and `Mz.SemanticVersioning` `0.2.0`. `Mz.Collections` `0.1.0` is installed
+transitively through `Mz.ApiProtocol`.
 
 For complete server and client session components, see the
 [copy-paste example](Guide.md).
@@ -28,14 +29,14 @@ After installing SELibs, run these commands from the root of the mod project:
 
 ```shell
     selibs init
-    selibs add Mz.Networking@0.2.0
+    selibs add Mz.Networking@0.2.2
 ```
 
 Skip `selibs init` when the project already contains `selibs.json`.
 
-SELibs installs both Networking source components and the exact
-`Mz.ApiProtocol` and `Mz.SemanticVersioning` dependencies. It records their
-checksums and selected versions. Inspect that state with:
+SELibs installs both Networking source components, the exact `Mz.ApiProtocol`
+and `Mz.SemanticVersioning` dependencies, and transitive `Mz.Collections`. It
+records their checksums and selected versions. Inspect that state with:
 
 ```shell
     selibs status
@@ -47,6 +48,7 @@ To install without SELibs, use the source from the matching release tag in this
 repository and copy these complete folders:
 
 ```text
+    src/Mz.Collections
     src/Mz.SemanticVersioning
     src/Mz.ApiProtocol.Core
     src/Mz.ApiProtocol.SpaceEngineers
@@ -57,6 +59,7 @@ repository and copy these complete folders:
 Place them as sibling folders under the mod's script library directory:
 
 ```text
+    Data/Scripts/ExampleMod/Libraries/Mz.Collections
     Data/Scripts/ExampleMod/Libraries/Mz.SemanticVersioning
     Data/Scripts/ExampleMod/Libraries/Mz.ApiProtocol.Core
     Data/Scripts/ExampleMod/Libraries/Mz.ApiProtocol.SpaceEngineers
@@ -64,10 +67,11 @@ Place them as sibling folders under the mod's script library directory:
     Data/Scripts/ExampleMod/Libraries/Mz.Networking.SpaceEngineers
 ```
 
-Compile all contained `.cs` files as part of the mod. Networking `0.2.0`
-requires `Mz.ApiProtocol` `0.2.5` and `Mz.SemanticVersioning` `0.1.1`. The
-Space Engineers component also depends on the Core component, so use the exact
-dependency versions declared by the selected package manifest.
+Compile all contained `.cs` files as part of the mod. Networking `0.2.2`
+requires `Mz.ApiProtocol` `0.3.1` and `Mz.SemanticVersioning` `0.2.0`; that
+ApiProtocol release also requires `Mz.Collections` `0.1.0`. The Space Engineers
+component depends on the Core component, so use the exact dependency versions
+declared by the selected package manifest.
 
 ## Create a Space Engineers network session
 

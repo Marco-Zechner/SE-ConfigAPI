@@ -5,8 +5,7 @@ namespace Mz.ApiProtocol
     /// <summary>
     /// Represents a required API endpoint contract that was not satisfied.
     /// </summary>
-    public sealed class ApiEndpointContractException
-        : InvalidOperationException
+    public sealed class ApiEndpointContractException : InvalidOperationException
     {
         /// <summary>
         /// Gets the endpoint contract validation result.
