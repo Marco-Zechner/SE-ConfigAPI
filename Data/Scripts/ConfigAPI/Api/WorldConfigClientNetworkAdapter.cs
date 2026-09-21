@@ -9,23 +9,32 @@ namespace MarcoZechner.ConfigAPI.V2.Api
     {
         private readonly NetworkEndpoint _endpoint;
         private readonly INetworkTransport _transport;
+        private readonly IWorldConfigBootstrapStore _bootstrapStore;
         private readonly Dictionary<ConfigIdentity, WorldConfigClientState> _states = new Dictionary<ConfigIdentity, WorldConfigClientState>();
         private readonly Dictionary<ulong, PendingRequest> _pendingRequests = new Dictionary<ulong, PendingRequest>();
+        private readonly HashSet<ConfigIdentity> _provisionalBootstraps = new HashSet<ConfigIdentity>();
+        private readonly HashSet<ConfigIdentity> _editedBootstrapDrafts = new HashSet<ConfigIdentity>();
         private readonly NetworkMessageSubscription _responseSubscription;
         private ulong _nextRequestId = 1UL;
         private bool _isDisposed;
 
         public WorldConfigClientNetworkAdapter(NetworkEndpoint endpoint, INetworkTransport transport)
+            : this(endpoint, transport, NullWorldConfigBootstrapStore.Instance) { }
+
+        public WorldConfigClientNetworkAdapter(NetworkEndpoint endpoint, INetworkTransport transport, IWorldConfigBootstrapStore bootstrapStore)
         {
             if (endpoint == null)
                 throw new ArgumentNullException(nameof(endpoint));
             if (transport == null)
                 throw new ArgumentNullException(nameof(transport));
+            if (bootstrapStore == null)
+                throw new ArgumentNullException(nameof(bootstrapStore));
             if (transport.IsServer)
                 throw new ArgumentException("World config client networking requires a client transport.", nameof(transport));
 
             _endpoint = endpoint;
             _transport = transport;
+            _bootstrapStore = bootstrapStore;
             _responseSubscription = endpoint.RegisterHandler(WorldConfigServerNetworkAdapter.ResponseMessageType, HandleResponse);
         }
 
@@ -49,6 +58,28 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             var request = new WorldConfigNetworkRequest(requestId, identity.OwnerId, identity.ConfigKey, WorldConfigNetworkOperation.Open, 0UL, file, false, defaults, null);
             Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.Open));
             return requestId;
+        }
+
+        public bool TrySeedBootstrap(string consumerId, string configKey, out WorldConfigSnapshot snapshot)
+        {
+            ThrowIfDisposed();
+
+            ConfigIdentity identity = CreateIdentity(consumerId, configKey);
+            snapshot = null;
+
+            if (_states.ContainsKey(identity))
+                return false;
+
+            if (!_bootstrapStore.TryRead(identity, out snapshot) || snapshot == null || !identity.Equals(snapshot.Identity))
+            {
+                snapshot = null;
+                return false;
+            }
+
+            _states[identity] = WorldConfigClientState.Create(snapshot);
+            _provisionalBootstraps.Add(identity);
+            _editedBootstrapDrafts.Remove(identity);
+            return true;
         }
 
         public ulong Save(string consumerId, string configKey)
@@ -119,6 +150,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.Export));
             return requestId;
         }
+
         public WorldConfigClientState SetDraft(string consumerId, string configKey, ConfigDocument draft)
         {
             ThrowIfDisposed();
@@ -129,6 +161,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             ConfigIdentity identity = CreateIdentity(consumerId, configKey);
             WorldConfigClientState state = GetRequiredState(identity).WithDraft(draft);
             _states[identity] = state;
+
+            if (_provisionalBootstraps.Contains(identity))
+                _editedBootstrapDrafts.Add(identity);
+
             return state;
         }
 
@@ -147,6 +183,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             _responseSubscription.Dispose();
             _pendingRequests.Clear();
             _states.Clear();
+            _provisionalBootstraps.Clear();
+            _editedBootstrapDrafts.Clear();
         }
 
         private void Send(WorldConfigNetworkRequest request, PendingRequest pending)
@@ -191,6 +229,11 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (isOwnResponse && pending != null)
                 _pendingRequests.Remove(response.RequestId);
 
+            RaiseResponseReceived(response);
+        }
+
+        private void RaiseResponseReceived(WorldConfigNetworkResponse response)
+        {
             Action<WorldConfigNetworkResponse> handlers = ResponseReceived;
             if (handlers != null)
                 handlers(response);
@@ -204,6 +247,22 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WorldConfigClientState state;
             if (_states.TryGetValue(snapshot.Identity, out state))
             {
+                bool reconcilesBootstrap = pending != null &&
+                                           pending.Operation == WorldConfigNetworkOperation.Open &&
+                                           pending.Identity.Equals(snapshot.Identity) &&
+                                           _provisionalBootstraps.Contains(snapshot.Identity);
+
+                if (reconcilesBootstrap)
+                {
+                    _states[snapshot.Identity] = _editedBootstrapDrafts.Contains(snapshot.Identity)
+                        ? state.ApplyAuthoritative(snapshot)
+                        : WorldConfigClientState.Create(snapshot);
+
+                    _provisionalBootstraps.Remove(snapshot.Identity);
+                    _editedBootstrapDrafts.Remove(snapshot.Identity);
+                    return;
+                }
+
                 if (snapshot.ServerIteration < state.Authoritative.ServerIteration)
                     return;
 

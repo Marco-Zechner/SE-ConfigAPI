@@ -122,6 +122,79 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     Document(Entry("Value", Integer(10)))));
         }
 
+        [Test]
+        public void Runtime_Forwards_Bootstrap_Store_To_Server_And_Client()
+        {
+            var identity = new ConfigIdentity("Example.Mod", "Settings");
+            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(30))), 5UL, "settings.toml"));
+
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            storage.Write(2, "settings.toml", "Value = 40\n");
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var serverTransport = new RecordingServerTransport();
+            var serverEndpoint = new NetworkEndpoint(serverTransport);
+            var serverRuntime = new WorldConfigNetworkRuntime(serverEndpoint, serverTransport, registry, new FixedClock(), new AllowAllAuthorization(), bootstrap);
+
+            WorldConfigSnapshot serverSnapshot = serverRuntime.ServerService.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(serverSnapshot.ServerIteration, Is.EqualTo(5UL));
+                AssertDocumentValue(serverSnapshot.Document, 40);
+                Assert.That(bootstrap.Current.ServerIteration, Is.EqualTo(5UL));
+                AssertDocumentValue(bootstrap.Current.Document, 40);
+            });
+
+            var clientTransport = new RecordingClientTransport();
+            var clientEndpoint = new NetworkEndpoint(clientTransport);
+            var clientRuntime = new WorldConfigNetworkRuntime(clientEndpoint, clientTransport, registry, new FixedClock(), new AllowAllAuthorization(), bootstrap);
+
+            WorldConfigSnapshot clientBootstrap;
+            Assert.That(clientRuntime.ClientAdapter.TrySeedBootstrap("Example.Mod", "Settings", out clientBootstrap), Is.True);
+
+            WorldConfigClientState clientState;
+            Assert.That(clientRuntime.ClientAdapter.TryGetState("Example.Mod", "Settings", out clientState), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(clientBootstrap.ServerIteration, Is.EqualTo(5UL));
+                AssertDocumentValue(clientState.Authoritative.Document, 40);
+            });
+
+            clientRuntime.Dispose();
+            serverRuntime.Dispose();
+        }
+
+        private static void AssertDocumentValue(ConfigDocument document, long expected)
+        {
+            ConfigNode value;
+            Assert.That(document.TryGet(new ConfigValuePath("Value"), out value), Is.True);
+            Assert.That(value, Is.EqualTo(Integer(expected)));
+        }
+
+        private sealed class MemoryBootstrapStore : IWorldConfigBootstrapStore
+        {
+            public MemoryBootstrapStore(WorldConfigSnapshot snapshot)
+            {
+                Current = snapshot;
+            }
+
+            public WorldConfigSnapshot Current { get; private set; }
+
+            public bool TryRead(ConfigIdentity identity, out WorldConfigSnapshot snapshot)
+            {
+                snapshot = Current != null && Current.Identity.Equals(identity) ? Current : null;
+                return snapshot != null;
+            }
+
+            public void Write(WorldConfigSnapshot snapshot)
+            {
+                Current = snapshot;
+            }
+        }
+
         private static ConfigDocument Document(params ConfigObjectEntry[] entries)
         {
             return new ConfigDocument(new ConfigObjectNode(entries));

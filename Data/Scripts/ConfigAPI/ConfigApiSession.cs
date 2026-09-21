@@ -86,7 +86,7 @@ namespace MarcoZechner.ConfigAPI.V2
             try
             {
                 _worldNetworkSession = new SpaceEngineersNetworkSession(WorldNetworkChannelId, WorldNetworkId, OnWorldNetworkReceiveFailure);
-                _worldNetworkRuntime = new WorldConfigNetworkRuntime(_worldNetworkSession.Endpoint, _worldNetworkSession.Transport, _registry, new SystemConfigClock(), new SpaceEngineersWorldConfigAuthorization());
+                _worldNetworkRuntime = new WorldConfigNetworkRuntime(_worldNetworkSession.Endpoint, _worldNetworkSession.Transport, _registry, new SystemConfigClock(), new SpaceEngineersWorldConfigAuthorization(), new WorldConfigBootstrapStore(new SpaceEngineersWorldConfigBootstrapVariables()));
                 _provider.AttachWorldRuntime(_worldNetworkRuntime);
 
                 _logger.Logger.Info("ConfigAPI World networking started as " + (_worldNetworkRuntime.IsServer ? "server" : "client") + " on channel " + _worldNetworkSession.ChannelId + ".");
