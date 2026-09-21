@@ -71,6 +71,56 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Trusted_Server_File_Operations_Broadcast_Mutations_And_Keep_Export_Local()
+        {
+            TestRig rig = CreateRig(true);
+            rig.Bridge.Open("Example.Mod", rig.RegistrationId, "Settings", "settings.toml", Encode(Document(Entry("Value", Integer(10)))));
+            rig.Storage.Write(2, "alternate.toml", "Value = 30\n");
+            rig.Responses.Clear();
+            rig.Transport.Clear();
+
+            rig.Bridge.LoadAndSwitch("Example.Mod", rig.RegistrationId, "Settings", "alternate.toml");
+            rig.Bridge.SaveAndSwitch("Example.Mod", rig.RegistrationId, "Settings", "saved.toml", Encode(Document(Entry("Value", Integer(40)))));
+            rig.Storage.Write(2, "saved.toml", "Value = 45\n");
+            rig.Bridge.Reload("Example.Mod", rig.RegistrationId, "Settings");
+            rig.Bridge.Export("Example.Mod", rig.RegistrationId, "Settings", "copy.toml", Encode(Document(Entry("Value", Integer(50)))), false);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Responses.Count, Is.EqualTo(4));
+
+                Assert.That(rig.Responses[0]["Operation"], Is.EqualTo("LoadAndSwitch"));
+                Assert.That(rig.Responses[0]["IsApplied"], Is.EqualTo(true));
+                Assert.That(rig.Responses[0]["ServerIteration"], Is.EqualTo(1UL));
+                Assert.That(rig.Responses[0]["CurrentFile"], Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(DecodeDocument(rig.Responses[0]), 30, "Value");
+
+                Assert.That(rig.Responses[1]["Operation"], Is.EqualTo("SaveAndSwitch"));
+                Assert.That(rig.Responses[1]["IsApplied"], Is.EqualTo(true));
+                Assert.That(rig.Responses[1]["ServerIteration"], Is.EqualTo(2UL));
+                Assert.That(rig.Responses[1]["CurrentFile"], Is.EqualTo("saved.toml"));
+                AssertDocumentValue(DecodeDocument(rig.Responses[1]), 40, "Value");
+
+                Assert.That(rig.Responses[2]["Operation"], Is.EqualTo("Reload"));
+                Assert.That(rig.Responses[2]["IsApplied"], Is.EqualTo(true));
+                Assert.That(rig.Responses[2]["ServerIteration"], Is.EqualTo(3UL));
+                Assert.That(rig.Responses[2]["CurrentFile"], Is.EqualTo("saved.toml"));
+                AssertDocumentValue(DecodeDocument(rig.Responses[2]), 45, "Value");
+
+                Assert.That(rig.Responses[3]["Operation"], Is.EqualTo("Export"));
+                Assert.That(rig.Responses[3]["IsApplied"], Is.EqualTo(false));
+                Assert.That(rig.Responses[3]["IsStale"], Is.EqualTo(false));
+                Assert.That(rig.Responses[3]["ServerIteration"], Is.EqualTo(3UL));
+                Assert.That(rig.Responses[3]["CurrentFile"], Is.EqualTo("saved.toml"));
+                AssertDocumentValue(DecodeDocument(rig.Responses[3]), 45, "Value");
+
+                Assert.That(rig.Transport.EveryoneMessages.Count, Is.EqualTo(3), "Only authoritative mutations should broadcast.");
+                Assert.That(rig.Storage.Get(2, "copy.toml"), Does.Contain("Value = 50"));
+            });
+
+            rig.Dispose();
+        }
+        [Test]
         public void Remote_Save_Broadcast_Updates_Server_Local_Consumer()
         {
             TestRig rig = CreateRig(true);
