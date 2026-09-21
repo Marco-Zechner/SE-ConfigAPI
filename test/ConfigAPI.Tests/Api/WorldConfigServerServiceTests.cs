@@ -18,8 +18,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var serverStorage = new MemoryStorage();
             serverStorage.Set(2, "settings.toml", "Value = 41\n");
 
-            registry.Register("Example.Mod", Guid.NewGuid(), oldStorage.Read, oldStorage.Write);
-            registry.Register("Example.Mod", Guid.NewGuid(), serverStorage.Read, serverStorage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), oldStorage.Read, oldStorage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), serverStorage.Read, serverStorage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             WorldConfigSnapshot snapshot = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -41,7 +41,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var storage = new MemoryStorage();
             storage.Set(2, "settings.toml", "Value = 41\n");
             storage.Set(2, "alternate.toml", "Value = 55\n");
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var identity = new ConfigIdentity("Example.Mod", "Settings");
             var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(999))), 7UL, "alternate.toml"));
@@ -66,7 +66,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -93,7 +93,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -119,7 +119,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             WorldConfigSnapshot opened = service.Open(
@@ -151,7 +151,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
             storage.Set(2, "settings.toml", "Value = 41\n");
 
             var service = new WorldConfigServerService(registry, new FixedClock());
@@ -177,7 +177,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -204,7 +204,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -230,7 +230,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -258,7 +258,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -286,7 +286,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -321,7 +321,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
@@ -341,7 +341,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var service = new WorldConfigServerService(registry, new FixedClock());
             WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));

@@ -16,8 +16,10 @@ namespace Mz.ConfigApi
         /// Gets the exact SELibs package dependencies required by this consumer release.
         /// </summary>
         public static LibraryDependency[] Dependencies { get; } = {
-            new LibraryDependency("Mz.ApiProtocol", "0.3.0"),
-            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+            new LibraryDependency("Mz.ApiProtocol", "0.3.1"),
+            new LibraryDependency("Mz.Collections", "0.1.0"),
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0"),
+            new LibraryDependency("Mz.Storage", "0.1.0")
         };
         public static Changelog Changelog { get; } = new Changelog(
             VersionString,
@@ -32,6 +34,7 @@ namespace Mz.ConfigApi
                         "Added SupportsPresets and SupportsWorldPresets; older 2.0-2.2 providers remain compatible and simply report these capabilities as unavailable.",
                         "Added optional SavePreset support for Local and Global configs with overwrite disabled by default; preset saves do not change active config identity.",
                         "Added optional asynchronous SavePresetWorld support plus SupportsPresetSaving and SupportsWorldPresetSaving; World preset saves do not switch CurrentFile or advance ServerIteration.",
+                        "Added indexed consumer storage callbacks backed by Mz.Storage 0.1.0 for existence checks and logical-name discovery.",
                     }
                 ),
                 new ChangelogEntry(

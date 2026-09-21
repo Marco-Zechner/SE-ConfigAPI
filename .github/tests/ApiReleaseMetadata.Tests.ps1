@@ -53,28 +53,38 @@ $package = $configPackage[0]
 Assert-Equal -Expected "Mz.ConfigAPI.Consumer" -Actual ([string]$package.PackageId) -Message "Package ID was not derived from the Consumer folder."
 Assert-Equal -Expected "2.3.0" -Actual ([string]$package.Version) -Message "API package version was parsed incorrectly."
 Assert-Equal -Expected "Mz.ConfigAPI.Consumer.Tests" -Actual ([System.IO.Path]::GetFileNameWithoutExtension($package.TestProjectPath)) -Message "Dedicated consumer test project was not selected."
-Assert-Equal -Expected "0.3.0" -Actual ([string]$package.Dependencies["Mz.ApiProtocol"]) -Message "ApiProtocol declaration was parsed incorrectly."
+Assert-Equal -Expected "0.3.1" -Actual ([string]$package.Dependencies["Mz.ApiProtocol"]) -Message "ApiProtocol declaration was parsed incorrectly."
+Assert-Equal -Expected "0.1.0" -Actual ([string]$package.Dependencies["Mz.Collections"]) -Message "Collections declaration was parsed incorrectly."
 Assert-Equal -Expected "0.2.0" -Actual ([string]$package.Dependencies["Mz.SemanticVersioning"]) -Message "SemanticVersioning declaration was parsed incorrectly."
+Assert-Equal -Expected "0.1.0" -Actual ([string]$package.Dependencies["Mz.Storage"]) -Message "Storage declaration was parsed incorrectly."
 Assert-True -Condition (-not $package.Dependencies.Contains("Mz.Logging")) -Message "Consumer package unexpectedly declares Mz.Logging."
 
 $resolved = Resolve-ApiPackageDependencies -Package $package -RepoRoot $repoRoot
 
-Assert-Equal -Expected 2 -Actual $resolved.Count -Message "Resolved dependency count is incorrect."
-Assert-Equal -Expected "0.3.0" -Actual ([string]$resolved["Mz.ApiProtocol"]) -Message "ApiProtocol compiled-source dependency was not resolved."
+Assert-Equal -Expected 4 -Actual $resolved.Count -Message "Resolved dependency count is incorrect."
+Assert-Equal -Expected "0.3.1" -Actual ([string]$resolved["Mz.ApiProtocol"]) -Message "ApiProtocol compiled-source dependency was not resolved."
+Assert-Equal -Expected "0.1.0" -Actual ([string]$resolved["Mz.Collections"]) -Message "Collections compiled-source dependency was not resolved."
 Assert-Equal -Expected "0.2.0" -Actual ([string]$resolved["Mz.SemanticVersioning"]) -Message "SemanticVersioning compiled-source dependency was not resolved."
+Assert-Equal -Expected "0.1.0" -Actual ([string]$resolved["Mz.Storage"]) -Message "Storage compiled-source dependency was not resolved."
 
 $originalDependencies = $package.Dependencies
 
 try {
-    $package.Dependencies = [ordered]@{ "Mz.ApiProtocol" = "0.3.0" }
+    $package.Dependencies = [ordered]@{
+        "Mz.ApiProtocol" = "0.3.1"
+        "Mz.SemanticVersioning" = "0.2.0"
+        "Mz.Storage" = "0.1.0"
+    }
 
     Assert-Throws -Action {
         Resolve-ApiPackageDependencies -Package $package -RepoRoot $repoRoot | Out-Null
-    } -ExpectedMessagePart "does not declare dependency 'Mz.SemanticVersioning'"
+    } -ExpectedMessagePart "does not declare dependency 'Mz.Collections'"
 
     $package.Dependencies = [ordered]@{
         "Mz.ApiProtocol" = "0.2.5"
+        "Mz.Collections" = "0.1.0"
         "Mz.SemanticVersioning" = "0.2.0"
+        "Mz.Storage" = "0.1.0"
     }
 
     Assert-Throws -Action {
@@ -82,14 +92,26 @@ try {
     } -ExpectedMessagePart "declares dependency 'Mz.ApiProtocol' version '0.2.5'"
 
     $package.Dependencies = [ordered]@{
-        "Mz.ApiProtocol" = "0.3.0"
+        "Mz.ApiProtocol" = "0.3.1"
+        "Mz.Collections" = "0.1.0"
         "Mz.SemanticVersioning" = "0.2.0"
+        "Mz.Storage" = "0.1.0"
         "Mz.Logging" = "0.1.2"
     }
 
     Assert-Throws -Action {
         Resolve-ApiPackageDependencies -Package $package -RepoRoot $repoRoot | Out-Null
     } -ExpectedMessagePart "declares dependency 'Mz.Logging'"
+
+    $package.Dependencies = [ordered]@{
+        "Mz.ApiProtocol" = "0.3.1"
+        "Mz.Collections" = "0.1.0"
+        "Mz.SemanticVersioning" = "0.2.0"
+    }
+
+    Assert-Throws -Action {
+        Resolve-ApiPackageDependencies -Package $package -RepoRoot $repoRoot | Out-Null
+    } -ExpectedMessagePart "does not declare dependency 'Mz.Storage'"
 }
 finally {
     $package.Dependencies = $originalDependencies

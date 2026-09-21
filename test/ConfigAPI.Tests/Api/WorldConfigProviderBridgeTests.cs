@@ -205,7 +205,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
             Guid registrationId = Guid.NewGuid();
-            registry.Register("Example.Mod", registrationId, storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", registrationId, storage.Read, storage.Write);
 
             var identity = new ConfigIdentity("Example.Mod", "Settings");
             var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(30))), 5UL, "settings.toml"));
@@ -246,7 +246,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
             Guid registrationId = Guid.NewGuid();
-            registry.Register("Example.Mod", registrationId, storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", registrationId, storage.Read, storage.Write);
 
             var transport = new RecordingClientTransport();
             var endpoint = new NetworkEndpoint(transport);
@@ -306,7 +306,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
             Guid registrationId = Guid.NewGuid();
-            registry.Register("Example.Mod", registrationId, storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", registrationId, storage.Read, storage.Write);
 
             var transport = new RecordingServerTransport();
             var endpoint = new NetworkEndpoint(transport);

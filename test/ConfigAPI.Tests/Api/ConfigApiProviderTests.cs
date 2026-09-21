@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using MarcoZechner.ConfigAPI.V2.Api;
 using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.V2.Persistence;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
 using Mz.Logging;
@@ -28,12 +29,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             Assert.That(bus.SentPayloads.Count, Is.EqualTo(1));
 
             ApiAnnouncement announcement;
-
-            Assert.That(
-                ApiDiscoveryWireProtocol.TryParseAnnouncement(
-                    bus.SentPayloads[0],
-                    out announcement),
-                Is.True);
+            Assert.That(ApiDiscoveryWireProtocol.TryParseAnnouncement(bus.SentPayloads[0], out announcement), Is.True);
 
             Assert.Multiple(() =>
             {
@@ -56,50 +52,39 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.SavePresetWorldConfigEndpoint), Is.True);
             });
 
-            Delegate endpoint =
-                announcement.Endpoints[ConfigApiProvider.RegisterConsumerEndpoint];
-
-            var register =
-                endpoint as Func<
-                    string,
-                    Guid,
-                    Func<int, string, string>,
-                    Action<int, string, string>,
-                    Action>;
+            var register = announcement.Endpoints[ConfigApiProvider.RegisterConsumerEndpoint] as
+                Func<string, Guid, Func<int, string, bool>, Func<int, string, string>, Action<int, string, string>, Func<int, string[]>, Action>;
 
             Assert.That(register, Is.Not.Null);
 
             var registrationId = Guid.NewGuid();
             var written = string.Empty;
+            Action unregister = register(
+                "Example.Mod",
+                registrationId,
+                (location, file) => file == "config.toml",
+                (location, file) => location + "|" + file,
+                (location, file, content) => written = location + "|" + file + "|" + content,
+                location => new[] { "config.toml", "variant.toml" });
 
-            Action unregister =
-                register(
-                    "Example.Mod",
-                    registrationId,
-                    (location, file) => location + "|" + file,
-                    (location, file, content) =>
-                        written = location + "|" + file + "|" + content);
+            IIndexedConfigTextStorage storage = registry.GetIndexedStorage("Example.Mod", registrationId);
 
-            var storage = registry.GetStorage("Example.Mod", registrationId);
-
-            Assert.That(
-                storage.Read(ConfigLocation.Local, "config.toml"),
-                Is.EqualTo("0|config.toml"));
+            Assert.Multiple(() =>
+            {
+                Assert.That(storage.Exists(ConfigLocation.Local, "config.toml"), Is.True);
+                Assert.That(storage.Read(ConfigLocation.Local, "config.toml"), Is.EqualTo("0|config.toml"));
+                Assert.That(storage.ListKnown(ConfigLocation.Local), Is.EqualTo(new[] { "config.toml", "variant.toml" }));
+            });
 
             storage.Write(ConfigLocation.World, "world.toml", "content");
-
             Assert.That(written, Is.EqualTo("2|world.toml|content"));
 
             unregister();
-
-            Assert.Throws<InvalidOperationException>(
-                () => registry.GetStorage("Example.Mod", registrationId));
+            Assert.Throws<InvalidOperationException>(() => registry.GetStorage("Example.Mod", registrationId));
 
             provider.Dispose();
-
             Assert.That(bus.UnregistrationCount, Is.EqualTo(1));
         }
-
         [Test]
         public void Start_And_Dispose_Are_Idempotent()
         {

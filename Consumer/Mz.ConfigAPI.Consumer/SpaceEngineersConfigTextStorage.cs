@@ -1,136 +1,65 @@
 using System;
-using System.IO;
-using Sandbox.ModAPI;
+using Mz.Storage;
+using Mz.Storage.SpaceEngineers;
 
 namespace Mz.ConfigApi
 {
-    public interface IConfigApiStorageUtilities
-    {
-        bool FileExistsInLocalStorage(string file, Type scope);
-        string ReadFileInLocalStorage(string file, Type scope);
-        void WriteFileInLocalStorage(string file, string content, Type scope);
-
-        bool FileExistsInGlobalStorage(string file);
-        string ReadFileInGlobalStorage(string file);
-        void WriteFileInGlobalStorage(string file, string content);
-
-        bool FileExistsInWorldStorage(string file, Type scope);
-        string ReadFileInWorldStorage(string file, Type scope);
-        void WriteFileInWorldStorage(string file, string content, Type scope);
-    }
-
     public sealed class SpaceEngineersConfigTextStorage
     {
-        private readonly Type _scope;
-        private readonly IConfigApiStorageUtilities _utilities;
+        private readonly IndexedStorage _local;
+        private readonly IndexedStorage _global;
+        private readonly IndexedStorage _world;
 
-        public SpaceEngineersConfigTextStorage(IConfigApiStorageUtilities utilities, Type scope)
+        public SpaceEngineersConfigTextStorage(IndexedStorage local, IndexedStorage global, IndexedStorage world)
         {
-            if (utilities == null)
-                throw new ArgumentNullException(nameof(utilities));
+            if (local == null)
+                throw new ArgumentNullException(nameof(local));
 
-            if (scope == null)
-                throw new ArgumentNullException(nameof(scope));
+            if (global == null)
+                throw new ArgumentNullException(nameof(global));
 
-            _utilities = utilities;
-            _scope = scope;
+            if (world == null)
+                throw new ArgumentNullException(nameof(world));
+
+            _local = local;
+            _global = global;
+            _world = world;
         }
+
+        public static SpaceEngineersConfigTextStorage Create(string ownerPrefix, Type callingType)
+        {
+            if (string.IsNullOrWhiteSpace(ownerPrefix))
+                throw new ArgumentException("A stable storage owner prefix is required.", nameof(ownerPrefix));
+
+            if (callingType == null)
+                throw new ArgumentNullException(nameof(callingType));
+
+            return new SpaceEngineersConfigTextStorage(
+                SpaceEngineersStorage.CreateLocal(callingType),
+                SpaceEngineersStorage.CreateGlobal(ownerPrefix),
+                SpaceEngineersStorage.CreateWorld(callingType));
+        }
+
+        public bool Exists(int location, string file) => GetStorage(location).Exists(file);
 
         public string Read(int location, string file)
         {
-            switch (location)
-            {
-                case 0: return _utilities.FileExistsInLocalStorage(file, _scope) 
-                                   ? _utilities.ReadFileInLocalStorage(file, _scope) : null;
-
-                case 1: return _utilities.FileExistsInGlobalStorage(file) 
-                                   ? _utilities.ReadFileInGlobalStorage(file) : null;
-
-                case 2: return _utilities.FileExistsInWorldStorage(file, _scope) 
-                                   ? _utilities.ReadFileInWorldStorage(file, _scope) : null;
-
-                default: throw UnsupportedLocation(location);
-            }
+            IndexedStorage storage = GetStorage(location);
+            return storage.Exists(file) ? storage.Load(file) : null;
         }
 
-        public void Write(int location, string file, string content)
+        public void Write(int location, string file, string content) => GetStorage(location).Save(file, content);
+
+        public string[] ListKnown(int location) => GetStorage(location).ListKnown();
+
+        private IndexedStorage GetStorage(int location)
         {
             switch (location)
             {
-                case 0:
-                    _utilities.WriteFileInLocalStorage(file, content, _scope);
-                    return;
-
-                case 1:
-                    _utilities.WriteFileInGlobalStorage(file, content);
-                    return;
-
-                case 2:
-                    _utilities.WriteFileInWorldStorage(file, content, _scope);
-                    return;
-
-                default:
-                    throw UnsupportedLocation(location);
-            }
-        }
-
-        private static ArgumentException UnsupportedLocation(int location) 
-            => new ArgumentException($"Unsupported ConfigAPI storage location: {location}", nameof(location));
-    }
-
-    internal sealed class SpaceEngineersConfigApiStorageUtilities : IConfigApiStorageUtilities
-    {
-        public bool FileExistsInLocalStorage(string file, Type scope) => MyAPIGateway.Utilities.FileExistsInLocalStorage(file, scope);
-
-        public string ReadFileInLocalStorage(string file, Type scope)
-        {
-            using (TextReader reader = MyAPIGateway.Utilities.ReadFileInLocalStorage(file, scope))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        public void WriteFileInLocalStorage(string file, string content, Type scope)
-        {
-            using (TextWriter writer = MyAPIGateway.Utilities.WriteFileInLocalStorage(file, scope))
-            {
-                writer.Write(content);
-            }
-        }
-
-        public bool FileExistsInGlobalStorage(string file) => MyAPIGateway.Utilities.FileExistsInGlobalStorage(file);
-
-        public string ReadFileInGlobalStorage(string file)
-        {
-            using (TextReader reader = MyAPIGateway.Utilities.ReadFileInGlobalStorage(file))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        public void WriteFileInGlobalStorage(string file, string content)
-        {
-            using (TextWriter writer = MyAPIGateway.Utilities.WriteFileInGlobalStorage(file))
-            {
-                writer.Write(content);
-            }
-        }
-
-        public bool FileExistsInWorldStorage(string file, Type scope) => MyAPIGateway.Utilities.FileExistsInWorldStorage(file, scope);
-
-        public string ReadFileInWorldStorage(string file, Type scope)
-        {
-            using (TextReader reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(file, scope))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        public void WriteFileInWorldStorage(string file, string content, Type scope)
-        {
-            using (TextWriter writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(file, scope))
-            {
-                writer.Write(content);
+                case 0: return _local;
+                case 1: return _global;
+                case 2: return _world;
+                default: throw new ArgumentException($"Unsupported ConfigAPI storage location: {location}", nameof(location));
             }
         }
     }

@@ -17,12 +17,16 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             Array.Sort(consumerIds, StringComparer.Ordinal);
             return consumerIds;
         }
-        public void Register(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write)
+
+        public void Register(string consumerId, Guid registrationId, Func<int, string, bool> exists, Func<int, string, string> read, Action<int, string, string> write, Func<int, string[]> listKnown)
         {
             string normalizedConsumerId = ValidateConsumerId(consumerId);
 
             if (registrationId == Guid.Empty)
                 throw new ArgumentException("Registration ID must not be empty.", nameof(registrationId));
+
+            if (exists == null)
+                throw new ArgumentNullException(nameof(exists));
 
             if (read == null)
                 throw new ArgumentNullException(nameof(read));
@@ -30,7 +34,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (write == null)
                 throw new ArgumentNullException(nameof(write));
 
-            _registrations[normalizedConsumerId] = new Registration(registrationId, new ConfigCallbackTextStorage(read, write));
+            if (listKnown == null)
+                throw new ArgumentNullException(nameof(listKnown));
+
+            _registrations[normalizedConsumerId] = new Registration(registrationId, new ConfigCallbackTextStorage(exists, read, write, listKnown));
         }
 
         public IConfigTextStorage GetStorage(string consumerId, Guid registrationId)
@@ -48,11 +55,15 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return registration.Storage;
         }
 
+        public IIndexedConfigTextStorage GetIndexedStorage(string consumerId, Guid registrationId) => (IIndexedConfigTextStorage)GetStorage(consumerId, registrationId);
+
         internal IConfigTextStorage GetCurrentStorage(string consumerId)
         {
             string normalizedConsumerId = ValidateConsumerId(consumerId);
             return GetRegistration(normalizedConsumerId).Storage;
         }
+
+        internal IIndexedConfigTextStorage GetCurrentIndexedStorage(string consumerId) => (IIndexedConfigTextStorage)GetCurrentStorage(consumerId);
 
         public bool Unregister(string consumerId, Guid registrationId)
         {
@@ -92,14 +103,14 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         private sealed class Registration
         {
-            public Registration(Guid registrationId, IConfigTextStorage storage)
+            public Registration(Guid registrationId, IIndexedConfigTextStorage storage)
             {
                 RegistrationId = registrationId;
                 Storage = storage;
             }
 
             public Guid RegistrationId { get; }
-            public IConfigTextStorage Storage { get; }
+            public IIndexedConfigTextStorage Storage { get; }
         }
     }
 }

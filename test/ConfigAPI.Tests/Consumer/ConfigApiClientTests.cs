@@ -917,95 +917,29 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         {
             var bus = new RecordingModMessageBus();
             var version = new SemanticVersion(1, 2, 3);
+            Func<int, string, bool> exists = (location, file) => false;
             Func<int, string, string> read = (location, file) => null;
             Action<int, string, string> write = (location, file, content) => { };
+            Func<int, string[]> listKnown = location => new string[0];
 
             Assert.Multiple(() =>
             {
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        null,
-                        "Example.Mod",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        " ",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        " ",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        "Example Mod",
-                        null,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        null,
-                        write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        null));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(null, "Example.Mod", "Example Mod", version, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentException>(() => new ConfigApiClient(bus, " ", "Example Mod", version, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentException>(() => new ConfigApiClient(bus, "Example.Mod", " ", version, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", null, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", null, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", exists, null, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", exists, read, null, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", exists, read, write, null));
             });
         }
 
-        private static ConfigApiClient CreateClient(
-            IModMessageBus bus,
-            Func<int, string, string> read,
-            Action<int, string, string> write)
+        private static ConfigApiClient CreateClient(IModMessageBus bus, Func<int, string, string> read, Action<int, string, string> write)
         {
-            return new ConfigApiClient(
-                bus,
-                "Example.Mod",
-                "Example Mod",
-                new SemanticVersion(2, 3, 4),
-                true,
-                "Uses ConfigAPI for configuration.",
-                read,
-                write);
+            return new ConfigApiClient(bus, "Example.Mod", "Example Mod", new SemanticVersion(2, 3, 4), true,
+                "Uses ConfigAPI for configuration.", (location, file) => read(location, file) != null, read, write, location => new string[0]);
         }
-
         private static ApiDiscoveryProvider CreateProvider(
             IModMessageBus bus,
             SemanticVersion apiVersion,
@@ -1024,89 +958,44 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         private static IDictionary<string, Delegate> ValidEndpoints(
-            Func<
-                string,
-                Guid,
-                Func<int, string, string>,
-                Action<int, string, string>,
-                Action> registerConsumer)
+            Func<string, Guid, Func<int, string, string>, Action<int, string, string>, Action> registerConsumer)
         {
             return new Dictionary<string, Delegate>(StringComparer.Ordinal)
             {
                 {
                     "RegisterConsumer",
-                    registerConsumer
+                    new Func<string, Guid, Func<int, string, bool>, Func<int, string, string>, Action<int, string, string>, Func<int, string[]>, Action>(
+                        delegate(string consumerId, Guid registrationId, Func<int, string, bool> exists, Func<int, string, string> read, Action<int, string, string> write, Func<int, string[]> listKnown)
+                        {
+                            return registerConsumer(consumerId, registrationId, read, write);
+                        })
                 },
                 {
                     "OpenConfig",
-                    new Func<
-                        string,
-                        Guid,
-                        string,
-                        int,
-                        string,
-                        object,
-                        object>(
-                        delegate(
-                            string consumerId,
-                            Guid registrationId,
-                            string configKey,
-                            int location,
-                            string file,
-                            object defaults)
+                    new Func<string, Guid, string, int, string, object, object>(
+                        delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
                         {
                             return defaults;
                         })
                 },
                 {
                     "SaveConfig",
-                    new Func<
-                        string,
-                        Guid,
-                        string,
-                        int,
-                        string,
-                        object,
-                        object,
-                        object>(
-                        delegate(
-                            string consumerId,
-                            Guid registrationId,
-                            string configKey,
-                            int location,
-                            string file,
-                            object defaults,
-                            object playerValues)
+                    new Func<string, Guid, string, int, string, object, object, object>(
+                        delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
                         {
                             return playerValues;
                         })
                 },
                 {
                     "LoadAndSwitchConfig",
-                    new Func<
-                        string,
-                        Guid,
-                        string,
-                        int,
-                        string,
-                        string,
-                        object,
-                        object>(
-                        delegate(
-                            string consumerId,
-                            Guid registrationId,
-                            string configKey,
-                            int location,
-                            string currentFile,
-                            string targetFile,
-                            object defaults)
+                    new Func<string, Guid, string, int, string, string, object, object>(
+                        delegate(string consumerId, Guid registrationId, string configKey, int location, string currentFile, string targetFile, object defaults)
                         {
                             return defaults;
                         })
                 }
             };
         }
-
         private sealed class RecordingModMessageBus : IModMessageBus
         {
             private readonly Dictionary<long, List<Action<object>>> _handlers =

@@ -325,7 +325,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             return new TestRig(
                 new WorldConfigServerService(registry, new FixedClock()),

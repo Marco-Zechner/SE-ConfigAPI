@@ -10,27 +10,29 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
     public sealed class ConfigConsumerRegistrationRegistryTests
     {
         [Test]
-        public void Register_Provides_Callback_Backed_Storage_For_Exact_Token()
+        public void Register_Provides_Callback_Backed_Indexed_Storage_For_Exact_Token()
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var registrationId = Guid.NewGuid();
             var writtenContent = string.Empty;
 
             registry.Register(
-                "Example.Mod",
-                registrationId,
+                "Example.Mod", registrationId,
+                (location, file) => location == 0 && file == "config.toml",
                 (location, file) => location + "|" + file,
-                (location, file, content) =>
-                    writtenContent = location + "|" + file + "|" + content);
+                (location, file, content) => writtenContent = location + "|" + file + "|" + content,
+                location => new[] { "config.toml", "variant.toml" });
 
-            IConfigTextStorage storage = registry.GetStorage("Example.Mod", registrationId);
-
-            var loaded = storage.Read(ConfigLocation.Local, "config.toml");
+            IIndexedConfigTextStorage storage = registry.GetIndexedStorage("Example.Mod", registrationId);
+            string loaded = storage.Read(ConfigLocation.Local, "config.toml");
             storage.Write(ConfigLocation.World, "world.toml", "content");
 
             Assert.Multiple(() =>
             {
+                Assert.That(storage.Exists(ConfigLocation.Local, "config.toml"), Is.True);
+                Assert.That(storage.Exists(ConfigLocation.World, "config.toml"), Is.False);
                 Assert.That(loaded, Is.EqualTo("0|config.toml"));
+                Assert.That(storage.ListKnown(ConfigLocation.Global), Is.EqualTo(new[] { "config.toml", "variant.toml" }));
                 Assert.That(writtenContent, Is.EqualTo("2|world.toml|content"));
             });
         }
@@ -42,27 +44,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var oldRegistrationId = Guid.NewGuid();
             var newRegistrationId = Guid.NewGuid();
 
-            registry.Register(
-                "Example.Mod",
-                oldRegistrationId,
-                (location, file) => "old",
-                (location, file, content) => { });
-
-            registry.Register(
-                "Example.Mod",
-                newRegistrationId,
-                (location, file) => "new",
-                (location, file, content) => { });
+            RegisterValue(registry, "Example.Mod", oldRegistrationId, "old");
+            RegisterValue(registry, "Example.Mod", newRegistrationId, "new");
 
             Assert.Multiple(() =>
             {
-                Assert.Throws<InvalidOperationException>(
-                    () => registry.GetStorage("Example.Mod", oldRegistrationId));
-
-                Assert.That(
-                    registry.GetStorage("Example.Mod", newRegistrationId)
-                        .Read(ConfigLocation.Local, "config.toml"),
-                    Is.EqualTo("new"));
+                Assert.Throws<InvalidOperationException>(() => registry.GetStorage("Example.Mod", oldRegistrationId));
+                Assert.That(registry.GetStorage("Example.Mod", newRegistrationId).Read(ConfigLocation.Local, "config.toml"), Is.EqualTo("new"));
             });
         }
 
@@ -73,20 +61,11 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var oldRegistrationId = Guid.NewGuid();
             var newRegistrationId = Guid.NewGuid();
 
-            registry.Register(
-                "Example.Mod",
-                oldRegistrationId,
-                (location, file) => "old",
-                (location, file, content) => { });
+            RegisterValue(registry, "Example.Mod", oldRegistrationId, "old");
+            RegisterValue(registry, "Example.Mod", newRegistrationId, "new");
 
-            registry.Register(
-                "Example.Mod",
-                newRegistrationId,
-                (location, file) => "new",
-                (location, file, content) => { });
-
-            var staleRemoved = registry.Unregister("Example.Mod", oldRegistrationId);
-            var currentStorage = registry.GetStorage("Example.Mod", newRegistrationId);
+            bool staleRemoved = registry.Unregister("Example.Mod", oldRegistrationId);
+            IConfigTextStorage currentStorage = registry.GetStorage("Example.Mod", newRegistrationId);
 
             Assert.Multiple(() =>
             {
@@ -101,19 +80,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var registry = new ConfigConsumerRegistrationRegistry();
             var registrationId = Guid.NewGuid();
 
-            registry.Register(
-                "Example.Mod",
-                registrationId,
-                (location, file) => null,
-                (location, file, content) => { });
-
-            var removed = registry.Unregister("Example.Mod", registrationId);
+            RegisterValue(registry, "Example.Mod", registrationId, null);
+            bool removed = registry.Unregister("Example.Mod", registrationId);
 
             Assert.Multiple(() =>
             {
                 Assert.That(removed, Is.True);
-                Assert.Throws<InvalidOperationException>(
-                    () => registry.GetStorage("Example.Mod", registrationId));
+                Assert.Throws<InvalidOperationException>(() => registry.GetStorage("Example.Mod", registrationId));
             });
         }
 
@@ -124,29 +97,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var upperRegistrationId = Guid.NewGuid();
             var lowerRegistrationId = Guid.NewGuid();
 
-            registry.Register(
-                "Example.Mod",
-                upperRegistrationId,
-                (location, file) => "upper",
-                (location, file, content) => { });
-
-            registry.Register(
-                "example.mod",
-                lowerRegistrationId,
-                (location, file) => "lower",
-                (location, file, content) => { });
+            RegisterValue(registry, "Example.Mod", upperRegistrationId, "upper");
+            RegisterValue(registry, "example.mod", lowerRegistrationId, "lower");
 
             Assert.Multiple(() =>
             {
-                Assert.That(
-                    registry.GetStorage("Example.Mod", upperRegistrationId)
-                        .Read(ConfigLocation.Local, "config.toml"),
-                    Is.EqualTo("upper"));
-
-                Assert.That(
-                    registry.GetStorage("example.mod", lowerRegistrationId)
-                        .Read(ConfigLocation.Local, "config.toml"),
-                    Is.EqualTo("lower"));
+                Assert.That(registry.GetStorage("Example.Mod", upperRegistrationId).Read(ConfigLocation.Local, "config.toml"), Is.EqualTo("upper"));
+                Assert.That(registry.GetStorage("example.mod", lowerRegistrationId).Read(ConfigLocation.Local, "config.toml"), Is.EqualTo("lower"));
             });
         }
 
@@ -157,8 +114,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var betaRegistrationId = Guid.NewGuid();
             var alphaRegistrationId = Guid.NewGuid();
 
-            registry.Register("Beta.Mod", betaRegistrationId, (location, file) => null, (location, file, content) => { });
-            registry.Register("Alpha.Mod", alphaRegistrationId, (location, file) => null, (location, file, content) => { });
+            RegisterValue(registry, "Beta.Mod", betaRegistrationId, null);
+            RegisterValue(registry, "Alpha.Mod", alphaRegistrationId, null);
 
             Assert.Multiple(() =>
             {
@@ -174,31 +131,31 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(registry.GetConsumerIds(), Is.EqualTo(new[] { "Beta.Mod" }));
             });
         }
+
         [Test]
         public void Registration_Rejects_Invalid_Identity_Token_And_Callbacks()
         {
             var registry = new ConfigConsumerRegistrationRegistry();
-
+            Func<int, string, bool> exists = (location, file) => false;
             Func<int, string, string> read = (location, file) => null;
             Action<int, string, string> write = (location, file, content) => { };
+            Func<int, string[]> listKnown = location => new string[0];
 
             Assert.Multiple(() =>
             {
-                Assert.Throws<ArgumentException>(
-                    () => registry.Register(null, Guid.NewGuid(), read, write));
-
-                Assert.Throws<ArgumentException>(
-                    () => registry.Register(" ", Guid.NewGuid(), read, write));
-
-                Assert.Throws<ArgumentException>(
-                    () => registry.Register("Example.Mod", Guid.Empty, read, write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => registry.Register("Example.Mod", Guid.NewGuid(), null, write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => registry.Register("Example.Mod", Guid.NewGuid(), read, null));
+                Assert.Throws<ArgumentException>(() => registry.Register(null, Guid.NewGuid(), exists, read, write, listKnown));
+                Assert.Throws<ArgumentException>(() => registry.Register(" ", Guid.NewGuid(), exists, read, write, listKnown));
+                Assert.Throws<ArgumentException>(() => registry.Register("Example.Mod", Guid.Empty, exists, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => registry.Register("Example.Mod", Guid.NewGuid(), null, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => registry.Register("Example.Mod", Guid.NewGuid(), exists, null, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => registry.Register("Example.Mod", Guid.NewGuid(), exists, read, null, listKnown));
+                Assert.Throws<ArgumentNullException>(() => registry.Register("Example.Mod", Guid.NewGuid(), exists, read, write, null));
             });
+        }
+
+        private static void RegisterValue(ConfigConsumerRegistrationRegistry registry, string consumerId, Guid registrationId, string value)
+        {
+            registry.Register(consumerId, registrationId, (location, file) => value != null, (location, file) => value, (location, file, content) => { }, location => new string[0]);
         }
     }
 }

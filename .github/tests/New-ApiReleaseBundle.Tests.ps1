@@ -89,9 +89,11 @@ try {
     Assert-Equal -Expected "Mz.ConfigAPI.Consumer" -Actual ([string]$manifest.id) -Message "Manifest package ID is incorrect."
     Assert-Equal -Expected "2.3.0" -Actual ([string]$manifest.version) -Message "Manifest package version is incorrect."
     Assert-Equal -Expected "Mz.ConfigAPI.Consumer" -Actual (@($manifest.folders) -join ",") -Message "Manifest owned folder is incorrect."
-    Assert-Equal -Expected 2 -Actual @($manifest.dependencies.PSObject.Properties).Count -Message "Manifest dependency count is incorrect."
-    Assert-Equal -Expected "0.3.0" -Actual ([string]$manifest.dependencies."Mz.ApiProtocol") -Message "ApiProtocol dependency is incorrect."
+    Assert-Equal -Expected 4 -Actual @($manifest.dependencies.PSObject.Properties).Count -Message "Manifest dependency count is incorrect."
+    Assert-Equal -Expected "0.3.1" -Actual ([string]$manifest.dependencies."Mz.ApiProtocol") -Message "ApiProtocol dependency is incorrect."
+    Assert-Equal -Expected "0.1.0" -Actual ([string]$manifest.dependencies."Mz.Collections") -Message "Collections dependency is incorrect."
     Assert-Equal -Expected "0.2.0" -Actual ([string]$manifest.dependencies."Mz.SemanticVersioning") -Message "SemanticVersioning dependency is incorrect."
+    Assert-Equal -Expected "0.1.0" -Actual ([string]$manifest.dependencies."Mz.Storage") -Message "Storage dependency is incorrect."
 
     $hash = (Get-FileHash -LiteralPath $componentPath -Algorithm SHA256).Hash.ToLowerInvariant()
     Assert-Equal -Expected $hash -Actual ([string]$manifest.component.sha256) -Message "Manifest component checksum is incorrect."
@@ -104,14 +106,18 @@ try {
     Assert-True -Condition ($entries -contains "Libraries/Mz.ConfigAPI.Consumer/ConfigApiClient.cs") -Message "ConfigApiClient.cs is missing from the component."
     Assert-True -Condition ($entries -contains "Libraries/Mz.ConfigAPI.Consumer/README.md") -Message "README.md is missing from the component."
     Assert-True -Condition (@($entries | Where-Object { $_.StartsWith("Libraries/Mz.ApiProtocol", [System.StringComparison]::Ordinal) }).Count -eq 0) -Message "Component incorrectly embeds ApiProtocol."
+    Assert-True -Condition (@($entries | Where-Object { $_.StartsWith("Libraries/Mz.Collections", [System.StringComparison]::Ordinal) }).Count -eq 0) -Message "Component incorrectly embeds Collections."
     Assert-True -Condition (@($entries | Where-Object { $_.StartsWith("Libraries/Mz.SemanticVersioning", [System.StringComparison]::Ordinal) }).Count -eq 0) -Message "Component incorrectly embeds SemanticVersioning."
+    Assert-True -Condition (@($entries | Where-Object { $_.StartsWith("Libraries/Mz.Storage", [System.StringComparison]::Ordinal) }).Count -eq 0) -Message "Component incorrectly embeds Storage."
     Assert-True -Condition (@($entries | Where-Object { $_ -match '/test/' -or $_ -match 'SpaceEngineersApiStubs\.cs$' -or $_ -match '\.csproj$' }).Count -eq 0) -Message "Component contains test or project artifacts."
 
     $notes = Get-Content -LiteralPath $notesPath -Raw
     Assert-True -Condition ($notes.Contains("## Changes")) -Message "Release notes do not contain Changes."
     Assert-True -Condition ($notes.Contains("## Exact dependencies")) -Message "Release notes do not contain Exact dependencies."
     Assert-True -Condition ($notes.Contains("Mz.ApiProtocol")) -Message "Release notes do not mention ApiProtocol."
+    Assert-True -Condition ($notes.Contains("Mz.Collections")) -Message "Release notes do not mention Collections."
     Assert-True -Condition ($notes.Contains("Mz.SemanticVersioning")) -Message "Release notes do not mention SemanticVersioning."
+    Assert-True -Condition ($notes.Contains("Mz.Storage")) -Message "Release notes do not mention Storage."
 
     Assert-Throws -Action {
         & $bundleScript -Tag "configapi/v2" -OutputDirectory (Join-Path $testRoot "bad-tag") -SkipTests | Out-Null

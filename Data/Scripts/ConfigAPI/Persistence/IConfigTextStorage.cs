@@ -8,4 +8,11 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
 
         void Write(ConfigLocation location, string file, string content);
     }
+
+    public interface IIndexedConfigTextStorage : IConfigTextStorage
+    {
+        bool Exists(ConfigLocation location, string file);
+
+        string[] ListKnown(ConfigLocation location);
+    }
 }

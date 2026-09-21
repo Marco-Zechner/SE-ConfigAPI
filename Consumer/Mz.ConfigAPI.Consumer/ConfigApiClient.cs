@@ -26,8 +26,10 @@ namespace Mz.ConfigApi
         private readonly ApiDiscoveryConsumer _consumer;
 
         private readonly string _consumerId;
+        private readonly Func<int, string, bool> _exists;
         private readonly Func<int, string, string> _read;
         private readonly Action<int, string, string> _write;
+        private readonly Func<int, string[]> _listKnown;
         private bool _isDisposed;
         private Exception _lastError;
         private Func<string, Guid, string, int, string, object, object> _openConfig;
@@ -49,7 +51,8 @@ namespace Mz.ConfigApi
 
         public ConfigApiClient(
             IModMessageBus messageBus, string consumerId, string consumerDisplayName, SemanticVersion consumerModVersion,
-            bool isRequired, string featureDescription, Func<int, string, string> read, Action<int, string, string> write)
+            bool isRequired, string featureDescription, Func<int, string, bool> exists, Func<int, string, string> read,
+            Action<int, string, string> write, Func<int, string[]> listKnown)
         {
             if (messageBus == null)
                 throw new ArgumentNullException(nameof(messageBus));
@@ -63,15 +66,23 @@ namespace Mz.ConfigApi
             if (consumerModVersion == null)
                 throw new ArgumentNullException(nameof(consumerModVersion));
 
+            if (exists == null)
+                throw new ArgumentNullException(nameof(exists));
+
             if (read == null)
                 throw new ArgumentNullException(nameof(read));
 
             if (write == null)
                 throw new ArgumentNullException(nameof(write));
 
+            if (listKnown == null)
+                throw new ArgumentNullException(nameof(listKnown));
+
             _consumerId = consumerId.Trim();
+            _exists = exists;
             _read = read;
             _write = write;
+            _listKnown = listKnown;
 
             var dependency = new ApiDependencyDescriptor(
                 new ApiModIdentity(
@@ -134,15 +145,11 @@ namespace Mz.ConfigApi
             IModMessageBus messageBus, string consumerId, string consumerDisplayName, SemanticVersion consumerModVersion,
             bool isRequired, string featureDescription)
         {
-            var storage = new SpaceEngineersConfigTextStorage(
-                new SpaceEngineersConfigApiStorageUtilities(),
-                typeof(SpaceEngineersConfigTextStorage)
-            );
+            var storage = SpaceEngineersConfigTextStorage.Create(consumerId, typeof(SpaceEngineersConfigTextStorage));
 
             return new ConfigApiClient(messageBus, consumerId, consumerDisplayName, consumerModVersion,
-                                       isRequired, featureDescription, storage.Read, storage.Write);
+                                       isRequired, featureDescription, storage.Exists, storage.Read, storage.Write, storage.ListKnown);
         }
-
         public void Start()
         {
             ThrowIfDisposed();
@@ -493,7 +500,7 @@ namespace Mz.ConfigApi
         {
             try
             {
-                Func<string, Guid, Func<int, string, string>, Action<int, string, string>, Action> registerConsumer;
+                Func<string, Guid, Func<int, string, bool>, Func<int, string, string>, Action<int, string, string>, Func<int, string[]>, Action> registerConsumer;
                 Func<string, Guid, string, int, string, object, object> openConfig;
                 Func<string, Guid, string, int, string, object, object, object> saveConfig;
                 Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig;
@@ -556,7 +563,7 @@ namespace Mz.ConfigApi
 
                 var registrationId = Guid.NewGuid();
 
-                Action unregister = registerConsumer(_consumerId, registrationId, _read, _write);
+                Action unregister = registerConsumer(_consumerId, registrationId, _exists, _read, _write, _listKnown);
 
                 if (unregister == null)
                     throw new InvalidOperationException("The ConfigAPI provider returned no unregister action.");

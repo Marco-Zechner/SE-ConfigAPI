@@ -59,10 +59,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             var persistence = new ConfigApiPersistenceService(registry, clock, logger);
             _worldBridge = new WorldConfigProviderBridge(registry, logger);
 
-            Func<string, Guid, Func<int, string, string>, Action<int, string, string>, Action> registerConsumer = (consumerId, registrationId, read, write) =>
+            Func<string, Guid, Func<int, string, bool>, Func<int, string, string>, Action<int, string, string>, Func<int, string[]>, Action> registerConsumer = (consumerId, registrationId, exists, read, write, listKnown) =>
             {
                 Log(LogLevel.Debug, $"Registering consumer '{consumerId}' with registration {registrationId}.");
-                registry.Register(consumerId, registrationId, read, write);
+                registry.Register(consumerId, registrationId, exists, read, write, listKnown);
 
                 return () =>
                 {

@@ -25,6 +25,8 @@
     <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\**\*.cs" Exclude="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\Messaging\SpaceEngineersModMessageBus.cs" Link="Libraries\Mz.ApiProtocol.SpaceEngineers\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.Collections\**\*.cs" Link="Libraries\Mz.Collections\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.SemanticVersioning\**\*.cs" Link="Libraries\Mz.SemanticVersioning\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.Storage.Core\**\*.cs" Link="Libraries\Mz.Storage.Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\Data\Scripts\ConfigAPI\Libraries\Mz.Storage.SpaceEngineers\**\*.cs" Link="Libraries\Mz.Storage.SpaceEngineers\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\ConfigAPI.Tests\Consumer\**\*.cs" Link="Tests\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="SpaceEngineersApiStubs.cs" />
   </ItemGroup>

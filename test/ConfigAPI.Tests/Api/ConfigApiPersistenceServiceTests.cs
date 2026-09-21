@@ -707,7 +707,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             ConsumerStorage storage)
         {
             var registry = new ConfigConsumerRegistrationRegistry();
-            registry.Register(consumerId, registrationId, storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage(consumerId, registrationId, storage.Read, storage.Write);
             return registry;
         }
 
