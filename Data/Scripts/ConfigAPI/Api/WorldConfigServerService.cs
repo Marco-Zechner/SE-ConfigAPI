@@ -95,6 +95,154 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return authority;
         }
 
+        public WorldConfigAuthorityResult Reload(string consumerId, string configKey, ulong baseIteration)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+
+            WorldConfigAuthorityResult stale = RejectStale(state, baseIteration);
+            if (stale != null)
+                return stale;
+
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(
+                ConfigLocation.World, state.Snapshot.CurrentFile, state.Snapshot.Identity, state.CurrentDefaults);
+
+            if (NeedsPersistence(loadResult))
+                new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, loadResult, state.CurrentDefaults);
+
+            WorldConfigAuthorityResult authority = WorldConfigOperations.Reload(state.Snapshot, baseIteration, loadResult.State.PlayerValues);
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            return authority;
+        }
+
+        public WorldConfigAuthorityResult LoadAndSwitch(string consumerId, string configKey, ulong baseIteration, string file)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            RequireFile(file);
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+
+            WorldConfigAuthorityResult stale = RejectStale(state, baseIteration);
+            if (stale != null)
+                return stale;
+
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(
+                ConfigLocation.World, file, state.Snapshot.Identity, state.CurrentDefaults);
+
+            if (NeedsPersistence(loadResult))
+                new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, loadResult, state.CurrentDefaults);
+
+            WorldConfigAuthorityResult authority = WorldConfigOperations.LoadAndSwitch(
+                state.Snapshot, baseIteration, loadResult.State.PlayerValues, file);
+
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            return authority;
+        }
+
+        public WorldConfigAuthorityResult SaveAndSwitch(string consumerId, string configKey, ulong baseIteration, ConfigDocument draft, string file)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+
+            if (draft == null)
+                throw new ArgumentNullException(nameof(draft));
+
+            RequireFile(file);
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+
+            WorldConfigAuthorityResult stale = RejectStale(state, baseIteration);
+            if (stale != null)
+                return stale;
+
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(
+                ConfigLocation.World, file, state.Snapshot.Identity, state.CurrentDefaults);
+
+            ValidateDocument(loadResult, draft, state.CurrentDefaults, nameof(draft));
+            PersistDocument(storage, loadResult, draft, state.CurrentDefaults);
+
+            WorldConfigAuthorityResult authority = WorldConfigOperations.SaveAndSwitch(state.Snapshot, baseIteration, draft, file);
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            return authority;
+        }
+
+        public WorldConfigExport Export(string consumerId, string configKey, ConfigDocument document, string file, bool overwrite)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+
+            if (document == null)
+                throw new ArgumentNullException(nameof(document));
+
+            RequireFile(file);
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+
+            if (!overwrite && (storage.Read(ConfigLocation.World, file) != null ||
+                               storage.Read(ConfigLocation.World, ConfigPersistedStateLoader.GetProvenanceFile(file)) != null))
+            {
+                throw new InvalidOperationException("World config export target already exists: " + file);
+            }
+
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(
+                ConfigLocation.World, file, state.Snapshot.Identity, state.CurrentDefaults);
+
+            ValidateDocument(loadResult, document, state.CurrentDefaults, nameof(document));
+            PersistDocument(storage, loadResult, document, state.CurrentDefaults);
+            return WorldConfigOperations.Export(state.Snapshot, document, file, overwrite);
+        }
+
+        private static void ValidateDocument(ConfigPersistedLoadResult loadResult, ConfigDocument document, ConfigDocument currentDefaults, string parameterName)
+        {
+            ConfigDefaultReconciliationResult validation = ConfigDefaultReconciler.Reconcile(
+                loadResult.State.BaselineDefaults, document, currentDefaults);
+
+            if (!validation.PlayerValues.Equals(document))
+                throw new ArgumentException("Player values do not match the current config schema.", parameterName);
+        }
+
+        private void PersistDocument(IConfigTextStorage storage, ConfigPersistedLoadResult loadResult, ConfigDocument document, ConfigDocument currentDefaults)
+        {
+            var persistedState = new ConfigPersistedState(
+                loadResult.State.Identity, document, loadResult.State.BaselineDefaults, loadResult.State.CurrentFile);
+
+            var saveResult = new ConfigPersistedLoadResult(
+                persistedState, loadResult.ActiveSource, loadResult.ProvenanceFile,
+                loadResult.WasActiveFileMissing, loadResult.WasProvenanceMissing,
+                loadResult.Changes, loadResult.RequiresBackup);
+
+            new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, saveResult, currentDefaults);
+        }
+
+        private static WorldConfigAuthorityResult RejectStale(ServerState state, ulong baseIteration)
+        {
+            if (baseIteration == state.Snapshot.ServerIteration)
+                return null;
+
+            return new WorldConfigAuthorityResult(false, true, state.Snapshot);
+        }
+
+        private ServerState GetRequiredState(string key, string consumerId, string configKey)
+        {
+            ServerState state;
+            if (!_states.TryGetValue(key, out state))
+                throw new InvalidOperationException("World config is not open on the authoritative server: " + consumerId + "/" + configKey);
+
+            return state;
+        }
+
+        private static void RequireFile(string file)
+        {
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+        }
         private static bool NeedsPersistence(ConfigPersistedLoadResult loadResult)
             => loadResult.WasActiveFileMissing || loadResult.WasProvenanceMissing || loadResult.Changes.Count > 0;
 

@@ -63,6 +63,62 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return requestId;
         }
 
+        public ulong Reload(string consumerId, string configKey)
+        {
+            ThrowIfDisposed();
+
+            ConfigIdentity identity = CreateIdentity(consumerId, configKey);
+            WorldConfigClientState state = GetRequiredState(identity);
+            ulong requestId = AllocateRequestId();
+            var request = new WorldConfigNetworkRequest(requestId, identity.OwnerId, identity.ConfigKey, WorldConfigNetworkOperation.Reload, state.Authoritative.ServerIteration, null, false, null, null);
+            Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.Reload));
+            return requestId;
+        }
+
+        public ulong LoadAndSwitch(string consumerId, string configKey, string file)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+
+            ConfigIdentity identity = CreateIdentity(consumerId, configKey);
+            WorldConfigClientState state = GetRequiredState(identity);
+            ulong requestId = AllocateRequestId();
+            var request = new WorldConfigNetworkRequest(requestId, identity.OwnerId, identity.ConfigKey, WorldConfigNetworkOperation.LoadAndSwitch, state.Authoritative.ServerIteration, file, false, null, null);
+            Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.LoadAndSwitch));
+            return requestId;
+        }
+
+        public ulong SaveAndSwitch(string consumerId, string configKey, string file)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+
+            ConfigIdentity identity = CreateIdentity(consumerId, configKey);
+            WorldConfigClientState state = GetRequiredState(identity);
+            ulong requestId = AllocateRequestId();
+            var request = new WorldConfigNetworkRequest(requestId, identity.OwnerId, identity.ConfigKey, WorldConfigNetworkOperation.SaveAndSwitch, state.Authoritative.ServerIteration, file, false, null, state.Draft);
+            Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.SaveAndSwitch));
+            return requestId;
+        }
+
+        public ulong Export(string consumerId, string configKey, string file, bool overwrite)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+
+            ConfigIdentity identity = CreateIdentity(consumerId, configKey);
+            WorldConfigClientState state = GetRequiredState(identity);
+            ulong requestId = AllocateRequestId();
+            var request = new WorldConfigNetworkRequest(requestId, identity.OwnerId, identity.ConfigKey, WorldConfigNetworkOperation.Export, state.Authoritative.ServerIteration, file, overwrite, null, state.Draft);
+            Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.Export));
+            return requestId;
+        }
         public WorldConfigClientState SetDraft(string consumerId, string configKey, ConfigDocument draft)
         {
             ThrowIfDisposed();

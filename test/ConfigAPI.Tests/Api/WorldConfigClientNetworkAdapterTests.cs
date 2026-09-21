@@ -185,6 +185,101 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void File_Operation_Requests_Use_Current_Authority_And_Draft()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(25))));
+
+            ulong reloadId = rig.Adapter.Reload("Example.Mod", "Settings");
+            ulong loadId = rig.Adapter.LoadAndSwitch("Example.Mod", "Settings", "alternate.toml");
+            ulong saveId = rig.Adapter.SaveAndSwitch("Example.Mod", "Settings", "saved.toml");
+            ulong exportId = rig.Adapter.Export("Example.Mod", "Settings", "copy.toml", true);
+
+            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(4));
+
+            WorldConfigNetworkRequest reload = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[0].Payload);
+            WorldConfigNetworkRequest load = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[1].Payload);
+            WorldConfigNetworkRequest save = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[2].Payload);
+            WorldConfigNetworkRequest export = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[3].Payload);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(reloadId, Is.EqualTo(2UL));
+                Assert.That(reload.Operation, Is.EqualTo(WorldConfigNetworkOperation.Reload));
+                Assert.That(reload.BaseIteration, Is.EqualTo(4UL));
+                Assert.That(reload.File, Is.Null);
+                Assert.That(reload.Document, Is.Null);
+
+                Assert.That(loadId, Is.EqualTo(3UL));
+                Assert.That(load.Operation, Is.EqualTo(WorldConfigNetworkOperation.LoadAndSwitch));
+                Assert.That(load.BaseIteration, Is.EqualTo(4UL));
+                Assert.That(load.File, Is.EqualTo("alternate.toml"));
+                Assert.That(load.Document, Is.Null);
+
+                Assert.That(saveId, Is.EqualTo(4UL));
+                Assert.That(save.Operation, Is.EqualTo(WorldConfigNetworkOperation.SaveAndSwitch));
+                Assert.That(save.BaseIteration, Is.EqualTo(4UL));
+                Assert.That(save.File, Is.EqualTo("saved.toml"));
+                AssertDocumentValue(save.Document, 25, "Value");
+
+                Assert.That(exportId, Is.EqualTo(5UL));
+                Assert.That(export.Operation, Is.EqualTo(WorldConfigNetworkOperation.Export));
+                Assert.That(export.BaseIteration, Is.EqualTo(4UL));
+                Assert.That(export.File, Is.EqualTo("copy.toml"));
+                Assert.That(export.Overwrite, Is.True);
+                AssertDocumentValue(export.Document, 25, "Value");
+
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(4));
+            });
+        }
+
+        [Test]
+        public void Applied_File_Switch_Updates_Authority_And_Preserves_Edited_Draft()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(15))));
+
+            ulong requestId = rig.Adapter.LoadAndSwitch("Example.Mod", "Settings", "alternate.toml");
+            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.LoadAndSwitch, WorldConfigNetworkResponseKind.Snapshot, rig.Transport.LocalPeerId, true, false, Snapshot(30, 5UL, "alternate.toml"), null));
+
+            WorldConfigClientState state;
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
+                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(5UL));
+                Assert.That(state.Authoritative.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(state.Authoritative.Document, 30, "Value");
+                AssertDocumentValue(state.Draft, 15, "Value");
+            });
+        }
+
+        [Test]
+        public void Exported_Response_Consumes_Request_Without_Changing_Authoritative_State_Or_Draft()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(40))));
+
+            ulong requestId = rig.Adapter.Export("Example.Mod", "Settings", "copy.toml", false);
+            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Export, WorldConfigNetworkResponseKind.Exported, rig.Transport.LocalPeerId, false, false, Snapshot(10, 4UL), null));
+
+            WorldConfigClientState state;
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
+                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(4UL));
+                Assert.That(state.Authoritative.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(state.Authoritative.Document, 10, "Value");
+                AssertDocumentValue(state.Draft, 40, "Value");
+            });
+        }
         private static TestRig CreateRig()
         {
             var transport = new RecordingClientTransport();
@@ -213,8 +308,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             Assert.That(context.TransportSenderIsServer, Is.True);
         }
 
-        private static WorldConfigSnapshot Snapshot(long value, ulong iteration)
-            => new WorldConfigSnapshot(new ConfigIdentity("Example.Mod", "Settings"), Document(Entry("Value", Integer(value))), iteration, "settings.toml");
+        private static WorldConfigSnapshot Snapshot(long value, ulong iteration, string file = "settings.toml")
+            => new WorldConfigSnapshot(new ConfigIdentity("Example.Mod", "Settings"), Document(Entry("Value", Integer(value))), iteration, file);
 
         private static ConfigDocument Document(params ConfigObjectEntry[] entries) => new ConfigDocument(new ConfigObjectNode(entries));
         private static ConfigObjectEntry Entry(string name, ConfigNode value) => new ConfigObjectEntry(name, value);

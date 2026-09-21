@@ -15,6 +15,10 @@ namespace Mz.ConfigApi
         public const string RegisterWorldConfigEndpoint = "RegisterWorldConfig";
         public const string OpenWorldConfigEndpoint = "OpenWorldConfig";
         public const string SaveWorldConfigEndpoint = "SaveWorldConfig";
+        public const string ReloadWorldConfigEndpoint = "ReloadWorldConfig";
+        public const string LoadAndSwitchWorldConfigEndpoint = "LoadAndSwitchWorldConfig";
+        public const string SaveAndSwitchWorldConfigEndpoint = "SaveAndSwitchWorldConfig";
+        public const string ExportWorldConfigEndpoint = "ExportWorldConfig";
         private readonly ApiDiscoveryConsumer _consumer;
 
         private readonly string _consumerId;
@@ -29,6 +33,10 @@ namespace Mz.ConfigApi
         private Func<string, Guid, string, int, string, object, object, object> _saveConfig;
         private Action<string, Guid, string, string, object> _openWorldConfig;
         private Action<string, Guid, string, object> _saveWorldConfig;
+        private Action<string, Guid, string> _reloadWorldConfig;
+        private Action<string, Guid, string, string> _loadAndSwitchWorldConfig;
+        private Action<string, Guid, string, string, object> _saveAndSwitchWorldConfig;
+        private Action<string, Guid, string, string, object, bool> _exportWorldConfig;
         private Action _providerWorldUnregister;
 
         public ConfigApiClient(
@@ -86,6 +94,7 @@ namespace Mz.ConfigApi
         public SemanticVersion ProviderModVersion { get; private set; }
         public SemanticVersion ProviderApiVersion { get; private set; }
         public bool SupportsWorldConfigs => _providerWorldUnregister != null && _openWorldConfig != null && _saveWorldConfig != null;
+        public bool SupportsWorldFileOperations => SupportsWorldConfigs && _reloadWorldConfig != null && _loadAndSwitchWorldConfig != null && _saveAndSwitchWorldConfig != null && _exportWorldConfig != null;
 
         public Exception LastError => _lastError ?? _consumer.LastError;
 
@@ -277,6 +286,92 @@ namespace Mz.ConfigApi
             _saveWorldConfig(_consumerId, _registrationId, configKey.Trim(), ConfigDocumentWireCodec.Encode(playerValues));
         }
 
+        public void ReloadWorld<T>(ConfigDefinition<T> definition) where T : class
+        {
+            if (definition == null)
+                throw new ArgumentNullException(nameof(definition));
+
+            ReloadWorld(definition.ConfigKey);
+        }
+
+        public void ReloadWorld(string configKey)
+        {
+            ThrowIfDisposed();
+            EnsureWorldFileOperationsConnected();
+
+            if (string.IsNullOrWhiteSpace(configKey))
+                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
+
+            _reloadWorldConfig(_consumerId, _registrationId, configKey.Trim());
+        }
+
+        public void LoadAndSwitchWorld<T>(ConfigDefinition<T> definition, string file) where T : class
+        {
+            if (definition == null)
+                throw new ArgumentNullException(nameof(definition));
+
+            LoadAndSwitchWorld(definition.ConfigKey, file);
+        }
+
+        public void LoadAndSwitchWorld(string configKey, string file)
+        {
+            ThrowIfDisposed();
+            EnsureWorldFileOperationsConnected();
+
+            if (string.IsNullOrWhiteSpace(configKey))
+                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+
+            _loadAndSwitchWorldConfig(_consumerId, _registrationId, configKey.Trim(), file);
+        }
+
+        public void SaveAndSwitchWorld<T>(ConfigDefinition<T> definition, string file, T playerValues) where T : class
+        {
+            if (definition == null)
+                throw new ArgumentNullException(nameof(definition));
+
+            SaveAndSwitchWorld(definition.ConfigKey, file, definition.Serialize(playerValues));
+        }
+
+        public void SaveAndSwitchWorld(string configKey, string file, ConfigDocument playerValues)
+        {
+            ThrowIfDisposed();
+            EnsureWorldFileOperationsConnected();
+
+            if (string.IsNullOrWhiteSpace(configKey))
+                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+            if (playerValues == null)
+                throw new ArgumentNullException(nameof(playerValues));
+
+            _saveAndSwitchWorldConfig(_consumerId, _registrationId, configKey.Trim(), file, ConfigDocumentWireCodec.Encode(playerValues));
+        }
+
+        public void ExportWorld<T>(ConfigDefinition<T> definition, string file, T playerValues, bool overwrite = false) where T : class
+        {
+            if (definition == null)
+                throw new ArgumentNullException(nameof(definition));
+
+            ExportWorld(definition.ConfigKey, file, definition.Serialize(playerValues), overwrite);
+        }
+
+        public void ExportWorld(string configKey, string file, ConfigDocument playerValues, bool overwrite = false)
+        {
+            ThrowIfDisposed();
+            EnsureWorldFileOperationsConnected();
+
+            if (string.IsNullOrWhiteSpace(configKey))
+                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+            if (playerValues == null)
+                throw new ArgumentNullException(nameof(playerValues));
+
+            _exportWorldConfig(_consumerId, _registrationId, configKey.Trim(), file, ConfigDocumentWireCodec.Encode(playerValues), overwrite);
+        }
+
         public void Stop()
         {
             ThrowIfDisposed();
@@ -296,6 +391,10 @@ namespace Mz.ConfigApi
                 Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig;
                 Action<string, Guid, string, string, object> openWorldConfig;
                 Action<string, Guid, string, object> saveWorldConfig;
+                Action<string, Guid, string> reloadWorldConfig;
+                Action<string, Guid, string, string> loadAndSwitchWorldConfig;
+                Action<string, Guid, string, string, object> saveAndSwitchWorldConfig;
+                Action<string, Guid, string, string, object, bool> exportWorldConfig;
 
                 if (!eventArgs.Connection.TryGetEndpoint(RegisterConsumerEndpoint, out registerConsumer))
                 {
@@ -318,11 +417,20 @@ namespace Mz.ConfigApi
                 bool hasRegisterWorldConfig = eventArgs.Connection.TryGetEndpoint(RegisterWorldConfigEndpoint, out registerWorldConfig);
                 bool hasOpenWorldConfig = eventArgs.Connection.TryGetEndpoint(OpenWorldConfigEndpoint, out openWorldConfig);
                 bool hasSaveWorldConfig = eventArgs.Connection.TryGetEndpoint(SaveWorldConfigEndpoint, out saveWorldConfig);
+                bool hasReloadWorldConfig = eventArgs.Connection.TryGetEndpoint(ReloadWorldConfigEndpoint, out reloadWorldConfig);
+                bool hasLoadAndSwitchWorldConfig = eventArgs.Connection.TryGetEndpoint(LoadAndSwitchWorldConfigEndpoint, out loadAndSwitchWorldConfig);
+                bool hasSaveAndSwitchWorldConfig = eventArgs.Connection.TryGetEndpoint(SaveAndSwitchWorldConfigEndpoint, out saveAndSwitchWorldConfig);
+                bool hasExportWorldConfig = eventArgs.Connection.TryGetEndpoint(ExportWorldConfigEndpoint, out exportWorldConfig);
                 bool hasAnyWorldConfigEndpoint = hasRegisterWorldConfig || hasOpenWorldConfig || hasSaveWorldConfig;
                 bool hasWorldConfigEndpoints = hasRegisterWorldConfig && hasOpenWorldConfig && hasSaveWorldConfig;
+                bool hasAnyWorldFileOperationEndpoint = hasReloadWorldConfig || hasLoadAndSwitchWorldConfig || hasSaveAndSwitchWorldConfig || hasExportWorldConfig;
+                bool hasWorldFileOperationEndpoints = hasReloadWorldConfig && hasLoadAndSwitchWorldConfig && hasSaveAndSwitchWorldConfig && hasExportWorldConfig;
 
                 if (hasAnyWorldConfigEndpoint && !hasWorldConfigEndpoints)
                     throw new InvalidOperationException("The ConfigAPI provider exposes an incomplete World config endpoint set.");
+
+                if (hasAnyWorldFileOperationEndpoint && (!hasWorldConfigEndpoints || !hasWorldFileOperationEndpoints))
+                    throw new InvalidOperationException("The ConfigAPI provider exposes an incomplete World file-operation endpoint set.");
 
                 var registrationId = Guid.NewGuid();
 
@@ -342,6 +450,14 @@ namespace Mz.ConfigApi
                     _providerWorldUnregister = worldUnregister;
                     _openWorldConfig = openWorldConfig;
                     _saveWorldConfig = saveWorldConfig;
+
+                    if (hasWorldFileOperationEndpoints)
+                    {
+                        _reloadWorldConfig = reloadWorldConfig;
+                        _loadAndSwitchWorldConfig = loadAndSwitchWorldConfig;
+                        _saveAndSwitchWorldConfig = saveAndSwitchWorldConfig;
+                        _exportWorldConfig = exportWorldConfig;
+                    }
                 }
 
                 _openConfig = openConfig;
@@ -410,6 +526,10 @@ namespace Mz.ConfigApi
             _saveConfig = null;
             _openWorldConfig = null;
             _saveWorldConfig = null;
+            _reloadWorldConfig = null;
+            _loadAndSwitchWorldConfig = null;
+            _saveAndSwitchWorldConfig = null;
+            _exportWorldConfig = null;
             _registrationId = Guid.Empty;
             ProviderModVersion = null;
             ProviderApiVersion = null;
@@ -434,6 +554,14 @@ namespace Mz.ConfigApi
 
             if (!SupportsWorldConfigs)
                 throw new InvalidOperationException("The connected ConfigAPI provider does not support server-authoritative World config endpoints.");
+        }
+
+        private void EnsureWorldFileOperationsConnected()
+        {
+            EnsureWorldConnected();
+
+            if (!SupportsWorldFileOperations)
+                throw new InvalidOperationException("The connected ConfigAPI provider does not support World config file-operation endpoints.");
         }
 
         private void OnWorldConfigResponse(IDictionary<string, object> payload)

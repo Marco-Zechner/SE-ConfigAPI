@@ -41,11 +41,15 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(announcement.Provider.DisplayName, Is.EqualTo("ConfigAPI"));
                 Assert.That(announcement.Provider.Version.ToString(), Is.EqualTo("0.0.0"));
                 Assert.That(announcement.Descriptor.ApiId, Is.EqualTo("MarcoZechner.ConfigAPI"));
-                Assert.That(announcement.Descriptor.Version.ToString(), Is.EqualTo("2.1.0"));
-                Assert.That(announcement.Endpoints.Count, Is.EqualTo(6));
+                Assert.That(announcement.Descriptor.Version.ToString(), Is.EqualTo("2.2.0"));
+                Assert.That(announcement.Endpoints.Count, Is.EqualTo(10));
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.RegisterWorldConfigEndpoint), Is.True);
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.OpenWorldConfigEndpoint), Is.True);
                 Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.SaveWorldConfigEndpoint), Is.True);
+                Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.ReloadWorldConfigEndpoint), Is.True);
+                Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.LoadAndSwitchWorldConfigEndpoint), Is.True);
+                Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.SaveAndSwitchWorldConfigEndpoint), Is.True);
+                Assert.That(announcement.Endpoints.ContainsKey(ConfigApiProvider.ExportWorldConfigEndpoint), Is.True);
             });
 
             Delegate endpoint =
