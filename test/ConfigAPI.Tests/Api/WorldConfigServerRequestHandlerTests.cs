@@ -151,14 +151,15 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
-        public void Mutation_Authorization_Is_Checked_Before_NotYetImplemented_Operation_Dispatch()
+        public void Reload_Requires_Admin_And_Dispatches_To_Authoritative_Service()
         {
             TestRig rig = CreateRig(222UL);
             var handler = new WorldConfigServerRequestHandler(rig.Service, rig.Authorization);
-            var request = new WorldConfigNetworkRequest(
-                4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Reload, 0UL,
-                null, false, null, null);
 
+            handler.Handle(111UL, new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, "settings.toml", false, Document(Entry("Value", Integer(10))), null));
+            rig.Storage.ClearOperations();
+
+            var request = new WorldConfigNetworkRequest(4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Reload, 0UL, null, false, null, null);
             WorldConfigNetworkResponse denied = handler.Handle(111UL, request);
             WorldConfigNetworkResponse admin = handler.Handle(222UL, request);
 
@@ -166,13 +167,89 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             {
                 Assert.That(denied.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
                 Assert.That(denied.Error, Is.EqualTo("Permission denied: Only admins can perform this operation."));
-                Assert.That(admin.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
-                Assert.That(admin.Error, Does.Contain("not implemented").IgnoreCase);
+                Assert.That(admin.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Snapshot));
+                Assert.That(admin.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(admin.IsApplied, Is.True);
+                Assert.That(admin.IsStale, Is.False);
+                Assert.That(admin.Snapshot.ServerIteration, Is.EqualTo(1UL));
+                Assert.That(admin.Snapshot.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(admin.Snapshot.Document, 10, "Value");
                 Assert.That(rig.Authorization.CheckedPlayerIds, Is.EqualTo(new[] { 111UL, 222UL }));
                 Assert.That(rig.Storage.TotalWrites, Is.EqualTo(0));
             });
         }
 
+        [Test]
+        public void Admin_File_Operations_Dispatch_With_Correct_Authority_And_Response_Kinds()
+        {
+            TestRig rig = CreateRig(222UL);
+            var handler = new WorldConfigServerRequestHandler(rig.Service, rig.Authorization);
+
+            handler.Handle(111UL, new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, "settings.toml", false, Document(Entry("Value", Integer(10))), null));
+            rig.Storage.Write(2, "alternate.toml", "Value = 30\n");
+            rig.Storage.ClearOperations();
+
+            WorldConfigNetworkResponse loaded = handler.Handle(222UL, new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.LoadAndSwitch, 0UL, "alternate.toml", false, null, null));
+            WorldConfigNetworkResponse saved = handler.Handle(222UL, new WorldConfigNetworkRequest(3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SaveAndSwitch, 1UL, "third.toml", false, null, Document(Entry("Value", Integer(40)))));
+            WorldConfigNetworkResponse exported = handler.Handle(222UL, new WorldConfigNetworkRequest(4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Export, 999UL, "copy.toml", false, null, Document(Entry("Value", Integer(50)))));
+            WorldConfigSnapshot stillCurrent = rig.Service.Open("Example.Mod", "Settings", "third.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(loaded.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Snapshot));
+                Assert.That(loaded.IsApplied, Is.True);
+                Assert.That(loaded.Snapshot.ServerIteration, Is.EqualTo(1UL));
+                Assert.That(loaded.Snapshot.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(loaded.Snapshot.Document, 30, "Value");
+
+                Assert.That(saved.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Snapshot));
+                Assert.That(saved.IsApplied, Is.True);
+                Assert.That(saved.Snapshot.ServerIteration, Is.EqualTo(2UL));
+                Assert.That(saved.Snapshot.CurrentFile, Is.EqualTo("third.toml"));
+                AssertDocumentValue(saved.Snapshot.Document, 40, "Value");
+
+                Assert.That(exported.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Exported));
+                Assert.That(exported.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(exported.IsApplied, Is.False);
+                Assert.That(exported.IsStale, Is.False);
+                Assert.That(exported.Snapshot.ServerIteration, Is.EqualTo(2UL));
+                Assert.That(exported.Snapshot.CurrentFile, Is.EqualTo("third.toml"));
+                AssertDocumentValue(exported.Snapshot.Document, 40, "Value");
+
+                Assert.That(stillCurrent.ServerIteration, Is.EqualTo(2UL));
+                Assert.That(stillCurrent.CurrentFile, Is.EqualTo("third.toml"));
+                AssertDocumentValue(stillCurrent.Document, 40, "Value");
+                Assert.That(rig.Storage.Get(2, "alternate.toml"), Does.Contain("Value = 30"));
+                Assert.That(rig.Storage.Get(2, "third.toml"), Does.Contain("Value = 40"));
+                Assert.That(rig.Storage.Get(2, "copy.toml"), Does.Contain("Value = 50"));
+                Assert.That(rig.Authorization.CheckedPlayerIds, Is.EqualTo(new[] { 222UL, 222UL, 222UL }));
+            });
+        }
+
+        [Test]
+        public void File_Operations_Reject_Missing_Required_Request_Data_Without_Persistence()
+        {
+            TestRig rig = CreateRig(222UL);
+            var handler = new WorldConfigServerRequestHandler(rig.Service, rig.Authorization);
+
+            handler.Handle(111UL, new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, "settings.toml", false, Document(Entry("Value", Integer(10))), null));
+            rig.Storage.ClearOperations();
+
+            WorldConfigNetworkResponse load = handler.Handle(222UL, new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.LoadAndSwitch, 0UL, null, false, null, null));
+            WorldConfigNetworkResponse save = handler.Handle(222UL, new WorldConfigNetworkRequest(3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SaveAndSwitch, 0UL, "alternate.toml", false, null, null));
+            WorldConfigNetworkResponse export = handler.Handle(222UL, new WorldConfigNetworkRequest(4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Export, 0UL, "copy.toml", false, null, null));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(load.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(load.Error, Does.Contain("config file"));
+                Assert.That(save.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(save.Error, Does.Contain("config document"));
+                Assert.That(export.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(export.Error, Does.Contain("config document"));
+                Assert.That(rig.Storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
         [Test]
         public void Handler_Rejects_Null_Request()
         {
