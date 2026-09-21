@@ -187,7 +187,7 @@ namespace Mz.ConfigApi
 
             T value = Open(definition, location);
 
-            return new ConfigHandle<T>(this, definition, location, definition.DefaultFile, value);
+            return new ConfigHandle<T>(this, definition, location, ConfigDefinition<T>.DefaultVariant, value);
         }
 
 
@@ -197,7 +197,7 @@ namespace Mz.ConfigApi
                 throw new ArgumentNullException(nameof(definition));
 
             return definition.Deserialize(
-                Open(definition.ConfigKey, location, definition.DefaultFile, 
+                Open(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant),
                     definition.Serialize(definition.CreateDefaults())
                 )
             );
@@ -230,7 +230,7 @@ namespace Mz.ConfigApi
                 throw new ArgumentNullException(nameof(definition));
 
             return definition.Deserialize(
-                Save(definition.ConfigKey, location, definition.DefaultFile,
+                Save(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant),
                      definition.Serialize(definition.CreateDefaults()),
                      definition.Serialize(playerValues)
                 )
@@ -266,7 +266,7 @@ namespace Mz.ConfigApi
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
-            return definition.Deserialize(SavePreset(definition.ConfigKey, location, definition.DefaultFile, presetFile, definition.Serialize(definition.CreateDefaults()), definition.Serialize(playerValues), overwrite));
+            return definition.Deserialize(SavePreset(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant), presetFile, definition.Serialize(definition.CreateDefaults()), definition.Serialize(playerValues), overwrite));
         }
 
         public ConfigDocument SavePreset(string configKey, ConfigLocation location, string canonicalFile, string presetFile, ConfigDocument currentDefaults, ConfigDocument playerValues, bool overwrite = false)
@@ -295,7 +295,7 @@ namespace Mz.ConfigApi
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
-            return definition.Deserialize(ApplyPreset(definition.ConfigKey, location, definition.DefaultFile, presetFile, definition.Serialize(definition.CreateDefaults())));
+            return definition.Deserialize(ApplyPreset(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant), presetFile, definition.Serialize(definition.CreateDefaults())));
         }
 
         public ConfigDocument ApplyPreset(string configKey, ConfigLocation location, string canonicalFile, string presetFile, ConfigDocument currentDefaults)
@@ -320,7 +320,7 @@ namespace Mz.ConfigApi
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
-            OpenWorld(definition.ConfigKey, definition.DefaultFile, definition.Serialize(definition.CreateDefaults()));
+            OpenWorld(definition.ConfigKey, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant), definition.Serialize(definition.CreateDefaults()));
         }
 
         public void OpenWorld(string configKey, string file, ConfigDocument currentDefaults)

@@ -262,7 +262,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
-        public void Handle_SwitchFile_Reloads_Requested_File_And_Keeps_Using_It()
+        public void Handle_Load_Reloads_Requested_Variant_And_Keeps_Using_It()
         {
             var bus = new RecordingModMessageBus();
             var openedFiles = new List<string>();
@@ -281,16 +281,16 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
             client.Start();
 
-            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => document);
             ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
 
-            handle.SwitchFile("alternate.toml");
+            handle.Load("alternate");
             handle.Reload();
 
             Assert.Multiple(() =>
             {
-                Assert.That(handle.CurrentFile, Is.EqualTo("alternate.toml"));
-                Assert.That(openedFiles, Is.EqualTo(new[] { "settings.toml", "alternate.toml", "alternate.toml" }));
+                Assert.That(handle.CurrentVariant, Is.EqualTo("alternate"));
+                Assert.That(openedFiles, Is.EqualTo(new[] { "Settings.default.toml", "Settings.alternate.toml", "Settings.alternate.toml" }));
             });
 
             client.Dispose();
@@ -298,7 +298,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
-        public void Handle_SwitchFile_Failure_Keeps_Previous_File_And_Value()
+        public void Handle_Load_Failure_Keeps_Previous_Variant_And_Value()
         {
             var bus = new RecordingModMessageBus();
             var openedFiles = new List<string>();
@@ -309,7 +309,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 {
                     openedFiles.Add(file);
 
-                    if (file == "alternate.toml")
+                    if (file == "Settings.alternate.toml")
                         throw new InvalidOperationException("Synthetic open failure.");
 
                     return defaults;
@@ -321,18 +321,18 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
             client.Start();
 
-            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => document);
             ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
             ConfigDocument previousValue = handle.Value;
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.SwitchFile("alternate.toml"));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Load("alternate"));
 
             Assert.Multiple(() =>
             {
                 Assert.That(exception.Message, Is.EqualTo("Synthetic open failure."));
-                Assert.That(handle.CurrentFile, Is.EqualTo("settings.toml"));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<ConfigDocument>.DefaultVariant));
                 Assert.That(handle.Value, Is.SameAs(previousValue));
-                Assert.That(openedFiles, Is.EqualTo(new[] { "settings.toml", "alternate.toml" }));
+                Assert.That(openedFiles, Is.EqualTo(new[] { "Settings.default.toml", "Settings.alternate.toml" }));
             });
 
             client.Dispose();
@@ -359,12 +359,12 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
             client.Start();
 
-            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
-            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => null, value => value, document => document);
-            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
-            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => null, document => document);
-            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
-            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => null);
+            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
+            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => null, value => value, document => document);
+            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
+            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => null, document => document);
+            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
+            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => null);
 
             InvalidOperationException defaultException = Assert.Throws<InvalidOperationException>(() => client.Open(throwingDefaults, ConfigLocation.Local));
             InvalidOperationException nullDefaultException = Assert.Throws<InvalidOperationException>(() => client.Open(nullDefaults, ConfigLocation.Local));
@@ -417,14 +417,14 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             client.Start();
             var playerValues = new ConfigDocument();
 
-            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
-            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => null, value => value, document => document);
-            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
-            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => null, document => document);
+            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
+            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => null, value => value, document => document);
+            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
+            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => null, document => document);
             var playerSerializeCount = 0;
-            var throwingPlayerSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { playerSerializeCount++; if (playerSerializeCount == 2) throw new InvalidOperationException("Synthetic player serializer failure."); return value; }, document => document);
-            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
-            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => null);
+            var throwingPlayerSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => { playerSerializeCount++; if (playerSerializeCount == 2) throw new InvalidOperationException("Synthetic player serializer failure."); return value; }, document => document);
+            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
+            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => null);
 
             InvalidOperationException defaultException = Assert.Throws<InvalidOperationException>(() => client.Save(throwingDefaults, ConfigLocation.Local, playerValues));
             InvalidOperationException nullDefaultException = Assert.Throws<InvalidOperationException>(() => client.Save(nullDefaults, ConfigLocation.Local, playerValues));
@@ -765,9 +765,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             client.WorldConfigResponseReceived += delegate(WorldConfigResponse response) { observed = response; };
             client.Start();
 
-            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => document);
             ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
-            handle.SwitchFile("legacy.toml");
+            handle.Load("legacy");
             ConfigDocument applied = handle.ApplyPreset("preset.toml");
             client.ApplyPresetWorld("Settings", "world-preset.toml");
 
@@ -778,9 +778,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 Assert.That(client.SupportsWorldConfigs, Is.True);
                 Assert.That(client.SupportsWorldPresets, Is.True);
                 Assert.That(client.SupportsWorldFileOperations, Is.False);
-                Assert.That(canonicalFile, Is.EqualTo("settings.toml"));
+                Assert.That(canonicalFile, Is.EqualTo("Settings.default.toml"));
                 Assert.That(localPresetFile, Is.EqualTo("preset.toml"));
-                Assert.That(handle.CurrentFile, Is.EqualTo("settings.toml"));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<ConfigDocument>.DefaultVariant));
                 Assert.That(handle.Value.Equals(presetResult), Is.True);
                 Assert.That(applied.Equals(presetResult), Is.True);
                 Assert.That(worldPresetFile, Is.EqualTo("world-preset.toml"));
@@ -855,9 +855,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             client.WorldConfigResponseReceived += delegate(WorldConfigResponse response) { observed = response; };
             client.Start();
 
-            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => values, value => value, document => document);
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", () => values, value => value, document => document);
             ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
-            handle.SwitchFile("legacy.toml");
+            handle.Load("legacy");
             ConfigDocument saved = handle.SavePreset("local-preset.toml", true);
             client.SavePresetWorld("Settings", "world-preset.toml", values);
 
@@ -867,11 +867,11 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 Assert.That(client.SupportsPresetSaving, Is.True);
                 Assert.That(client.SupportsWorldPresets, Is.False);
                 Assert.That(client.SupportsWorldPresetSaving, Is.True);
-                Assert.That(canonicalFile, Is.EqualTo("settings.toml"));
+                Assert.That(canonicalFile, Is.EqualTo("Settings.default.toml"));
                 Assert.That(localPresetFile, Is.EqualTo("local-preset.toml"));
                 Assert.That(localDocument.Equals(values), Is.True);
                 Assert.That(localOverwrite, Is.True);
-                Assert.That(handle.CurrentFile, Is.EqualTo("legacy.toml"));
+                Assert.That(handle.CurrentVariant, Is.EqualTo("legacy"));
                 Assert.That(handle.Value.Equals(values), Is.True);
                 Assert.That(saved.Equals(values), Is.True);
                 Assert.That(worldPresetFile, Is.EqualTo("world-preset.toml"));

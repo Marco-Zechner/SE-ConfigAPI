@@ -4,32 +4,25 @@ namespace Mz.ConfigApi
 {
     public sealed class ConfigDefinition<T> where T : class
     {
+        public const string DefaultVariant = "default";
+
         private readonly Func<T> _createDefaults;
         private readonly Func<T, ConfigDocument> _serialize;
         private readonly Func<ConfigDocument, T> _deserialize;
 
         public string ConfigKey { get; private set; }
-        public string DefaultFile { get; private set; }
 
-        public ConfigDefinition(string configKey, string defaultFile, Func<T> createDefaults, Func<T, ConfigDocument> serialize, Func<ConfigDocument, T> deserialize)
+        public ConfigDefinition(string configKey, Func<T> createDefaults, Func<T, ConfigDocument> serialize, Func<ConfigDocument, T> deserialize)
         {
-            if (string.IsNullOrWhiteSpace(configKey))
-                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
-
-            if (string.IsNullOrWhiteSpace(defaultFile))
-                throw new ArgumentException("Default config file must not be empty.", nameof(defaultFile));
+            ConfigKey = NormalizeName(configKey, nameof(configKey), "Config key");
 
             if (createDefaults == null)
                 throw new ArgumentNullException(nameof(createDefaults));
-
             if (serialize == null)
                 throw new ArgumentNullException(nameof(serialize));
-
             if (deserialize == null)
                 throw new ArgumentNullException(nameof(deserialize));
 
-            ConfigKey = configKey.Trim();
-            DefaultFile = defaultFile;
             _createDefaults = createDefaults;
             _serialize = serialize;
             _deserialize = deserialize;
@@ -69,6 +62,23 @@ namespace Mz.ConfigApi
                 throw new InvalidOperationException($"The config deserializer returned null for {typeof(T).FullName}.");
 
             return value;
+        }
+
+        internal string NormalizeVariant(string variant) => NormalizeName(variant, nameof(variant), "Variant");
+
+        internal string GetVariantFile(string variant) => ConfigKey + "." + NormalizeVariant(variant) + ".toml";
+
+        private static string NormalizeName(string value, string parameterName, string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException(displayName + " must not be empty.", parameterName);
+
+            string normalized = value.Trim();
+
+            if (normalized.IndexOf('.') >= 0)
+                throw new ArgumentException(displayName + " must not contain '.'.", parameterName);
+
+            return normalized;
         }
     }
 }
