@@ -119,6 +119,160 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Reload_Loads_Current_File_And_Advances_Authority()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            storage.Set(2, "settings.toml", "Value = 41\n");
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.Set(2, "settings.toml", "Value = 50\n");
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.Reload("Example.Mod", "Settings", 0UL);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.ServerIteration, Is.EqualTo(1UL));
+                Assert.That(result.Snapshot.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(result.Snapshot.Document, 50, "Value");
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void LoadAndSwitch_Loads_Target_Persists_Provenance_And_Switches()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.Set(2, "alternate.toml", "Value = 30\n");
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.LoadAndSwitch("Example.Mod", "Settings", 0UL, "alternate.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.ServerIteration, Is.EqualTo(1UL));
+                Assert.That(result.Snapshot.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(result.Snapshot.Document, 30, "Value");
+                Assert.That(storage.Get(2, "alternate.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(2, "alternate.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.TotalWrites, Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void LoadAndSwitch_Invalid_Target_Fails_Without_Changing_Authority_Or_Storage()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.Set(2, "broken.toml", "Value = [\n");
+            storage.ClearOperations();
+
+            Assert.Throws<ArgumentException>(() => service.LoadAndSwitch("Example.Mod", "Settings", 0UL, "broken.toml"));
+
+            WorldConfigSnapshot stillCurrent = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(stillCurrent, opened), Is.True);
+                Assert.That(stillCurrent.ServerIteration, Is.EqualTo(0UL));
+                Assert.That(stillCurrent.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(stillCurrent.Document, 10, "Value");
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void SaveAndSwitch_Persists_Target_And_Switches_Authority()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.SaveAndSwitch(
+                "Example.Mod", "Settings", 0UL, Document(Entry("Value", Integer(25))), "alternate.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.ServerIteration, Is.EqualTo(1UL));
+                Assert.That(result.Snapshot.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(result.Snapshot.Document, 25, "Value");
+                Assert.That(storage.Get(2, "settings.toml"), Does.Contain("Value = 10"));
+                Assert.That(storage.Get(2, "alternate.toml"), Does.Contain("Value = 25"));
+                Assert.That(storage.Get(2, "alternate.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.TotalWrites, Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void Export_Writes_Target_Without_Mutating_Authority_And_Respects_Overwrite()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.ClearOperations();
+
+            WorldConfigExport export = service.Export(
+                "Example.Mod", "Settings", Document(Entry("Value", Integer(40))), "copy.toml", false);
+
+            WorldConfigSnapshot stillCurrent = service.Open(
+                "Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(export.Authoritative, opened), Is.True);
+                Assert.That(ReferenceEquals(stillCurrent, opened), Is.True);
+                Assert.That(stillCurrent.ServerIteration, Is.EqualTo(0UL));
+                Assert.That(stillCurrent.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(stillCurrent.Document, 10, "Value");
+                Assert.That(storage.Get(2, "copy.toml"), Does.Contain("Value = 40"));
+                Assert.That(storage.Get(2, "copy.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.TotalWrites, Is.EqualTo(2));
+            });
+
+            storage.ClearOperations();
+
+            Assert.Throws<InvalidOperationException>(() =>
+                service.Export("Example.Mod", "Settings", Document(Entry("Value", Integer(50))), "copy.toml", false));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(storage.Get(2, "copy.toml"), Does.Contain("Value = 40"));
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+
+                WorldConfigSnapshot afterRejectedExport = service.Open(
+                    "Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+
+                Assert.That(ReferenceEquals(afterRejectedExport, opened), Is.True);
+                Assert.That(afterRejectedExport.ServerIteration, Is.EqualTo(0UL));
+                AssertDocumentValue(afterRejectedExport.Document, 10, "Value");
+            });
+        }
         private static ConfigDocument Document(params ConfigObjectEntry[] entries)
             => new ConfigDocument(new ConfigObjectNode(entries));
 
