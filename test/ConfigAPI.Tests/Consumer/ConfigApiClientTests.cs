@@ -570,6 +570,147 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             legacyProvider.Dispose();
         }
 
+#if CONFIGAPI_CONSUMER_2_2_TESTS
+        [Test]
+        public void World_File_Operation_Endpoints_Are_Optional_And_Invoke_Exact_Provider_Contract()
+        {
+            var bus = new RecordingModMessageBus();
+            Guid worldRegistrationId = Guid.Empty;
+            var operations = new List<string>();
+            string loadedFile = null;
+            string savedFile = null;
+            string exportedFile = null;
+            ConfigDocument savedDocument = null;
+            ConfigDocument exportedDocument = null;
+            var exportedOverwrite = false;
+
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(
+                delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
+                {
+                    worldRegistrationId = registrationId;
+                    return delegate { };
+                });
+            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
+            endpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+            endpoints["ReloadWorldConfig"] = new Action<string, Guid, string>(
+                delegate(string consumerId, Guid registrationId, string configKey)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    operations.Add("Reload");
+                });
+            endpoints["LoadAndSwitchWorldConfig"] = new Action<string, Guid, string, string>(
+                delegate(string consumerId, Guid registrationId, string configKey, string file)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    loadedFile = file;
+                    operations.Add("LoadAndSwitch");
+                });
+            endpoints["SaveAndSwitchWorldConfig"] = new Action<string, Guid, string, string, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, string file, object document)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    savedFile = file;
+                    savedDocument = ConfigDocumentWireCodec.Decode(document);
+                    operations.Add("SaveAndSwitch");
+                });
+            endpoints["ExportWorldConfig"] = new Action<string, Guid, string, string, object, bool>(
+                delegate(string consumerId, Guid registrationId, string configKey, string file, object document, bool overwrite)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    exportedFile = file;
+                    exportedDocument = ConfigDocumentWireCodec.Decode(document);
+                    exportedOverwrite = overwrite;
+                    operations.Add("Export");
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 2, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+            var values = new ConfigDocument();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(client.IsConnected, Is.True);
+                Assert.That(client.SupportsWorldConfigs, Is.True);
+                Assert.That(client.SupportsWorldFileOperations, Is.True);
+            });
+
+            client.ReloadWorld("Settings");
+            client.LoadAndSwitchWorld("Settings", "alternate.toml");
+            client.SaveAndSwitchWorld("Settings", "saved.toml", values);
+            client.ExportWorld("Settings", "copy.toml", values, true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(operations, Is.EqualTo(new[] { "Reload", "LoadAndSwitch", "SaveAndSwitch", "Export" }));
+                Assert.That(loadedFile, Is.EqualTo("alternate.toml"));
+                Assert.That(savedFile, Is.EqualTo("saved.toml"));
+                Assert.That(savedDocument.Equals(values), Is.True);
+                Assert.That(exportedFile, Is.EqualTo("copy.toml"));
+                Assert.That(exportedDocument.Equals(values), Is.True);
+                Assert.That(exportedOverwrite, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void World_File_Operation_Group_Preserves_21_Compatibility_And_Rejects_Partial_22_Contract()
+        {
+            var legacyBus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> legacyEndpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            legacyEndpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback) { return delegate { }; });
+            legacyEndpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
+            legacyEndpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+
+            var legacyProvider = CreateProvider(legacyBus, new SemanticVersion(2, 1, 0), legacyEndpoints);
+            legacyProvider.Start();
+            var legacyClient = CreateClient(legacyBus, (location, file) => null, (location, file, content) => { });
+            legacyClient.Start();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(legacyClient.IsConnected, Is.True);
+                Assert.That(legacyClient.SupportsWorldConfigs, Is.True);
+                Assert.That(legacyClient.SupportsWorldFileOperations, Is.False);
+                Assert.Throws<InvalidOperationException>(() => legacyClient.ReloadWorld("Settings"));
+            });
+
+            legacyClient.Dispose();
+            legacyProvider.Dispose();
+
+            var partialBus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> partialEndpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            partialEndpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback) { return delegate { }; });
+            partialEndpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
+            partialEndpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+            partialEndpoints["ReloadWorldConfig"] = new Action<string, Guid, string>(delegate(string consumerId, Guid registrationId, string configKey) { });
+
+            var partialProvider = CreateProvider(partialBus, new SemanticVersion(2, 2, 0), partialEndpoints);
+            partialProvider.Start();
+            var partialClient = CreateClient(partialBus, (location, file) => null, (location, file, content) => { });
+            partialClient.Start();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(partialClient.IsConnected, Is.False);
+                Assert.That(partialClient.LastError, Is.Not.Null);
+                Assert.That(partialClient.LastError.Message, Does.Contain("incomplete World file-operation endpoint set"));
+            });
+
+            partialClient.Dispose();
+            partialProvider.Dispose();
+        }
+#endif
+
         [Test]
         public void Constructor_Rejects_Invalid_Consumer_Identity_And_Callbacks()
         {

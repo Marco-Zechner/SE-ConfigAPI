@@ -5,7 +5,7 @@ namespace Mz.ConfigApi
     public static class ApiVersionFile
     {
         public const int Major = 2;
-        public const int Minor = 1;
+        public const int Minor = 2;
         public const int Patch = 0;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
@@ -23,6 +23,15 @@ namespace Mz.ConfigApi
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "2.2.0",
+                    new[]
+                    {
+                        "Added optional asynchronous ReloadWorld, LoadAndSwitchWorld, SaveAndSwitchWorld, and ExportWorld operations for server-authoritative World configs.",
+                        "Added SupportsWorldFileOperations while preserving compatibility with providers that expose only the ConfigAPI 2.1 World endpoint set.",
+                        "ExportWorld writes a requested file without switching authoritative state or advancing its server iteration.",
+                    }
+                ),
                 new ChangelogEntry(
                     "2.1.0",
                     new[]

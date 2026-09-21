@@ -18,6 +18,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         public const string RegisterWorldConfigEndpoint = "RegisterWorldConfig";
         public const string OpenWorldConfigEndpoint = "OpenWorldConfig";
         public const string SaveWorldConfigEndpoint = "SaveWorldConfig";
+        public const string ReloadWorldConfigEndpoint = "ReloadWorldConfig";
+        public const string LoadAndSwitchWorldConfigEndpoint = "LoadAndSwitchWorldConfig";
+        public const string SaveAndSwitchWorldConfigEndpoint = "SaveAndSwitchWorldConfig";
+        public const string ExportWorldConfigEndpoint = "ExportWorldConfig";
 
         private readonly Logger _logger;
         private readonly ApiDiscoveryProvider _provider;
@@ -68,6 +72,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig = _worldBridge.Register;
             Action<string, Guid, string, string, object> openWorldConfig = _worldBridge.Open;
             Action<string, Guid, string, object> saveWorldConfig = _worldBridge.Save;
+            Action<string, Guid, string> reloadWorldConfig = _worldBridge.Reload;
+            Action<string, Guid, string, string> loadAndSwitchWorldConfig = _worldBridge.LoadAndSwitch;
+            Action<string, Guid, string, string, object> saveAndSwitchWorldConfig = _worldBridge.SaveAndSwitch;
+            Action<string, Guid, string, string, object, bool> exportWorldConfig = _worldBridge.Export;
 
             var endpoints = new Dictionary<string, Delegate>(StringComparer.Ordinal)
             {
@@ -77,12 +85,16 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 { RegisterWorldConfigEndpoint, registerWorldConfig },
                 { OpenWorldConfigEndpoint, openWorldConfig },
                 { SaveWorldConfigEndpoint, saveWorldConfig },
+                { ReloadWorldConfigEndpoint, reloadWorldConfig },
+                { LoadAndSwitchWorldConfigEndpoint, loadAndSwitchWorldConfig },
+                { SaveAndSwitchWorldConfigEndpoint, saveAndSwitchWorldConfig },
+                { ExportWorldConfigEndpoint, exportWorldConfig },
             };
 
             _provider = new ApiDiscoveryProvider(
                 messageBus,
                 new ApiModIdentity(ApiId, "ConfigAPI", modVersion),
-                new ApiDescriptor(ApiId, new SemanticVersion(2, 1, 0)),
+                new ApiDescriptor(ApiId, new SemanticVersion(2, 2, 0)),
                 endpoints);
         }
 
