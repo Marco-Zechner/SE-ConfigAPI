@@ -35,6 +35,33 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Open_Restores_Bootstrap_File_And_Iteration_While_World_Storage_Remains_Authoritative()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            storage.Set(2, "settings.toml", "Value = 41\n");
+            storage.Set(2, "alternate.toml", "Value = 55\n");
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var identity = new ConfigIdentity("Example.Mod", "Settings");
+            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(999))), 7UL, "alternate.toml"));
+            var service = new WorldConfigServerService(registry, new FixedClock(), bootstrap);
+
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(opened.ServerIteration, Is.EqualTo(7UL));
+                Assert.That(opened.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(opened.Document, 55, "Value");
+                Assert.That(bootstrap.LastWritten, Is.Not.Null);
+                Assert.That(bootstrap.LastWritten.ServerIteration, Is.EqualTo(7UL));
+                Assert.That(bootstrap.LastWritten.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(bootstrap.LastWritten.Document, 55, "Value");
+            });
+        }
+
+        [Test]
         public void Save_Matching_Iteration_Persists_World_And_Increments_Authority()
         {
             var registry = new ConfigConsumerRegistrationRegistry();
@@ -273,6 +300,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(afterRejectedExport.Document, 10, "Value");
             });
         }
+
         private static ConfigDocument Document(params ConfigObjectEntry[] entries)
             => new ConfigDocument(new ConfigObjectNode(entries));
 
@@ -293,6 +321,26 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         private sealed class FixedClock : IConfigClock
         {
             public DateTime UtcNow => new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc);
+        }
+
+        private sealed class MemoryBootstrapStore : IWorldConfigBootstrapStore
+        {
+            private readonly WorldConfigSnapshot _snapshot;
+
+            public MemoryBootstrapStore(WorldConfigSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public WorldConfigSnapshot LastWritten { get; private set; }
+
+            public bool TryRead(ConfigIdentity identity, out WorldConfigSnapshot snapshot)
+            {
+                snapshot = _snapshot != null && _snapshot.Identity.Equals(identity) ? _snapshot : null;
+                return snapshot != null;
+            }
+
+            public void Write(WorldConfigSnapshot snapshot) => LastWritten = snapshot;
         }
 
         private sealed class MemoryStorage

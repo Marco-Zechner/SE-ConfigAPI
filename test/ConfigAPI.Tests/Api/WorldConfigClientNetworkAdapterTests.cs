@@ -52,6 +52,73 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Bootstrap_Seed_Is_Provisional_And_Correlated_Open_Replaces_It_Even_At_Lower_Iteration()
+        {
+            var bootstrap = new MemoryBootstrapStore(Snapshot(30, 5UL, "alternate.toml"));
+            var transport = new RecordingClientTransport();
+            var endpoint = new NetworkEndpoint(transport);
+            var adapter = new WorldConfigClientNetworkAdapter(endpoint, transport, bootstrap);
+            var rig = new TestRig(endpoint, transport, adapter, 777UL);
+
+            WorldConfigSnapshot bootstrapSnapshot;
+            Assert.That(adapter.TrySeedBootstrap("Example.Mod", "Settings", out bootstrapSnapshot), Is.True);
+
+            WorldConfigClientState seeded;
+            Assert.That(adapter.TryGetState("Example.Mod", "Settings", out seeded), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(bootstrapSnapshot.ServerIteration, Is.EqualTo(5UL));
+                Assert.That(seeded.Authoritative.CurrentFile, Is.EqualTo("alternate.toml"));
+                AssertDocumentValue(seeded.Authoritative.Document, 30, "Value");
+                AssertDocumentValue(seeded.Draft, 30, "Value");
+                Assert.That(transport.ServerMessages.Count, Is.EqualTo(0));
+            });
+
+            ulong requestId = adapter.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, transport.LocalPeerId, false, false, Snapshot(40, 0UL), null));
+
+            WorldConfigClientState reconciled;
+            Assert.That(adapter.TryGetState("Example.Mod", "Settings", out reconciled), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(adapter.PendingRequestCount, Is.EqualTo(0));
+                Assert.That(reconciled.Authoritative.ServerIteration, Is.EqualTo(0UL));
+                Assert.That(reconciled.Authoritative.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(reconciled.Authoritative.Document, 40, "Value");
+                AssertDocumentValue(reconciled.Draft, 40, "Value");
+            });
+        }
+
+        [Test]
+        public void Correlated_Open_Preserves_Draft_Edited_After_Bootstrap_Seed()
+        {
+            var bootstrap = new MemoryBootstrapStore(Snapshot(30, 5UL));
+            var transport = new RecordingClientTransport();
+            var endpoint = new NetworkEndpoint(transport);
+            var adapter = new WorldConfigClientNetworkAdapter(endpoint, transport, bootstrap);
+            var rig = new TestRig(endpoint, transport, adapter, 777UL);
+
+            WorldConfigSnapshot bootstrapSnapshot;
+            Assert.That(adapter.TrySeedBootstrap("Example.Mod", "Settings", out bootstrapSnapshot), Is.True);
+            adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(35))));
+
+            ulong requestId = adapter.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, transport.LocalPeerId, false, false, Snapshot(40, 0UL), null));
+
+            WorldConfigClientState state;
+            Assert.That(adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(0UL));
+                AssertDocumentValue(state.Authoritative.Document, 40, "Value");
+                AssertDocumentValue(state.Draft, 35, "Value");
+            });
+        }
+
+        [Test]
         public void Other_Client_Broadcast_Updates_Authority_Preserves_Draft_And_Does_Not_Consume_Local_Request()
         {
             TestRig rig = CreateRig();
@@ -280,6 +347,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(state.Draft, 40, "Value");
             });
         }
+
         private static TestRig CreateRig()
         {
             var transport = new RecordingClientTransport();
@@ -336,6 +404,24 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             public RecordingClientTransport Transport { get; }
             public WorldConfigClientNetworkAdapter Adapter { get; }
             public ulong ServerPeerId { get; }
+        }
+
+        private sealed class MemoryBootstrapStore : IWorldConfigBootstrapStore
+        {
+            private readonly WorldConfigSnapshot _snapshot;
+
+            public MemoryBootstrapStore(WorldConfigSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public bool TryRead(ConfigIdentity identity, out WorldConfigSnapshot snapshot)
+            {
+                snapshot = _snapshot != null && _snapshot.Identity.Equals(identity) ? _snapshot : null;
+                return snapshot != null;
+            }
+
+            public void Write(WorldConfigSnapshot snapshot) { }
         }
 
         private sealed class RecordingClientTransport : INetworkTransport

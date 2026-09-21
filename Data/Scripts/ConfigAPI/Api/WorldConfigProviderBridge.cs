@@ -210,6 +210,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, RuntimeUnavailableError);
         }
+
         public void AttachRuntime(WorldConfigNetworkRuntime runtime)
         {
             ThrowIfDisposed();
@@ -287,6 +288,16 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             {
                 try
                 {
+                    WorldConfigSnapshot bootstrap;
+                    if (_clientAdapter.TrySeedBootstrap(identity.OwnerId, identity.ConfigKey, out bootstrap))
+                    {
+                        var bootstrapResponse = new WorldConfigNetworkResponse(
+                            0UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot,
+                            _clientAdapter.LocalPeerId, false, false, bootstrap, null);
+
+                        Notify(registration, identity, bootstrapResponse, bootstrap);
+                    }
+
                     ulong requestId = _clientAdapter.Open(identity.OwnerId, identity.ConfigKey, file, defaults);
                     _pendingRoutes[requestId] = new PendingRoute(registration.Key, identity);
                 }
@@ -482,6 +493,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             else
                 Notify(registration, identity, response, result.Snapshot);
         }
+
         private void OnClientResponseReceived(WorldConfigNetworkResponse response)
         {
             if (response == null || _clientAdapter == null)

@@ -9,18 +9,24 @@ namespace MarcoZechner.ConfigAPI.V2.Api
     {
         private readonly ConfigConsumerRegistrationRegistry _registry;
         private readonly IConfigClock _clock;
+        private readonly IWorldConfigBootstrapStore _bootstrapStore;
         private readonly Dictionary<string, ServerState> _states = new Dictionary<string, ServerState>(StringComparer.Ordinal);
 
         public WorldConfigServerService(ConfigConsumerRegistrationRegistry registry, IConfigClock clock)
+            : this(registry, clock, NullWorldConfigBootstrapStore.Instance) { }
+
+        public WorldConfigServerService(ConfigConsumerRegistrationRegistry registry, IConfigClock clock, IWorldConfigBootstrapStore bootstrapStore)
         {
             if (registry == null)
                 throw new ArgumentNullException(nameof(registry));
-
             if (clock == null)
                 throw new ArgumentNullException(nameof(clock));
+            if (bootstrapStore == null)
+                throw new ArgumentNullException(nameof(bootstrapStore));
 
             _registry = registry;
             _clock = clock;
+            _bootstrapStore = bootstrapStore;
         }
 
         public WorldConfigSnapshot Open(string consumerId, string configKey, string file, ConfigDocument currentDefaults)
@@ -42,13 +48,26 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
             var identity = new ConfigIdentity(normalizedConsumerId, normalizedConfigKey);
-            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(ConfigLocation.World, file, identity, currentDefaults);
+            string authoritativeFile = file;
+            ulong authoritativeIteration = 0UL;
+
+            WorldConfigSnapshot bootstrap;
+            if (_bootstrapStore.TryRead(identity, out bootstrap) && bootstrap != null && identity.Equals(bootstrap.Identity))
+            {
+                if (!string.IsNullOrWhiteSpace(bootstrap.CurrentFile))
+                    authoritativeFile = bootstrap.CurrentFile;
+
+                authoritativeIteration = bootstrap.ServerIteration;
+            }
+
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(ConfigLocation.World, authoritativeFile, identity, currentDefaults);
 
             if (NeedsPersistence(loadResult))
                 new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, loadResult, currentDefaults);
 
-            var snapshot = new WorldConfigSnapshot(identity, loadResult.State.PlayerValues, 0UL, loadResult.State.CurrentFile);
+            var snapshot = new WorldConfigSnapshot(identity, loadResult.State.PlayerValues, authoritativeIteration, loadResult.State.CurrentFile);
             _states.Add(key, new ServerState(snapshot, currentDefaults));
+            _bootstrapStore.Write(snapshot);
             return snapshot;
         }
 
@@ -92,6 +111,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, saveResult, state.CurrentDefaults);
 
             _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
             return authority;
         }
 
@@ -115,6 +135,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             WorldConfigAuthorityResult authority = WorldConfigOperations.Reload(state.Snapshot, baseIteration, loadResult.State.PlayerValues);
             _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
             return authority;
         }
 
@@ -141,6 +162,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 state.Snapshot, baseIteration, loadResult.State.PlayerValues, file);
 
             _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
             return authority;
         }
 
@@ -169,6 +191,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             WorldConfigAuthorityResult authority = WorldConfigOperations.SaveAndSwitch(state.Snapshot, baseIteration, draft, file);
             _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
             return authority;
         }
 

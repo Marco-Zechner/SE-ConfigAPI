@@ -9,6 +9,9 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         private bool _isDisposed;
 
         public WorldConfigNetworkRuntime(NetworkEndpoint endpoint, INetworkTransport transport, ConfigConsumerRegistrationRegistry registry, IConfigClock clock, IWorldConfigAuthorization authorization)
+            : this(endpoint, transport, registry, clock, authorization, NullWorldConfigBootstrapStore.Instance) { }
+
+        public WorldConfigNetworkRuntime(NetworkEndpoint endpoint, INetworkTransport transport, ConfigConsumerRegistrationRegistry registry, IConfigClock clock, IWorldConfigAuthorization authorization, IWorldConfigBootstrapStore bootstrapStore)
         {
             if (endpoint == null)
                 throw new ArgumentNullException(nameof(endpoint));
@@ -20,17 +23,19 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 throw new ArgumentNullException(nameof(clock));
             if (authorization == null)
                 throw new ArgumentNullException(nameof(authorization));
+            if (bootstrapStore == null)
+                throw new ArgumentNullException(nameof(bootstrapStore));
 
             IsServer = transport.IsServer;
 
             if (IsServer)
             {
-                ServerService = new WorldConfigServerService(registry, clock);
+                ServerService = new WorldConfigServerService(registry, clock, bootstrapStore);
                 ServerAdapter = new WorldConfigServerNetworkAdapter(endpoint, transport, new WorldConfigServerRequestHandler(ServerService, authorization));
             }
             else
             {
-                ClientAdapter = new WorldConfigClientNetworkAdapter(endpoint, transport);
+                ClientAdapter = new WorldConfigClientNetworkAdapter(endpoint, transport, bootstrapStore);
             }
         }
 

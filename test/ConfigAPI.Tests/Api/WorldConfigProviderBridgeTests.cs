@@ -120,6 +120,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             rig.Dispose();
         }
+
         [Test]
         public void Remote_Save_Broadcast_Updates_Server_Local_Consumer()
         {
@@ -178,6 +179,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             rig.Dispose();
         }
+
         [Test]
         public void Server_Save_Before_Local_Open_Returns_Error_Without_Broadcast()
         {
@@ -195,6 +197,47 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
 
             rig.Dispose();
+        }
+
+        [Test]
+        public void Client_Open_Notifies_Bootstrap_Before_Sending_Authoritative_Request()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            Guid registrationId = Guid.NewGuid();
+            registry.Register("Example.Mod", registrationId, storage.Read, storage.Write);
+
+            var identity = new ConfigIdentity("Example.Mod", "Settings");
+            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(30))), 5UL, "settings.toml"));
+            var transport = new RecordingClientTransport();
+            var endpoint = new NetworkEndpoint(transport);
+            var runtime = new WorldConfigNetworkRuntime(endpoint, transport, registry, new FixedClock(), new AllowAllAuthorization(), bootstrap);
+            var bridge = new WorldConfigProviderBridge(registry);
+            var responses = new List<IDictionary<string, object>>();
+            Action unregister = bridge.Register("Example.Mod", registrationId, responses.Add);
+            bridge.AttachRuntime(runtime);
+
+            try
+            {
+                bridge.Open("Example.Mod", registrationId, "Settings", "settings.toml", Encode(Document(Entry("Value", Integer(10)))));
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(responses.Count, Is.EqualTo(1));
+                    Assert.That(responses[0]["Operation"], Is.EqualTo("Open"));
+                    Assert.That(responses[0]["RequestId"], Is.EqualTo(0UL));
+                    Assert.That(responses[0]["ServerIteration"], Is.EqualTo(5UL));
+                    AssertDocumentValue(DecodeDocument(responses[0]), 30, "Value");
+                    Assert.That(transport.ServerMessages.Count, Is.EqualTo(1));
+                });
+            }
+            finally
+            {
+                bridge.DetachRuntime();
+                unregister();
+                bridge.Dispose();
+                runtime.Dispose();
+            }
         }
 
         [Test]
@@ -257,6 +300,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 runtime.Dispose();
             }
         }
+
         private static TestRig CreateRig(bool attachRuntime)
         {
             var registry = new ConfigConsumerRegistrationRegistry();
@@ -347,6 +391,24 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             public DateTime UtcNow => new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc);
         }
 
+        private sealed class MemoryBootstrapStore : IWorldConfigBootstrapStore
+        {
+            private readonly WorldConfigSnapshot _snapshot;
+
+            public MemoryBootstrapStore(WorldConfigSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public bool TryRead(ConfigIdentity identity, out WorldConfigSnapshot snapshot)
+            {
+                snapshot = _snapshot != null && _snapshot.Identity.Equals(identity) ? _snapshot : null;
+                return snapshot != null;
+            }
+
+            public void Write(WorldConfigSnapshot snapshot) { }
+        }
+
         private sealed class RecordingServerTransport : INetworkTransport
         {
             public bool IsServer => true;
@@ -383,6 +445,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             public void SendToOthers(NetworkEnvelope envelope, ulong excludedPeerId) { throw new InvalidOperationException("Client transport cannot broadcast."); }
             public void SendToEveryone(NetworkEnvelope envelope) { throw new InvalidOperationException("Client transport cannot broadcast."); }
         }
+
         private sealed class PeerMessage
         {
             public PeerMessage(NetworkEnvelope envelope, ulong peerId)
