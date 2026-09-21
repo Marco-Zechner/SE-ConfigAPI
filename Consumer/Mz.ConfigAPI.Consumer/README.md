@@ -6,7 +6,7 @@ The package contains only the consumer-facing source required by another mod to 
 
 ## SELibs dependencies
 
-`Mz.ConfigAPI.Consumer` 2.2.0 has these exact source-package dependencies:
+`Mz.ConfigAPI.Consumer` 2.3.0 has these exact source-package dependencies:
 
 - `Mz.ApiProtocol` 0.3.0
 - `Mz.SemanticVersioning` 0.2.0
@@ -17,13 +17,13 @@ Space Engineers API assemblies used by the storage adapter are game/runtime refe
 
 From the consuming mod root:
 
-    selibs add Mz.ConfigAPI.Consumer@2.2.0
+    selibs add Mz.ConfigAPI.Consumer@2.3.0
 
 SELibs installs this package under the consuming mod's `Data/Scripts/.../Libraries` tree together with its exact transitive source dependencies.
 
 ## Compatibility
 
-Consumer package version: `2.2.0`
+Consumer package version: `2.3.0`
 
 Minimum ConfigAPI provider API version: `2.0.0`
 
@@ -35,7 +35,11 @@ Providers at API 2.1.0 or newer may expose the optional server-authoritative Wor
 
 Providers at API 2.2.0 or newer may additionally expose the complete World file-operation set. `SupportsWorldFileOperations` reports whether `ReloadWorld(...)`, `LoadAndSwitchWorld(...)`, `SaveAndSwitchWorld(...)`, and `ExportWorld(...)` are available. Providers that expose only the 2.1 World contract remain compatible.
 
+Providers at API 2.3.0 or newer may additionally expose preset endpoints. `SupportsPresets` reports whether synchronous Local/Global `ApplyPreset(...)` is available. `SupportsWorldPresets` reports whether asynchronous `ApplyPresetWorld(...)` is available together with the base World config contract. These preset capabilities are independent of `SupportsWorldFileOperations`, so 2.0-2.2 providers remain compatible.
+
 All World operations are asynchronous requests. Authoritative snapshots, stale-write corrections, export confirmations, and errors are delivered through `WorldConfigResponseReceived`. Reload, LoadAndSwitch, Save, and SaveAndSwitch operate against the authoritative server iteration. Export writes the requested target file without switching authoritative state or advancing its iteration. Local and Global `Open`/`Save` remain synchronous and unchanged.
+
+Applying a preset copies the preset's semantic config values into the canonical active file. For typed Local/Global configs, that canonical file is `ConfigDefinition<T>.DefaultFile`; `ConfigHandle<T>.ApplyPreset(...)` returns to that canonical filename even if legacy `SwitchFile(...)` previously selected another file. The preset file itself is retained and is not made the active config identity. Missing presets fail instead of synthesizing defaults.
 
 ## Serialization contract
 

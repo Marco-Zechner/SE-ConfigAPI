@@ -9,7 +9,7 @@
     <IsTestProject>true</IsTestProject>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <DefineConstants>$(DefineConstants);CONFIGAPI_CONSUMER_2_2_TESTS</DefineConstants>
+    <DefineConstants>$(DefineConstants);CONFIGAPI_CONSUMER_2_2_TESTS;CONFIGAPI_CONSUMER_2_3_TESTS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

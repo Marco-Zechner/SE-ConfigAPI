@@ -254,6 +254,34 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void ApplyPreset_Copies_Preset_Into_Current_File_Without_Switching()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.Set(2, "preset.toml", "Value = 30\n");
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.ApplyPreset("Example.Mod", "Settings", 0UL, "preset.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.ServerIteration, Is.EqualTo(1UL));
+                Assert.That(result.Snapshot.CurrentFile, Is.EqualTo("settings.toml"));
+                AssertDocumentValue(result.Snapshot.Document, 30, "Value");
+                Assert.That(storage.Get(2, "settings.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(2, "settings.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(2, "preset.toml"), Is.EqualTo("Value = 30\n"));
+                Assert.That(storage.Get(2, "preset.toml.configapi.provenance"), Is.Null);
+                Assert.That(storage.TotalWrites, Is.EqualTo(2));
+            });
+        }
+        [Test]
         public void Export_Writes_Target_Without_Mutating_Authority_And_Respects_Overwrite()
         {
             var registry = new ConfigConsumerRegistrationRegistry();

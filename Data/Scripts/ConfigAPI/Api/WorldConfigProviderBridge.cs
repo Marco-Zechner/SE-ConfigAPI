@@ -211,6 +211,31 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, RuntimeUnavailableError);
         }
 
+        public void ApplyPreset(string consumerId, Guid registrationId, string configKey, string presetFile)
+        {
+            ThrowIfDisposed();
+
+            Registration registration = GetRequiredRegistration(consumerId, registrationId);
+            ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
+
+            if (string.IsNullOrWhiteSpace(presetFile))
+                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
+
+            if (_clientAdapter != null)
+            {
+                SendClientRequest(registration, identity, WorldConfigNetworkOperation.ApplyPreset, () => _clientAdapter.ApplyPreset(identity.OwnerId, identity.ConfigKey, presetFile));
+                return;
+            }
+
+            if (_serverService != null && _serverAdapter != null)
+            {
+                ApplyPresetServer(registration, identity, presetFile);
+                return;
+            }
+
+            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.ApplyPreset, RuntimeUnavailableError);
+        }
+
         public void AttachRuntime(WorldConfigNetworkRuntime runtime)
         {
             ThrowIfDisposed();
@@ -460,6 +485,22 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             catch (Exception exception)
             {
                 NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, exception.Message);
+            }
+        }
+
+        private void ApplyPresetServer(Registration registration, ConfigIdentity identity, string presetFile)
+        {
+            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.ApplyPreset);
+            if (current == null)
+                return;
+
+            try
+            {
+                CompleteServerMutation(registration, identity, WorldConfigNetworkOperation.ApplyPreset, _serverService.ApplyPreset(identity.OwnerId, identity.ConfigKey, current.ServerIteration, presetFile));
+            }
+            catch (Exception exception)
+            {
+                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.ApplyPreset, exception.Message);
             }
         }
 

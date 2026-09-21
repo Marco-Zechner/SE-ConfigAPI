@@ -45,6 +45,17 @@ namespace Mz.ConfigApi
             return value;
         }
 
+        public T ApplyPreset(string presetFile)
+        {
+            if (string.IsNullOrWhiteSpace(presetFile))
+                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
+
+            T value = _definition.Deserialize(_client.ApplyPreset(_definition.ConfigKey, Location, _definition.DefaultFile, presetFile, _definition.Serialize(_definition.CreateDefaults())));
+
+            CurrentFile = _definition.DefaultFile;
+            Value = value;
+            return value;
+        }
         public T Reload()
         {
             T value = _definition.Deserialize(_client.Open(_definition.ConfigKey, Location, CurrentFile, _definition.Serialize(_definition.CreateDefaults())));

@@ -8,5 +8,6 @@ namespace Mz.ConfigApi
         Save = 3,
         SaveAndSwitch = 4,
         Export = 5,
+        ApplyPreset = 6,
     }
 }

@@ -151,6 +151,21 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return requestId;
         }
 
+        public ulong ApplyPreset(string consumerId, string configKey, string presetFile)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrWhiteSpace(presetFile))
+                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
+
+            ConfigIdentity identity = CreateIdentity(consumerId, configKey);
+            WorldConfigClientState state = GetRequiredState(identity);
+            ulong requestId = AllocateRequestId();
+            var request = new WorldConfigNetworkRequest(requestId, identity.OwnerId, identity.ConfigKey, WorldConfigNetworkOperation.ApplyPreset, state.Authoritative.ServerIteration, presetFile, false, null, null);
+            Send(request, new PendingRequest(identity, WorldConfigNetworkOperation.ApplyPreset));
+            return requestId;
+        }
+
         public WorldConfigClientState SetDraft(string consumerId, string configKey, ConfigDocument draft)
         {
             ThrowIfDisposed();

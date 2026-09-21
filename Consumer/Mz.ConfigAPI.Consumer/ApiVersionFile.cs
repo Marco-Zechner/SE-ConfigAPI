@@ -5,7 +5,7 @@ namespace Mz.ConfigApi
     public static class ApiVersionFile
     {
         public const int Major = 2;
-        public const int Minor = 2;
+        public const int Minor = 3;
         public const int Patch = 0;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
@@ -23,6 +23,15 @@ namespace Mz.ConfigApi
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "2.3.0",
+                    new[]
+                    {
+                        "Added optional ApplyPreset support for Local and Global configs while preserving the canonical ConfigDefinition<T>.DefaultFile as the active config file.",
+                        "Added optional asynchronous ApplyPresetWorld support for server-authoritative World configs without changing the existing ConfigAPI 2.2 World file-operation capability group.",
+                        "Added SupportsPresets and SupportsWorldPresets; older 2.0-2.2 providers remain compatible and simply report these capabilities as unavailable.",
+                    }
+                ),
                 new ChangelogEntry(
                     "2.2.0",
                     new[]

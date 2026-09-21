@@ -711,6 +711,112 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 #endif
 
+#if CONFIGAPI_CONSUMER_2_3_TESTS
+        [Test]
+        public void Preset_Endpoints_Are_Independent_Optional_Capabilities_And_Use_Canonical_File()
+        {
+            var bus = new RecordingModMessageBus();
+            string canonicalFile = null;
+            string localPresetFile = null;
+            string worldPresetFile = null;
+            Action<IDictionary<string, object>> worldCallback = null;
+            var presetResult = new ConfigDocument(new ConfigEntry("Value", ConfigValue.Integer(30)));
+
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["ApplyPresetConfig"] = new Func<string, Guid, string, int, string, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string canonical, string preset, object defaults)
+                {
+                    canonicalFile = canonical;
+                    localPresetFile = preset;
+                    return ConfigDocumentWireCodec.Encode(presetResult);
+                });
+            endpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(
+                delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
+                {
+                    worldCallback = callback;
+                    return delegate { };
+                });
+            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
+            endpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+            endpoints["ApplyPresetWorldConfig"] = new Action<string, Guid, string, string>(
+                delegate(string consumerId, Guid registrationId, string configKey, string preset)
+                {
+                    worldPresetFile = preset;
+                    worldCallback(new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        { "ConfigKey", configKey },
+                        { "RequestId", 17UL },
+                        { "Operation", "ApplyPreset" },
+                        { "TriggeredBy", 222UL },
+                        { "IsApplied", true },
+                        { "IsStale", false },
+                        { "Error", null },
+                        { "ServerIteration", 2UL },
+                        { "CurrentFile", "settings.toml" },
+                        { "Document", ConfigDocumentWireCodec.Encode(presetResult) },
+                    });
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 3, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            WorldConfigResponse observed = null;
+            client.WorldConfigResponseReceived += delegate(WorldConfigResponse response) { observed = response; };
+            client.Start();
+
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
+            handle.SwitchFile("legacy.toml");
+            ConfigDocument applied = handle.ApplyPreset("preset.toml");
+            client.ApplyPresetWorld("Settings", "world-preset.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(client.IsConnected, Is.True);
+                Assert.That(client.SupportsPresets, Is.True);
+                Assert.That(client.SupportsWorldConfigs, Is.True);
+                Assert.That(client.SupportsWorldPresets, Is.True);
+                Assert.That(client.SupportsWorldFileOperations, Is.False);
+                Assert.That(canonicalFile, Is.EqualTo("settings.toml"));
+                Assert.That(localPresetFile, Is.EqualTo("preset.toml"));
+                Assert.That(handle.CurrentFile, Is.EqualTo("settings.toml"));
+                Assert.That(handle.Value.Equals(presetResult), Is.True);
+                Assert.That(applied.Equals(presetResult), Is.True);
+                Assert.That(worldPresetFile, Is.EqualTo("world-preset.toml"));
+                Assert.That(observed, Is.Not.Null);
+                Assert.That(observed.Operation, Is.EqualTo(WorldConfigOperation.ApplyPreset));
+                Assert.That(observed.IsApplied, Is.True);
+                Assert.That(observed.CurrentFile, Is.EqualTo("settings.toml"));
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Preset_Capabilities_Remain_Optional_For_22_Provider()
+        {
+            var bus = new RecordingModMessageBus();
+            var provider = CreateProvider(bus, new SemanticVersion(2, 2, 0), ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; }));
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(client.IsConnected, Is.True);
+                Assert.That(client.SupportsPresets, Is.False);
+                Assert.That(client.SupportsWorldPresets, Is.False);
+                Assert.Throws<InvalidOperationException>(() => client.ApplyPreset("Settings", ConfigLocation.Local, "settings.toml", "preset.toml", new ConfigDocument()));
+                Assert.Throws<InvalidOperationException>(() => client.ApplyPresetWorld("Settings", "preset.toml"));
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+#endif
         [Test]
         public void Constructor_Rejects_Invalid_Consumer_Identity_And_Callbacks()
         {

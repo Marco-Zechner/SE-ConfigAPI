@@ -195,6 +195,27 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return authority;
         }
 
+        public WorldConfigAuthorityResult ApplyPreset(string consumerId, string configKey, ulong baseIteration, string presetFile)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            RequireFile(presetFile);
+
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+            WorldConfigAuthorityResult stale = RejectStale(state, baseIteration);
+            if (stale != null)
+                return stale;
+
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+            if (storage.Read(ConfigLocation.World, presetFile) == null)
+                throw new InvalidOperationException("World config preset does not exist: " + presetFile);
+
+            ConfigPersistedLoadResult preset = new ConfigPersistedStateLoader(storage).Load(
+                ConfigLocation.World, presetFile, state.Snapshot.Identity, state.CurrentDefaults);
+
+            return Save(normalizedConsumerId, normalizedConfigKey, baseIteration, preset.State.PlayerValues);
+        }
         public WorldConfigExport Export(string consumerId, string configKey, ConfigDocument document, string file, bool overwrite)
         {
             string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));

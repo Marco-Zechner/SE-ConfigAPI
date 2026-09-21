@@ -43,6 +43,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                     return HandleSaveAndSwitch(requesterId, request);
                 case WorldConfigNetworkOperation.Export:
                     return HandleExport(requesterId, request);
+                case WorldConfigNetworkOperation.ApplyPreset:
+                    return HandleApplyPreset(requesterId, request);
                 default:
                     throw new ArgumentException("Unsupported World config network operation: " + request.Operation, nameof(request));
             }
@@ -91,6 +93,15 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 return Error(request, requesterId, "SaveAndSwitch requires a config document.");
 
             WorldConfigAuthorityResult result = _service.SaveAndSwitch(request.ConsumerId, request.ConfigKey, request.BaseIteration, request.Document, request.File);
+            return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
+        }
+
+        private WorldConfigNetworkResponse HandleApplyPreset(ulong requesterId, WorldConfigNetworkRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.File))
+                return Error(request, requesterId, "ApplyPreset requires a preset file.");
+
+            WorldConfigAuthorityResult result = _service.ApplyPreset(request.ConsumerId, request.ConfigKey, request.BaseIteration, request.File);
             return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
         }
 

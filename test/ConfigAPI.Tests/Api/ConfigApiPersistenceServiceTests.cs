@@ -517,6 +517,58 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void ApplyPreset_Copies_Preset_Into_Canonical_File_Without_Modifying_Preset()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            storage.Set(0, "preset.toml", "Value = 30\n");
+            storage.ClearOperations();
+
+            ConfigDocument applied = ConfigDocumentWireCodec.Decode(
+                service.ApplyPreset("Example.Mod", registrationId, "Settings", 0, "settings.toml", "preset.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(applied, 30, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(0, "preset.toml"), Is.EqualTo("Value = 30\n"));
+                Assert.That(storage.Get(0, "preset.toml.configapi.provenance"), Is.Null);
+                Assert.That(storage.WriteCount(0), Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void ApplyPreset_Missing_Preset_Fails_Without_Changing_Canonical_File()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            string activeBefore = storage.Get(1, "settings.toml");
+            string provenanceBefore = storage.Get(1, "settings.toml.configapi.provenance");
+            storage.ClearOperations();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.ApplyPreset("Example.Mod", registrationId, "Settings", 1, "settings.toml", "missing.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Does.Contain("Preset"));
+                Assert.That(storage.Get(1, "settings.toml"), Is.EqualTo(activeBefore));
+                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.EqualTo(provenanceBefore));
+                Assert.That(storage.WriteCount(1), Is.EqualTo(0));
+            });
+        }
+        [Test]
         public void Provider_Publishes_Exact_Open_And_Save_Endpoints()
         {
             var bus = new RecordingModMessageBus();
@@ -536,7 +588,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     out announcement),
                 Is.True);
 
-            Assert.That(announcement.Endpoints.Count, Is.EqualTo(10));
+            Assert.That(announcement.Endpoints.Count, Is.EqualTo(12));
 
             var open = announcement.Endpoints[ConfigApiProvider.OpenConfigEndpoint] as
                 Func<string, Guid, string, int, string, object, object>;

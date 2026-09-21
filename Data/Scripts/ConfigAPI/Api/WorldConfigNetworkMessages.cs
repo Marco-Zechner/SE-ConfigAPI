@@ -10,7 +10,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         LoadAndSwitch = 2,
         Save = 3,
         SaveAndSwitch = 4,
-        Export = 5
+        Export = 5,
+        ApplyPreset = 6
     }
 
     public enum WorldConfigNetworkResponseKind
@@ -55,7 +56,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         internal static void EnsureOperation(WorldConfigNetworkOperation operation)
         {
-            if (operation < WorldConfigNetworkOperation.Open || operation > WorldConfigNetworkOperation.Export)
+            if (operation < WorldConfigNetworkOperation.Open || operation > WorldConfigNetworkOperation.ApplyPreset)
                 throw new ArgumentException("Unsupported World config network operation: " + operation, nameof(operation));
         }
     }
