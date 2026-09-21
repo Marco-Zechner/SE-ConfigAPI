@@ -38,13 +38,16 @@ namespace Mz.ConfigApi
             if (string.IsNullOrWhiteSpace(file))
                 throw new ArgumentException("Config file must not be empty.", nameof(file));
 
+            T value = _definition.Deserialize(_client.Open(_definition.ConfigKey, Location, file, _definition.Serialize(_definition.CreateDefaults())));
+
             CurrentFile = file;
-            return Reload();
+            Value = value;
+            return value;
         }
 
         public T Reload()
         {
-            T value = _client.Open(_definition, Location);
+            T value = _definition.Deserialize(_client.Open(_definition.ConfigKey, Location, CurrentFile, _definition.Serialize(_definition.CreateDefaults())));
 
             Value = value;
             return value;

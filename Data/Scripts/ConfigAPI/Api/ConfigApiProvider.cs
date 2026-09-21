@@ -15,9 +15,13 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         public const string RegisterConsumerEndpoint = "RegisterConsumer";
         public const string OpenConfigEndpoint = "OpenConfig";
         public const string SaveConfigEndpoint = "SaveConfig";
+        public const string RegisterWorldConfigEndpoint = "RegisterWorldConfig";
+        public const string OpenWorldConfigEndpoint = "OpenWorldConfig";
+        public const string SaveWorldConfigEndpoint = "SaveWorldConfig";
 
         private readonly Logger _logger;
         private readonly ApiDiscoveryProvider _provider;
+        private readonly WorldConfigProviderBridge _worldBridge;
 
         public ConfigApiProvider(IModMessageBus messageBus, ConfigConsumerRegistrationRegistry registry, SemanticVersion modVersion)
             : this(messageBus, registry, new SystemConfigClock(), modVersion, null) { }
@@ -45,6 +49,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             _logger = logger;
 
             var persistence = new ConfigApiPersistenceService(registry, clock, logger);
+            _worldBridge = new WorldConfigProviderBridge(registry, logger);
 
             Func<string, Guid, Func<int, string, string>, Action<int, string, string>, Action> registerConsumer = (consumerId, registrationId, read, write) =>
             {
@@ -60,18 +65,24 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             Func<string, Guid, string, int, string, object, object> openConfig = persistence.Open;
             Func<string, Guid, string, int, string, object, object, object> saveConfig = persistence.Save;
+            Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig = _worldBridge.Register;
+            Action<string, Guid, string, string, object> openWorldConfig = _worldBridge.Open;
+            Action<string, Guid, string, object> saveWorldConfig = _worldBridge.Save;
 
             var endpoints = new Dictionary<string, Delegate>(StringComparer.Ordinal)
             {
                 { RegisterConsumerEndpoint, registerConsumer },
                 { OpenConfigEndpoint, openConfig },
                 { SaveConfigEndpoint, saveConfig },
+                { RegisterWorldConfigEndpoint, registerWorldConfig },
+                { OpenWorldConfigEndpoint, openWorldConfig },
+                { SaveWorldConfigEndpoint, saveWorldConfig },
             };
 
             _provider = new ApiDiscoveryProvider(
                 messageBus,
                 new ApiModIdentity(ApiId, "ConfigAPI", modVersion),
-                new ApiDescriptor(ApiId, new SemanticVersion(2, 0, 0)),
+                new ApiDescriptor(ApiId, new SemanticVersion(2, 1, 0)),
                 endpoints);
         }
 
@@ -81,6 +92,17 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         {
             Log(LogLevel.Debug, "Disposing ConfigAPI discovery provider.");
             _provider.Dispose();
+            _worldBridge.Dispose();
+        }
+
+        public void AttachWorldRuntime(WorldConfigNetworkRuntime runtime)
+        {
+            _worldBridge.AttachRuntime(runtime);
+        }
+
+        public void DetachWorldRuntime()
+        {
+            _worldBridge.DetachRuntime();
         }
 
         public void Start()
@@ -117,9 +139,5 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             }
         }
 
-        private sealed class SystemConfigClock : IConfigClock
-        {
-            public DateTime UtcNow => DateTime.UtcNow;
-        }
     }
 }

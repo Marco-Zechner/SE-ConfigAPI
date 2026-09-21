@@ -51,6 +51,234 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Same_Consumer_Can_Persist_Multiple_Independent_Configs_With_Distinct_Files()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var settingsDefaults = Document(Entry("Value", Integer(10)));
+            var tuningDefaults = Document(Entry("Value", Integer(20)));
+            var settingsEdited = Document(Entry("Value", Integer(15)));
+            var tuningEdited = Document(Entry("Value", Integer(25)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults));
+            service.Open("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults));
+            service.Save("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults), ConfigDocumentWireCodec.Encode(settingsEdited));
+            service.Save("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults), ConfigDocumentWireCodec.Encode(tuningEdited));
+
+            ConfigDocument settingsReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults)));
+            ConfigDocument tuningReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults)));
+            ConfigProvenance settingsProvenance = ConfigProvenanceCodec.Decode(storage.Get(0, "settings.toml.configapi.provenance"));
+            ConfigProvenance tuningProvenance = ConfigProvenanceCodec.Decode(storage.Get(0, "tuning.toml.configapi.provenance"));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(settingsReloaded, 15, "Value");
+                AssertDocumentValue(tuningReloaded, 25, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 15"));
+                Assert.That(storage.Get(0, "tuning.toml"), Does.Contain("Value = 25"));
+                Assert.That(settingsProvenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(settingsProvenance.Identity.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(tuningProvenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(tuningProvenance.Identity.ConfigKey, Is.EqualTo("Tuning"));
+            });
+        }
+
+        [Test]
+        public void Same_File_Cannot_Be_Reused_By_A_Different_Config_Key()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var settingsDefaults = Document(Entry("Value", Integer(10)));
+            var tuningDefaults = Document(Entry("Value", Integer(20)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "shared.toml", ConfigDocumentWireCodec.Encode(settingsDefaults));
+            string activeBefore = storage.Get(0, "shared.toml");
+            string provenanceBefore = storage.Get(0, "shared.toml.configapi.provenance");
+            storage.ClearOperations();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.Open("Example.Mod", registrationId, "Tuning", 0, "shared.toml", ConfigDocumentWireCodec.Encode(tuningDefaults)));
+
+            ConfigProvenance provenanceAfter = ConfigProvenanceCodec.Decode(storage.Get(0, "shared.toml.configapi.provenance"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Config provenance identity does not match the requested config identity."));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+                Assert.That(storage.Get(0, "shared.toml"), Is.EqualTo(activeBefore));
+                Assert.That(storage.Get(0, "shared.toml.configapi.provenance"), Is.EqualTo(provenanceBefore));
+                Assert.That(provenanceAfter.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(provenanceAfter.Identity.ConfigKey, Is.EqualTo("Settings"));
+            });
+        }
+
+        [Test]
+        public void Local_And_Global_Configs_With_The_Same_File_Remain_Independent()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+            var localEdited = Document(Entry("Value", Integer(20)));
+            var globalEdited = Document(Entry("Value", Integer(30)));
+
+            service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            service.Open("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            service.Save("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(localEdited));
+            service.Save("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(globalEdited));
+
+            ConfigDocument localReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+            ConfigDocument globalReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(localReloaded, 20, "Value");
+                AssertDocumentValue(globalReloaded, 30, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 20"));
+                Assert.That(storage.Get(1, "settings.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.Not.Null);
+            });
+        }
+
+        [Test]
+        public void Local_And_Global_Configs_Survive_Fresh_Service_And_Registration()
+        {
+            var storage = new ConsumerStorage();
+            var defaults = Document(Entry("Value", Integer(10)));
+            var localEdited = Document(Entry("Value", Integer(20)));
+            var globalEdited = Document(Entry("Value", Integer(30)));
+
+            Guid firstRegistrationId = Guid.NewGuid();
+            var firstRegistry = RegisteredRegistry("Example.Mod", firstRegistrationId, storage);
+            var firstService = new ConfigApiPersistenceService(firstRegistry, Clock());
+
+            firstService.Open("Example.Mod", firstRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            firstService.Open("Example.Mod", firstRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults));
+            firstService.Save("Example.Mod", firstRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(localEdited));
+            firstService.Save("Example.Mod", firstRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(globalEdited));
+
+            string localProvenanceBefore = storage.Get(0, "settings.toml.configapi.provenance");
+            string globalProvenanceBefore = storage.Get(1, "settings.toml.configapi.provenance");
+            storage.ClearOperations();
+
+            Guid secondRegistrationId = Guid.NewGuid();
+            var secondRegistry = RegisteredRegistry("Example.Mod", secondRegistrationId, storage);
+            var secondService = new ConfigApiPersistenceService(secondRegistry, Clock());
+
+            ConfigDocument localReloaded = ConfigDocumentWireCodec.Decode(secondService.Open("Example.Mod", secondRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+            ConfigDocument globalReloaded = ConfigDocumentWireCodec.Decode(secondService.Open("Example.Mod", secondRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                AssertDocumentValue(localReloaded, 20, "Value");
+                AssertDocumentValue(globalReloaded, 30, "Value");
+                Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 20"));
+                Assert.That(storage.Get(1, "settings.toml"), Does.Contain("Value = 30"));
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.EqualTo(localProvenanceBefore));
+                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.EqualTo(globalProvenanceBefore));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+                Assert.That(storage.WriteCount(1), Is.EqualTo(0));
+            });
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        public void Open_Malformed_Persisted_Toml_Fails_Without_Rewriting_Storage(int location)
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var defaults = Document(Entry("Value", Integer(10)));
+            var identity = new ConfigIdentity("Example.Mod", "Settings");
+            const string malformed = "Value = [\n";
+            string provenance = ConfigProvenanceCodec.Encode(new ConfigProvenance(identity, defaults));
+
+            storage.Set(location, "settings.toml", malformed);
+            storage.Set(location, "settings.toml.configapi.provenance", provenance);
+            storage.ClearOperations();
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+                service.Open("Example.Mod", registrationId, "Settings", location, "settings.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Does.StartWith("Source must be valid TOML."));
+                Assert.That(storage.WriteCount(location), Is.EqualTo(0));
+                Assert.That(storage.Get(location, "settings.toml"), Is.EqualTo(malformed));
+                Assert.That(storage.Get(location, "settings.toml.configapi.provenance"), Is.EqualTo(provenance));
+                Assert.That(storage.WriteCount(location == 0 ? 1 : 0), Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void Full_Semantic_Document_RoundTrips_Through_Persistence_Including_Null()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+
+            var defaultDate = new ConfigLocalDate(2026, 9, 20);
+            var defaultTime = new ConfigLocalTime(12, 34, 56, "123");
+            var editedDate = new ConfigLocalDate(2027, 1, 2);
+            var editedTime = new ConfigLocalTime(3, 4, 5, "6789");
+
+            var defaults = Document(
+                Entry("Enabled", ConfigScalarNode.Boolean(true)),
+                Entry("Count", Integer(10)),
+                Entry("Ratio", ConfigScalarNode.Float(1.25)),
+                Entry("Name", ConfigScalarNode.String("default")),
+                Entry("Offset", ConfigScalarNode.OffsetDateTime(new ConfigOffsetDateTime(defaultDate, defaultTime, -90))),
+                Entry("LocalDateTime", ConfigScalarNode.LocalDateTime(new ConfigLocalDateTime(defaultDate, defaultTime))),
+                Entry("LocalDate", ConfigScalarNode.LocalDate(defaultDate)),
+                Entry("LocalTime", ConfigScalarNode.LocalTime(defaultTime)),
+                Entry("Nested", new ConfigObjectNode(Entry("Threshold", Integer(5)), Entry("Label", ConfigScalarNode.String("base")))),
+                Entry("Items", new ConfigArrayNode(Integer(1), ConfigScalarNode.String("two"), ConfigScalarNode.Boolean(false))),
+                Entry("Optional", ConfigScalarNode.String("fallback")));
+
+            var edited = Document(
+                Entry("Enabled", ConfigScalarNode.Boolean(false)),
+                Entry("Count", Integer(-42)),
+                Entry("Ratio", ConfigScalarNode.Float(9.5)),
+                Entry("Name", ConfigScalarNode.String("edited")),
+                Entry("Offset", ConfigScalarNode.OffsetDateTime(new ConfigOffsetDateTime(editedDate, editedTime, 120))),
+                Entry("LocalDateTime", ConfigScalarNode.LocalDateTime(new ConfigLocalDateTime(editedDate, editedTime))),
+                Entry("LocalDate", ConfigScalarNode.LocalDate(editedDate)),
+                Entry("LocalTime", ConfigScalarNode.LocalTime(editedTime)),
+                Entry("Nested", new ConfigObjectNode(Entry("Threshold", Integer(25)), Entry("Label", ConfigScalarNode.String("changed")))),
+                Entry("Items", new ConfigArrayNode(Integer(7), ConfigScalarNode.String("eight"), ConfigScalarNode.Boolean(true))),
+                Entry("Optional", ConfigNullNode.Instance));
+
+            ConfigDocument initiallyOpened = ConfigDocumentWireCodec.Decode(
+                service.Open("Example.Mod", registrationId, "Settings", 0, "semantic.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            ConfigDocument saved = ConfigDocumentWireCodec.Decode(
+                service.Save("Example.Mod", registrationId, "Settings", 0, "semantic.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(edited)));
+
+            ConfigDocument reloaded = ConfigDocumentWireCodec.Decode(
+                service.Open("Example.Mod", registrationId, "Settings", 0, "semantic.toml", ConfigDocumentWireCodec.Encode(defaults)));
+
+            string activeSource = storage.Get(0, "semantic.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(initiallyOpened.Equals(defaults), Is.True);
+                Assert.That(saved.Equals(edited), Is.True);
+                Assert.That(reloaded.Equals(edited), Is.True);
+                Assert.That(activeSource, Does.Contain("#!Optional = \"fallback\""));
+                Assert.That(activeSource, Does.Contain("2027-01-02"));
+                Assert.That(activeSource, Does.Contain("9.5"));
+                Assert.That(storage.Get(0, "semantic.toml.configapi.provenance"), Is.Not.Null);
+            });
+        }
+        [Test]
         public void Open_Existing_Global_Config_Reconciles_Changed_Default_And_Persists_Result()
         {
             var registrationId = Guid.NewGuid();
@@ -200,6 +428,28 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Save_Unrepresentable_Semantic_Null_Fails_Without_Writing_Storage()
+        {
+            var registrationId = Guid.NewGuid();
+            var storage = new ConsumerStorage();
+            var registry = RegisteredRegistry("Example.Mod", registrationId, storage);
+            var service = new ConfigApiPersistenceService(registry, Clock());
+            var values = Document(Entry("Optional", ConfigNullNode.Instance));
+            object payload = ConfigDocumentWireCodec.Encode(values);
+
+            NotSupportedException exception = Assert.Throws<NotSupportedException>(() =>
+                service.Save("Example.Mod", registrationId, "Settings", 0, "settings.toml", payload, payload));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Does.Contain("semantic null"));
+                Assert.That(storage.WriteCount(0), Is.EqualTo(0));
+                Assert.That(storage.Get(0, "settings.toml"), Is.Null);
+                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Null);
+            });
+        }
+
+        [Test]
         public void Open_Rejects_Stale_Registration_And_Unsupported_Location()
         {
             var registrationId = Guid.NewGuid();
@@ -286,7 +536,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     out announcement),
                 Is.True);
 
-            Assert.That(announcement.Endpoints.Count, Is.EqualTo(3));
+            Assert.That(announcement.Endpoints.Count, Is.EqualTo(6));
 
             var open = announcement.Endpoints[ConfigApiProvider.OpenConfigEndpoint] as
                 Func<string, Guid, string, int, string, object, object>;
