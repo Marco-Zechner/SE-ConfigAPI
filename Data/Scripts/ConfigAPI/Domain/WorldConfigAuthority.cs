@@ -21,24 +21,27 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
     public static class WorldConfigAuthority
     {
-        public static WorldConfigAuthorityResult Apply(WorldConfigSnapshot current, ulong baseIteration, 
-                                                       ConfigDocument document, string currentFile)
+        public static WorldConfigAuthorityResult Apply(WorldConfigSnapshot current, ulong baseRevision, ConfigDocument document, string currentFile)
+            => Update(current, baseRevision, document, document, currentFile);
+
+        public static WorldConfigAuthorityResult Update(WorldConfigSnapshot current, ulong baseRevision, ConfigDocument stored, ConfigDocument applied, string currentFile)
         {
             if (current == null)
                 throw new ArgumentNullException(nameof(current));
+            if (stored == null)
+                throw new ArgumentNullException(nameof(stored));
+            if (applied == null)
+                throw new ArgumentNullException(nameof(applied));
 
-            if (document == null)
-                throw new ArgumentNullException(nameof(document));
-
-            if (baseIteration != current.ServerIteration)
+            if (baseRevision != current.Revision)
                 return new WorldConfigAuthorityResult(false, true, current);
 
-            if (current.ServerIteration == ulong.MaxValue)
-                throw new InvalidOperationException("Server iteration cannot be incremented.");
+            if (current.Revision == ulong.MaxValue)
+                throw new InvalidOperationException("World config revision cannot be incremented.");
 
-            var snapshot = new WorldConfigSnapshot(current.Identity, document, current.ServerIteration + 1UL, currentFile);
-
+            var snapshot = new WorldConfigSnapshot(current.Identity, stored, applied, current.Revision + 1UL, currentFile);
             return new WorldConfigAuthorityResult(true, false, snapshot);
         }
+
     }
 }

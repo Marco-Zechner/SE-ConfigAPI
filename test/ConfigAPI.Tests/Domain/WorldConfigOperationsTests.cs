@@ -8,6 +8,66 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Domain
     public sealed class WorldConfigOperationsTests
     {
         [Test]
+        public void Apply_Changes_Runtime_State_Without_Changing_Stored_State()
+        {
+            var current = Snapshot(10, 7UL, "server.toml");
+            var draft = Document(Entry("Value", Integer(15)));
+
+            var result = WorldConfigOperations.Apply(current, 7UL, draft);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(8UL));
+                AssertValue(result.Snapshot.Stored, Integer(10), "Value");
+                AssertValue(result.Snapshot.Applied, Integer(15), "Value");
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.True);
+            });
+        }
+
+        [Test]
+        public void Save_Commits_Applied_State_Without_Changing_Runtime_Value()
+        {
+            var identity = new ConfigIdentity("12345", "ServerSettings");
+            var stored = Document(Entry("Value", Integer(10)));
+            var applied = Document(Entry("Value", Integer(15)));
+            var current = new WorldConfigSnapshot(identity, stored, applied, 7UL, "server.toml");
+
+            var result = WorldConfigOperations.Save(current, 7UL);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(8UL));
+                AssertValue(result.Snapshot.Stored, Integer(15), "Value");
+                AssertValue(result.Snapshot.Applied, Integer(15), "Value");
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.False);
+            });
+        }
+
+        [Test]
+        public void Apply_And_Save_Reject_Stale_Revision_Without_Changing_Authority()
+        {
+            var identity = new ConfigIdentity("12345", "ServerSettings");
+            var current = new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(10))), Document(Entry("Value", Integer(15))), 7UL, "server.toml");
+
+            var apply = WorldConfigOperations.Apply(current, 6UL, Document(Entry("Value", Integer(20))));
+            var save = WorldConfigOperations.Save(current, 6UL);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(apply.IsApplied, Is.False);
+                Assert.That(apply.IsStale, Is.True);
+                Assert.That(ReferenceEquals(apply.Snapshot, current), Is.True);
+                Assert.That(save.IsApplied, Is.False);
+                Assert.That(save.IsStale, Is.True);
+                Assert.That(ReferenceEquals(save.Snapshot, current), Is.True);
+            });
+        }
+
+        [Test]
         public void Reload_Replaces_Authoritative_Document_And_Keeps_Current_File()
         {
             var current = Snapshot(10, 7UL, "server.toml");

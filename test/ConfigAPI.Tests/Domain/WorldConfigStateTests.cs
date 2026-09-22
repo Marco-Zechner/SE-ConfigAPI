@@ -40,6 +40,25 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Domain
         }
 
         [Test]
+        public void Snapshot_Separates_Stored_And_Applied_Runtime_State()
+        {
+            var identity = new ConfigIdentity("12345", "ServerSettings");
+            var stored = Document(Entry("Value", Integer(10)));
+            var applied = Document(Entry("Value", Integer(15)));
+            var snapshot = new WorldConfigSnapshot(identity, stored, applied, 7UL, "server.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(snapshot.Stored.Equals(stored), Is.True);
+                Assert.That(snapshot.Applied.Equals(applied), Is.True);
+                Assert.That(snapshot.Document.Equals(applied), Is.True);
+                Assert.That(snapshot.Revision, Is.EqualTo(7UL));
+                Assert.That(snapshot.ServerIteration, Is.EqualTo(7UL));
+                Assert.That(snapshot.HasUnsavedChanges, Is.True);
+            });
+        }
+
+        [Test]
         public void Snapshot_Rejects_Null_Identity_And_Document()
         {
             var identity = new ConfigIdentity("12345", "ServerSettings");
@@ -112,6 +131,48 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Domain
                 Assert.That(ReferenceEquals(updated.Draft, editedDraft), Is.True);
                 AssertValue(updated.Authoritative.Document, Integer(20), "Value");
                 AssertValue(updated.Draft, Integer(15), "Value");
+            });
+        }
+
+        [Test]
+        public void Clean_Client_Draft_Follows_New_Authoritative_Applied_State()
+        {
+            var original = Snapshot(10, 3UL);
+            var state = WorldConfigClientState.Create(original);
+            var applied = Document(Entry("Value", Integer(20)));
+            var newer = new WorldConfigSnapshot(original.Identity, original.Stored, applied, 4UL, "server.toml");
+
+            var updated = state.ApplyAuthoritative(newer);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(updated.Authoritative, newer), Is.True);
+                Assert.That(ReferenceEquals(updated.Draft, applied), Is.True);
+                Assert.That(ReferenceEquals(updated.DraftBaseApplied, applied), Is.True);
+                Assert.That(updated.DraftBaseRevision, Is.EqualTo(4UL));
+                Assert.That(updated.HasDraftChanges, Is.False);
+                Assert.That(updated.IsDraftStale, Is.False);
+            });
+        }
+
+        [Test]
+        public void Edited_Client_Draft_Retains_Base_And_Becomes_Stale()
+        {
+            var original = Snapshot(10, 3UL);
+            var draft = Document(Entry("Value", Integer(15)));
+            var state = WorldConfigClientState.Create(original).WithDraft(draft);
+            var newer = new WorldConfigSnapshot(original.Identity, original.Stored, Document(Entry("Value", Integer(20))), 4UL, "server.toml");
+
+            var updated = state.ApplyAuthoritative(newer);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(updated.Authoritative, newer), Is.True);
+                Assert.That(ReferenceEquals(updated.Draft, draft), Is.True);
+                Assert.That(ReferenceEquals(updated.DraftBaseApplied, original.Applied), Is.True);
+                Assert.That(updated.DraftBaseRevision, Is.EqualTo(3UL));
+                Assert.That(updated.HasDraftChanges, Is.True);
+                Assert.That(updated.IsDraftStale, Is.True);
             });
         }
 
