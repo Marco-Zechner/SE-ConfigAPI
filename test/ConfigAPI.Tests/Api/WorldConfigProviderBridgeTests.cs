@@ -208,7 +208,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             registry.RegisterReadWriteStorage("Example.Mod", registrationId, storage.Read, storage.Write);
 
             var identity = new ConfigIdentity("Example.Mod", "Settings");
-            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(30))), 5UL, "settings.toml"));
+            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(20))), Document(Entry("Value", Integer(30))), 5UL, "settings.toml"));
             var transport = new RecordingClientTransport();
             var endpoint = new NetworkEndpoint(transport);
             var runtime = new WorldConfigNetworkRuntime(endpoint, transport, registry, new FixedClock(), new AllowAllAuthorization(), bootstrap);
@@ -226,7 +226,11 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     Assert.That(responses.Count, Is.EqualTo(1));
                     Assert.That(responses[0]["Operation"], Is.EqualTo("Open"));
                     Assert.That(responses[0]["RequestId"], Is.EqualTo(0UL));
+                    Assert.That(responses[0]["Revision"], Is.EqualTo(5UL));
                     Assert.That(responses[0]["ServerIteration"], Is.EqualTo(5UL));
+                    Assert.That(responses[0]["HasUnsavedChanges"], Is.EqualTo(true));
+                    AssertDocumentValue(ConfigDocumentWireCodec.Decode(responses[0]["Stored"]), 20, "Value");
+                    AssertDocumentValue(ConfigDocumentWireCodec.Decode(responses[0]["Applied"]), 30, "Value");
                     AssertDocumentValue(DecodeDocument(responses[0]), 30, "Value");
                     Assert.That(transport.ServerMessages.Count, Is.EqualTo(1));
                 });

@@ -5,7 +5,7 @@ namespace Mz.ConfigApi
 {
     public sealed class WorldConfigResponse
     {
-        private WorldConfigResponse(string configKey, ulong requestId, WorldConfigOperation operation, ulong triggeredBy, bool isApplied, bool isStale, string error, ulong? serverIteration, string currentFile, ConfigDocument document)
+        private WorldConfigResponse(string configKey, ulong requestId, WorldConfigOperation operation, ulong triggeredBy, bool isApplied, bool isStale, string error, ulong? revision, string currentFile, ConfigDocument stored, ConfigDocument applied)
         {
             ConfigKey = configKey;
             RequestId = requestId;
@@ -14,9 +14,10 @@ namespace Mz.ConfigApi
             IsApplied = isApplied;
             IsStale = isStale;
             Error = error;
-            ServerIteration = serverIteration;
+            Revision = revision;
             CurrentFile = currentFile;
-            Document = document;
+            Stored = stored;
+            Applied = applied;
         }
 
         public string ConfigKey { get; }
@@ -26,10 +27,14 @@ namespace Mz.ConfigApi
         public bool IsApplied { get; }
         public bool IsStale { get; }
         public string Error { get; }
-        public ulong? ServerIteration { get; }
+        public ulong? Revision { get; }
+        public ulong? ServerIteration => Revision;
         public string CurrentFile { get; }
-        public ConfigDocument Document { get; }
-        public bool HasSnapshot => ServerIteration.HasValue && Document != null;
+        public ConfigDocument Stored { get; }
+        public ConfigDocument Applied { get; }
+        public ConfigDocument Document => Applied;
+        public bool HasSnapshot => Revision.HasValue && Stored != null && Applied != null;
+        public bool HasUnsavedChanges => HasSnapshot && !Applied.Equals(Stored);
         public bool IsError => !string.IsNullOrEmpty(Error);
 
         internal static WorldConfigResponse FromPayload(IDictionary<string, object> payload)
@@ -48,27 +53,29 @@ namespace Mz.ConfigApi
             if (errorPayload != null && !(errorPayload is string))
                 throw new InvalidOperationException("World config response field 'Error' has an invalid type.");
 
-            object iterationPayload = Value(payload, "ServerIteration");
-            ulong? serverIteration = null;
-            if (iterationPayload != null)
+            object revisionPayload = Value(payload, "Revision");
+            ulong? revision = null;
+            if (revisionPayload != null)
             {
-                if (!(iterationPayload is ulong))
-                    throw new InvalidOperationException("World config response field 'ServerIteration' has an invalid type.");
+                if (!(revisionPayload is ulong))
+                    throw new InvalidOperationException("World config response field 'Revision' has an invalid type.");
 
-                serverIteration = (ulong)iterationPayload;
+                revision = (ulong)revisionPayload;
             }
 
             object currentFilePayload = Value(payload, "CurrentFile");
             if (currentFilePayload != null && !(currentFilePayload is string))
                 throw new InvalidOperationException("World config response field 'CurrentFile' has an invalid type.");
 
-            object documentPayload = Value(payload, "Document");
-            ConfigDocument document = documentPayload == null ? null : ConfigDocumentWireCodec.Decode(documentPayload);
+            object storedPayload = Value(payload, "Stored");
+            ConfigDocument stored = storedPayload == null ? null : ConfigDocumentWireCodec.Decode(storedPayload);
+            object appliedPayload = Value(payload, "Applied");
+            ConfigDocument applied = appliedPayload == null ? null : ConfigDocumentWireCodec.Decode(appliedPayload);
 
             return new WorldConfigResponse(
                 configKey, Required<ulong>(payload, "RequestId"), operation, Required<ulong>(payload, "TriggeredBy"),
                 Required<bool>(payload, "IsApplied"), Required<bool>(payload, "IsStale"), errorPayload as string,
-                serverIteration, currentFilePayload as string, document);
+                revision, currentFilePayload as string, stored, applied);
         }
 
         private static object Value(IDictionary<string, object> payload, string key)

@@ -7,7 +7,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 {
     public static class WorldConfigNetworkCodec
     {
-        private const byte CurrentVersion = 1;
+        private const byte CurrentVersion = 2;
         private const byte RequestFrame = 1;
         private const byte ResponseFrame = 2;
         private const int MaximumStringBytes = 1048576;
@@ -143,8 +143,9 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             WriteString(writer, snapshot.Identity.OwnerId);
             WriteString(writer, snapshot.Identity.ConfigKey);
-            WriteDocument(writer, snapshot.Document);
-            WriteUInt64(writer, snapshot.ServerIteration);
+            WriteDocument(writer, snapshot.Stored);
+            WriteDocument(writer, snapshot.Applied);
+            WriteUInt64(writer, snapshot.Revision);
             WriteOptionalString(writer, snapshot.CurrentFile);
         }
 
@@ -152,10 +153,11 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         {
             string ownerId = reader.ReadRequiredString("snapshot owner ID");
             string configKey = reader.ReadRequiredString("snapshot config key");
-            ConfigDocument document = reader.ReadDocument();
-            ulong serverIteration = reader.ReadUInt64();
+            ConfigDocument stored = reader.ReadDocument();
+            ConfigDocument applied = reader.ReadDocument();
+            ulong revision = reader.ReadUInt64();
             string currentFile = reader.ReadOptionalString();
-            return new WorldConfigSnapshot(new ConfigIdentity(ownerId, configKey), document, serverIteration, currentFile);
+            return new WorldConfigSnapshot(new ConfigIdentity(ownerId, configKey), stored, applied, revision, currentFile);
         }
 
         private static void WriteOptionalDocument(ByteWriter writer, ConfigDocument document)

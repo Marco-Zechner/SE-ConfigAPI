@@ -62,7 +62,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         [Test]
         public void Response_RoundTrips_Applied_Authoritative_Snapshot()
         {
-            var snapshot = Snapshot(25, 8UL, "settings.toml");
+            var stored = Document(Entry("Value", Integer(20)));
+            var applied = Document(Entry("Value", Integer(25)));
+            var snapshot = new WorldConfigSnapshot(new ConfigIdentity("Example.Mod", "Settings"), stored, applied, 8UL, "settings.toml");
             var response = new WorldConfigNetworkResponse(
                 18UL, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Snapshot,
                 76561198000000001UL, true, false, snapshot, null);
@@ -79,6 +81,10 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(decoded.IsApplied, Is.True);
                 Assert.That(decoded.IsStale, Is.False);
                 Assert.That(decoded.Snapshot.Identity, Is.EqualTo(snapshot.Identity));
+                Assert.That(decoded.Snapshot.Stored, Is.EqualTo(stored));
+                Assert.That(decoded.Snapshot.Applied, Is.EqualTo(applied));
+                Assert.That(decoded.Snapshot.Revision, Is.EqualTo(8UL));
+                Assert.That(decoded.Snapshot.HasUnsavedChanges, Is.True);
                 Assert.That(decoded.Snapshot.Document, Is.EqualTo(snapshot.Document));
                 Assert.That(decoded.Snapshot.ServerIteration, Is.EqualTo(8UL));
                 Assert.That(decoded.Snapshot.CurrentFile, Is.EqualTo("settings.toml"));

@@ -890,6 +890,10 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                             { "IsApplied", false },
                             { "IsStale", false },
                             { "Error", null },
+                            { "Revision", 4UL },
+                            { "Stored", ConfigDocumentWireCodec.Encode(new ConfigDocument()) },
+                            { "Applied", ConfigDocumentWireCodec.Encode(new ConfigDocument()) },
+                            { "HasUnsavedChanges", false },
                             { "ServerIteration", 4UL },
                             { "CurrentFile", "settings.toml" },
                             { "Document", ConfigDocumentWireCodec.Encode(new ConfigDocument()) },
@@ -929,9 +933,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 Assert.That(observed.IsStale, Is.False);
                 Assert.That(observed.IsError, Is.False);
                 Assert.That(observed.HasSnapshot, Is.True);
+                Assert.That(observed.Revision, Is.EqualTo(4UL));
                 Assert.That(observed.ServerIteration, Is.EqualTo(4UL));
                 Assert.That(observed.CurrentFile, Is.EqualTo("settings.toml"));
-                Assert.That(observed.Document, Is.Not.Null);
+                Assert.That(observed.Stored, Is.Not.Null);
+                Assert.That(observed.Applied, Is.Not.Null);
+                Assert.That(observed.Document, Is.SameAs(observed.Applied));
+                Assert.That(observed.HasUnsavedChanges, Is.False);
             });
 
             client.Dispose();
