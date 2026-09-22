@@ -185,12 +185,10 @@ namespace Mz.ConfigApi
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
-            T value = Open(definition, location);
-
-            return new ConfigHandle<T>(this, definition, location, ConfigDefinition<T>.DefaultVariant, value);
+            ConfigDocument defaults = definition.Serialize(definition.CreateDefaults());
+            ConfigDocument stored = Open(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant), defaults);
+            return new ConfigHandle<T>(this, definition, location, ConfigDefinition<T>.DefaultVariant, defaults, stored);
         }
-
-
         public T Open<T>(ConfigDefinition<T> definition, ConfigLocation location) where T : class
         {
             if (definition == null)

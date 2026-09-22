@@ -331,7 +331,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             {
                 Assert.That(exception.Message, Is.EqualTo("Synthetic open failure."));
                 Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<ConfigDocument>.DefaultVariant));
-                Assert.That(handle.Value, Is.SameAs(previousValue));
+                Assert.That(handle.Value.Equals(previousValue), Is.True);
                 Assert.That(openedFiles, Is.EqualTo(new[] { "Settings.default.toml", "Settings.alternate.toml" }));
             });
 
@@ -339,6 +339,274 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             provider.Dispose();
         }
 
+        [Test]
+        public void Handle_Runtime_State_Separates_Draft_Applied_Stored_And_Defaults()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Defaults.Value, Is.EqualTo(1));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(10));
+                Assert.That(handle.Draft.Value, Is.EqualTo(10));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+                Assert.That(handle.Defaults, Is.Not.SameAs(handle.Stored));
+                Assert.That(handle.Stored, Is.Not.SameAs(handle.Applied));
+                Assert.That(handle.Applied, Is.Not.SameAs(handle.Draft));
+            });
+
+            handle.Draft.Value = 20;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.Applied.Value, Is.EqualTo(10));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            handle.DiscardDraft();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            handle.ResetDraftToDefaults();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Draft.Value, Is.EqualTo(1));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            MutableConfig appliedSnapshot = handle.Applied;
+            appliedSnapshot.Value = 99;
+            Assert.That(handle.Applied.Value, Is.EqualTo(20));
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Save_Persists_Applied_Without_Saving_Unapplied_Draft()
+        {
+            var bus = new RecordingModMessageBus();
+            ConfigDocument savedDocument = null;
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
+                {
+                    savedDocument = ConfigDocumentWireCodec.Decode(playerValues);
+                    return playerValues;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Global);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+            handle.Save();
+
+            ConfigValue savedValue;
+            Assert.That(savedDocument.TryGet("Value", out savedValue), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((long)savedValue.ScalarValue, Is.EqualTo(20L));
+                Assert.That(handle.Stored.Value, Is.EqualTo(20));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Apply_Deserialization_Failure_Preserves_Applied_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            var definition = new ConfigDefinition<MutableConfig>("Settings", () => new MutableConfig { Value = 1 }, value => Document(value.Value),
+                document => { ConfigValue value; if (!document.TryGet("Value", out value)) throw new InvalidOperationException("Value missing."); int number = (int)(long)value.ScalarValue; if (number == 20) throw new InvalidOperationException("Synthetic deserialize failure."); return new MutableConfig { Value = number }; });
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(definition, ConfigLocation.Local);
+            handle.Draft.Value = 20;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Apply());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic deserialize failure."));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(10));
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Save_Invalid_Returned_State_Preserves_Previous_Stored_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues) { return ConfigDocumentWireCodec.Encode(Document(99)); });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            var definition = new ConfigDefinition<MutableConfig>("Settings", () => new MutableConfig { Value = 1 }, value => Document(value.Value),
+                document => { ConfigValue value; if (!document.TryGet("Value", out value)) throw new InvalidOperationException("Value missing."); int number = (int)(long)value.ScalarValue; if (number == 99) throw new InvalidOperationException("Synthetic saved-state failure."); return new MutableConfig { Value = number }; });
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(definition, ConfigLocation.Global);
+            handle.Draft.Value = 20;
+            handle.Apply();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Save());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic saved-state failure."));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
+        public void Handle_Reload_Replaces_Stored_Applied_And_Draft_From_Active_Variant()
+        {
+            var bus = new RecordingModMessageBus();
+            var openCount = 0;
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
+                {
+                    openCount++;
+                    return ConfigDocumentWireCodec.Encode(Document(openCount == 1 ? 10 : 40));
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            handle.Reload();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(openCount, Is.EqualTo(2));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Defaults.Value, Is.EqualTo(1));
+                Assert.That(handle.Stored.Value, Is.EqualTo(40));
+                Assert.That(handle.Applied.Value, Is.EqualTo(40));
+                Assert.That(handle.Draft.Value, Is.EqualTo(40));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Load_Failure_Preserves_Complete_Runtime_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
+                {
+                    if (file == "Settings.alternate.toml")
+                        throw new InvalidOperationException("Synthetic open failure.");
+
+                    return ConfigDocumentWireCodec.Encode(Document(10));
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Load("alternate"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic open failure."));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Defaults.Value, Is.EqualTo(1));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
         [Test]
         public void Typed_Open_Delegate_Failures_Stop_At_Expected_Provider_Boundary()
         {
@@ -995,6 +1263,17 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                         })
                 }
             };
+        }
+        private static ConfigDefinition<MutableConfig> CreateMutableDefinition() =>
+            new ConfigDefinition<MutableConfig>("Settings", () => new MutableConfig { Value = 1 },
+                value => Document(value.Value),
+                document => { ConfigValue value; if (!document.TryGet("Value", out value)) throw new InvalidOperationException("Value missing."); return new MutableConfig { Value = (int)(long)value.ScalarValue }; });
+
+        private static ConfigDocument Document(int value) => new ConfigDocument(new ConfigEntry("Value", ConfigValue.Integer(value)));
+
+        private sealed class MutableConfig
+        {
+            public int Value { get; set; }
         }
         private sealed class RecordingModMessageBus : IModMessageBus
         {
