@@ -49,7 +49,7 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
             if (!Authoritative.Identity.Equals(authoritative.Identity))
                 throw new ArgumentException("Authoritative snapshot belongs to a different config.", nameof(authoritative));
 
-            if (!HasDraftChanges)
+            if (!HasDraftChanges || Draft.Equals(authoritative.Applied))
                 return new WorldConfigClientState(authoritative, authoritative.Applied, authoritative.Applied, authoritative.Revision);
 
             return new WorldConfigClientState(authoritative, Draft, DraftBaseApplied, DraftBaseRevision);

@@ -177,6 +177,27 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Domain
         }
 
         [Test]
+        public void Matching_Authoritative_Applied_Clears_Edited_Draft_Staleness()
+        {
+            var original = Snapshot(10, 3UL);
+            var draft = Document(Entry("Value", Integer(15)));
+            var state = WorldConfigClientState.Create(original).WithDraft(draft);
+            var newer = new WorldConfigSnapshot(original.Identity, original.Stored, draft, 4UL, "server.toml");
+
+            var updated = state.ApplyAuthoritative(newer);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(updated.Authoritative, newer), Is.True);
+                Assert.That(ReferenceEquals(updated.Draft, draft), Is.True);
+                Assert.That(ReferenceEquals(updated.DraftBaseApplied, draft), Is.True);
+                Assert.That(updated.DraftBaseRevision, Is.EqualTo(4UL));
+                Assert.That(updated.HasDraftChanges, Is.False);
+                Assert.That(updated.IsDraftStale, Is.False);
+            });
+        }
+
+        [Test]
         public void Client_State_Rejects_Authoritative_Snapshot_For_Different_Config()
         {
             var state = WorldConfigClientState.Create(Snapshot(10, 3UL));
