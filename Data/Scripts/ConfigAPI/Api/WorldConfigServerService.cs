@@ -274,8 +274,8 @@ namespace MarcoZechner.ConfigAPI.Api
         {
             var persistedState = new ConfigPersistedState(loadResult.State.Identity, document, loadResult.State.BaselineDefaults, loadResult.State.CurrentFile);
             var saveResult = new ConfigPersistedLoadResult(
-                persistedState, loadResult.ActiveSource, loadResult.ProvenanceFile,
-                loadResult.WasActiveFileMissing, loadResult.WasProvenanceMissing,
+                persistedState, loadResult.ActiveSource, loadResult.DefaultsFile, loadResult.DefaultsStore,
+                loadResult.WasActiveFileMissing, loadResult.WasDefaultsEntryMissing,
                 loadResult.Changes, loadResult.RequiresBackup);
 
             new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, saveResult, currentDefaults);
@@ -299,7 +299,7 @@ namespace MarcoZechner.ConfigAPI.Api
         }
 
         private static bool NeedsPersistence(ConfigPersistedLoadResult loadResult)
-            => loadResult.WasActiveFileMissing || loadResult.WasProvenanceMissing || loadResult.Changes.Count > 0;
+            => loadResult.WasActiveFileMissing || loadResult.WasDefaultsEntryMissing || loadResult.Changes.Count > 0;
 
         private static string StateKey(string consumerId, string configKey) => consumerId + "\n" + configKey;
 

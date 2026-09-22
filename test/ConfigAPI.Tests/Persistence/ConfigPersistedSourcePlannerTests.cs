@@ -11,7 +11,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
     public sealed class ConfigPersistedSourcePlannerTests
     {
         [Test]
-        public void Missing_Provenance_Filled_Value_Is_Persisted_Even_Without_Reconciliation_Change()
+        public void Missing_Defaults_Entry_Filled_Value_Is_Persisted_Even_Without_Reconciliation_Change()
         {
             var identity = Identity();
             var currentDefaults =
@@ -93,7 +93,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                 "settings.toml",
                 "Value = 10   # keep\n");
 
-            SetProvenance(
+            SetDefaults(
                 storage,
                 identity,
                 baseline);
@@ -146,7 +146,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                 "settings.toml",
                 "#!Optional = \"previous\"   # keep\n");
 
-            SetProvenance(
+            SetDefaults(
                 storage,
                 identity,
                 defaults);
@@ -201,7 +201,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                 "settings.toml",
                 "Other = 1\n");
 
-            SetProvenance(
+            SetDefaults(
                 storage,
                 identity,
                 baseline);
@@ -271,7 +271,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                 "[Legacy]\n" +
                 "Value = 9\n");
 
-            SetProvenance(
+            SetDefaults(
                 storage,
                 identity,
                 baseline);
@@ -345,7 +345,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                 "settings.toml",
                 "Section = { Value = 1 }\n");
 
-            SetProvenance(
+            SetDefaults(
                 storage,
                 identity,
                 baseline);
@@ -418,7 +418,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                 "[Legacy]\n" +
                 "Value = 9\n");
 
-            SetProvenance(
+            SetDefaults(
                 storage,
                 identity,
                 baseline);
@@ -449,18 +449,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence
                     currentDefaults);
         }
 
-        private static void SetProvenance(
+        private static void SetDefaults(
             MemoryStorage storage,
             ConfigIdentity identity,
             ConfigDocument baseline)
         {
-            storage.Set(
-                ConfigLocation.World,
-                "settings.toml.configapi.provenance",
-                ConfigProvenanceCodec.Encode(
-                    new ConfigProvenance(
-                        identity,
-                        baseline)));
+            var store = new ConfigDefaultsStore().With(new ConfigDefaultsEntry("settings.toml", identity, baseline));
+            storage.Set(ConfigLocation.World, ConfigPersistedStateLoader.DefaultsFileName, ConfigDefaultsStoreCodec.Encode(store));
         }
 
         private static ConfigIdentity Identity()

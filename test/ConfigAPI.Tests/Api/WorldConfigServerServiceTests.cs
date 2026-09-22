@@ -32,7 +32,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(snapshot.Applied, 41);
                 Assert.That(snapshot.HasUnsavedChanges, Is.False);
                 Assert.That(oldStorage.TotalWrites, Is.EqualTo(0));
-                Assert.That(serverStorage.Get(2, "Settings.default.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(serverStorage.Get(2, ".defaults"), Is.Not.Null);
             });
         }
 
@@ -240,7 +240,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(loaded.Snapshot.Stored, 30);
                 AssertDocumentValue(loaded.Snapshot.Applied, 30);
                 Assert.That(loaded.Snapshot.HasUnsavedChanges, Is.False);
-                Assert.That(storage.Get(2, "Settings.combat.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(2, ".defaults"), Is.Not.Null);
             });
         }
 
@@ -283,7 +283,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(saved.Snapshot.HasUnsavedChanges, Is.False);
                 Assert.That(storage.Get(2, "Settings.default.toml"), Does.Contain("Value = 10"));
                 Assert.That(storage.Get(2, "Settings.cargo_2.toml"), Does.Contain("Value = 20"));
-                Assert.That(storage.Get(2, "Settings.cargo_2.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(2, ".defaults"), Is.Not.Null);
             });
         }
 

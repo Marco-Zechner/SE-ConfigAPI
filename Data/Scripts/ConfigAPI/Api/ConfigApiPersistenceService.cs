@@ -89,7 +89,7 @@ namespace MarcoZechner.ConfigAPI.Api
             ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(location, file, identity, currentDefaults);
             bool needsPersistence = NeedsPersistence(loadResult);
 
-            Log(LogLevel.Trace, $"Open loaded: consumer='{consumerId}', config='{configKey}', file='{file}', activeMissing={loadResult.WasActiveFileMissing}, provenanceMissing={loadResult.WasProvenanceMissing}, changes={loadResult.Changes.Count}, requiresBackup={loadResult.RequiresBackup}, needsPersistence={needsPersistence}.");
+            Log(LogLevel.Trace, $"Open loaded: consumer='{consumerId}', config='{configKey}', file='{file}', activeMissing={loadResult.WasActiveFileMissing}, defaultsEntryMissing={loadResult.WasDefaultsEntryMissing}, changes={loadResult.Changes.Count}, requiresBackup={loadResult.RequiresBackup}, needsPersistence={needsPersistence}.");
 
             if (needsPersistence)
             {
@@ -111,7 +111,7 @@ namespace MarcoZechner.ConfigAPI.Api
             var identity = new ConfigIdentity(consumerId.Trim(), configKey);
             ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(location, file, identity, currentDefaults);
 
-            Log(LogLevel.Trace, $"Save loaded current state: consumer='{consumerId}', config='{configKey}', file='{file}', activeMissing={loadResult.WasActiveFileMissing}, provenanceMissing={loadResult.WasProvenanceMissing}, changes={loadResult.Changes.Count}, requiresBackup={loadResult.RequiresBackup}.");
+            Log(LogLevel.Trace, $"Save loaded current state: consumer='{consumerId}', config='{configKey}', file='{file}', activeMissing={loadResult.WasActiveFileMissing}, defaultsEntryMissing={loadResult.WasDefaultsEntryMissing}, changes={loadResult.Changes.Count}, requiresBackup={loadResult.RequiresBackup}.");
 
             ConfigDefaultReconciliationResult validation = ConfigDefaultReconciler.Reconcile(loadResult.State.BaselineDefaults, playerValues, currentDefaults);
 
@@ -119,7 +119,7 @@ namespace MarcoZechner.ConfigAPI.Api
                 throw new ArgumentException("Player values do not match the current config schema.", nameof(playerValues));
 
             var state = new ConfigPersistedState(loadResult.State.Identity, playerValues, loadResult.State.BaselineDefaults, loadResult.State.CurrentFile);
-            var saveResult = new ConfigPersistedLoadResult(state, loadResult.ActiveSource, loadResult.ProvenanceFile, loadResult.WasActiveFileMissing, loadResult.WasProvenanceMissing, loadResult.Changes, loadResult.RequiresBackup);
+            var saveResult = new ConfigPersistedLoadResult(state, loadResult.ActiveSource, loadResult.DefaultsFile, loadResult.DefaultsStore, loadResult.WasActiveFileMissing, loadResult.WasDefaultsEntryMissing, loadResult.Changes, loadResult.RequiresBackup);
 
             ConfigPersistedWriteResult writeResult = new ConfigPersistedStateWriter(storage, _clock).Write(location, saveResult, currentDefaults);
             Log(LogLevel.Trace, $"Save persistence completed: consumer='{consumerId}', config='{configKey}', file='{file}', backup='{writeResult.BackupFile ?? "<none>"}', canonicalRegeneration={writeResult.UsedCanonicalRegeneration}.");
@@ -141,7 +141,7 @@ namespace MarcoZechner.ConfigAPI.Api
         }
 
         private static bool NeedsPersistence(ConfigPersistedLoadResult loadResult)
-            => loadResult.WasActiveFileMissing || loadResult.WasProvenanceMissing || loadResult.Changes.Count > 0;
+            => loadResult.WasActiveFileMissing || loadResult.WasDefaultsEntryMissing || loadResult.Changes.Count > 0;
 
         private static ConfigLocation ParseLocation(int location)
         {
