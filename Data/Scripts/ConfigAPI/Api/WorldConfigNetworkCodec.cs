@@ -7,11 +7,12 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 {
     public static class WorldConfigNetworkCodec
     {
-        private const byte CurrentVersion = 2;
+        private const byte CurrentVersion = 3;
         private const byte RequestFrame = 1;
         private const byte ResponseFrame = 2;
         private const int MaximumStringBytes = 1048576;
         private const int MaximumDocumentBytes = 16777216;
+        private const int MaximumVariantCount = 65536;
 
         private static readonly byte[] _magic = { 0x4D, 0x5A, 0x57, 0x43 };
         private static readonly UTF8Encoding _strictUtf8 = new UTF8Encoding(false, true);
@@ -27,9 +28,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WriteString(writer, request.ConsumerId);
             WriteString(writer, request.ConfigKey);
             writer.WriteByte((byte)request.Operation);
-            WriteUInt64(writer, request.BaseIteration);
-            WriteOptionalString(writer, request.File);
-            WriteBoolean(writer, request.Overwrite);
+            WriteUInt64(writer, request.ExpectedRevision);
+            WriteOptionalString(writer, request.Variant);
             WriteOptionalDocument(writer, request.Defaults);
             WriteOptionalDocument(writer, request.Document);
             return writer.ToArray();
@@ -47,14 +47,13 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             string consumerId = reader.ReadRequiredString("consumer ID");
             string configKey = reader.ReadRequiredString("config key");
             WorldConfigNetworkOperation operation = ReadOperation(reader);
-            ulong baseIteration = reader.ReadUInt64();
-            string file = reader.ReadOptionalString();
-            bool overwrite = reader.ReadBoolean();
+            ulong expectedRevision = reader.ReadUInt64();
+            string variant = reader.ReadOptionalString();
             ConfigDocument defaults = reader.ReadOptionalDocument();
             ConfigDocument document = reader.ReadOptionalDocument();
 
             reader.EnsureAtEnd();
-            return new WorldConfigNetworkRequest(requestId, consumerId, configKey, operation, baseIteration, file, overwrite, defaults, document);
+            return new WorldConfigNetworkRequest(requestId, consumerId, configKey, operation, expectedRevision, variant, defaults, document);
         }
 
         public static byte[] EncodeResponse(WorldConfigNetworkResponse response)
@@ -68,9 +67,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             writer.WriteByte((byte)response.Operation);
             writer.WriteByte((byte)response.Kind);
             WriteUInt64(writer, response.TriggeredBy);
-            WriteBoolean(writer, response.IsApplied);
+            WriteBoolean(writer, response.IsChanged);
             WriteBoolean(writer, response.IsStale);
             WriteOptionalSnapshot(writer, response.Snapshot);
+            WriteOptionalStringArray(writer, response.Variants);
             WriteOptionalString(writer, response.Error);
             return writer.ToArray();
         }
@@ -87,13 +87,14 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WorldConfigNetworkOperation operation = ReadOperation(reader);
             WorldConfigNetworkResponseKind kind = ReadResponseKind(reader);
             ulong triggeredBy = reader.ReadUInt64();
-            bool isApplied = reader.ReadBoolean();
+            bool isChanged = reader.ReadBoolean();
             bool isStale = reader.ReadBoolean();
             WorldConfigSnapshot snapshot = reader.ReadOptionalSnapshot();
+            string[] variants = reader.ReadOptionalStringArray();
             string error = reader.ReadOptionalString();
 
             reader.EnsureAtEnd();
-            return new WorldConfigNetworkResponse(requestId, operation, kind, triggeredBy, isApplied, isStale, snapshot, error);
+            return new WorldConfigNetworkResponse(requestId, operation, kind, triggeredBy, isChanged, isStale, snapshot, variants, error);
         }
 
         private static void WriteHeader(ByteWriter writer, byte frame)
@@ -146,7 +147,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WriteDocument(writer, snapshot.Stored);
             WriteDocument(writer, snapshot.Applied);
             WriteUInt64(writer, snapshot.Revision);
-            WriteOptionalString(writer, snapshot.CurrentFile);
+            WriteString(writer, snapshot.CurrentVariant);
         }
 
         private static WorldConfigSnapshot ReadSnapshot(PayloadReader reader)
@@ -156,8 +157,8 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             ConfigDocument stored = reader.ReadDocument();
             ConfigDocument applied = reader.ReadDocument();
             ulong revision = reader.ReadUInt64();
-            string currentFile = reader.ReadOptionalString();
-            return new WorldConfigSnapshot(new ConfigIdentity(ownerId, configKey), stored, applied, revision, currentFile);
+            string currentVariant = reader.ReadRequiredString("snapshot current variant");
+            return new WorldConfigSnapshot(new ConfigIdentity(ownerId, configKey), stored, applied, revision, currentVariant);
         }
 
         private static void WriteOptionalDocument(ByteWriter writer, ConfigDocument document)
@@ -183,6 +184,19 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WriteBoolean(writer, value != null);
             if (value != null)
                 WriteString(writer, value);
+        }
+
+        private static void WriteOptionalStringArray(ByteWriter writer, string[] values)
+        {
+            WriteBoolean(writer, values != null);
+            if (values == null)
+                return;
+            if (values.Length > MaximumVariantCount)
+                throw new ArgumentException("World config network variant count exceeds the supported range.", nameof(values));
+
+            WriteInt32(writer, values.Length);
+            for (var index = 0; index < values.Length; index++)
+                WriteString(writer, values[index]);
         }
 
         private static void WriteString(ByteWriter writer, string value)
@@ -307,6 +321,18 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             }
 
             public string ReadOptionalString() => ReadBoolean() ? ReadString() : null;
+
+            public string[] ReadOptionalStringArray()
+            {
+                if (!ReadBoolean())
+                    return null;
+
+                int count = ReadLength(MaximumVariantCount, "variant count");
+                var values = new string[count];
+                for (var index = 0; index < count; index++)
+                    values[index] = ReadRequiredString("variant");
+                return values;
+            }
 
             public string ReadString()
             {

@@ -33,15 +33,22 @@ The consumer accepts newer compatible provider API versions and validates the re
 
 ## World configs
 
-Providers at API 2.1.0 or newer may expose the optional server-authoritative World config endpoint set. `SupportsWorldConfigs` reports whether the connected provider exposes the complete Open/Save set.
+World configs use the same `Defaults`, `Stored`, `Applied`, and editable `Draft` model as Local and Global configs, but authoritative state is owned by the server and synchronized over ConfigAPI networking.
 
-Providers at API 2.2.0 or newer may additionally expose the complete World file-operation set. `SupportsWorldFileOperations` reports whether `ReloadWorld(...)`, `LoadAndSwitchWorld(...)`, `SaveAndSwitchWorld(...)`, and `ExportWorld(...)` are available. Providers that expose only the 2.1 World contract remain compatible.
+`SupportsWorldConfigs` is true only when the connected provider exposes the complete canonical World endpoint set: Open, Apply, Save, Reload, Load, SaveAs, and ListVariants.
 
-ConfigAPI 2.3 adds indexed Local and Global variant discovery and typed runtime state. `ConfigHandle<T>` opens the `default` variant initially and derives editable files as `<ConfigKey>.<variant>.toml`. `ListVariants()` returns exact indexed variants, `Load(variant)` switches the active variant, and `SaveAs(variant)` persists the current `Applied` values to a new variant before switching `CurrentVariant`.
+`OpenWorld(...)` opens the `default` variant for a config key. Physical World filenames are derived internally as `<ConfigKey>.<variant>.toml`; callers work with config keys and variant names rather than raw filenames.
 
-`ConfigHandle<T>` separates `Defaults`, `Stored`, `Applied`, and mutable `Draft` state. Editing `Draft` does not change runtime state; `Apply()` updates runtime state without saving; `Save()` persists `Applied`; `DiscardDraft()` restores the draft from `Applied`; and `ResetDraftToDefaults()` edits only the draft. `HasDraftChanges` and `HasUnsavedChanges` report semantic differences between those states.
+World operations are asynchronous and results are delivered through `WorldConfigResponseReceived`:
 
-All World operations are asynchronous requests. Authoritative snapshots, stale-write corrections, export confirmations, and errors are delivered through `WorldConfigResponseReceived`. Reload, LoadAndSwitch, Save, and SaveAndSwitch operate against the authoritative server iteration. Export writes the requested target file without switching authoritative state or advancing its iteration.
+- `ApplyWorld(...)` sends a draft to the authoritative server. On success it updates `Applied` and advances `Revision` without writing the active variant.
+- `SaveWorld(...)` persists the current authoritative `Applied` values into `Stored` for the current variant. It does not accept a draft payload.
+- `ReloadWorld(...)` reloads the current variant from server storage into `Stored` and `Applied`.
+- `LoadWorld(..., variant)` switches to an existing named variant and loads it into `Stored` and `Applied`.
+- `SaveAsWorld(..., variant)` persists the current authoritative `Applied` values as a new variant and switches `CurrentVariant` only after successful persistence.
+- `ListWorldVariants(...)` returns the currently indexed named variants.
+
+Mutating World requests use optimistic `Revision` concurrency. A stale request does not overwrite authoritative state; the response reports `IsStale` and carries the current authoritative snapshot. `WorldConfigResponse` exposes `Stored`, `Applied`, `Revision`, `CurrentVariant`, `HasUnsavedChanges`, `IsChanged`, and `IsStale`. Variant-list responses expose `Variants`.
 ## Serialization contract
 
 `ConfigDefinition<T>` requires the consuming mod to provide three operations: create current defaults, serialize `T` to a `ConfigDocument`, and deserialize a `ConfigDocument` back to `T`.

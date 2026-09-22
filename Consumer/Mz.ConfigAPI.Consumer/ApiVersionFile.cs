@@ -33,6 +33,8 @@ namespace Mz.ConfigApi
                         "Added typed ConfigHandle<T> runtime state separating Defaults, Stored, Applied, and mutable Draft values, with Apply, DiscardDraft, ResetDraftToDefaults, HasDraftChanges, and HasUnsavedChanges.",
                         "Added named Local and Global config variants derived as <ConfigKey>.<variant>.toml, with default as the initial active variant.",
                         "Added ListVariants, Load, Reload, Save, and SaveAs variant workflows; SaveAs persists Applied values and changes CurrentVariant only after successful persistence.",
+                        "Replaced the unreleased World file-operation facade with server-authoritative Open, Apply, Save, Reload, Load, SaveAs, and ListVariants operations using Revision-based stale-write detection.",
+                        "World responses now expose Stored, Applied, Revision, CurrentVariant, HasUnsavedChanges, IsChanged, IsStale, and optional variant-list results without raw-file identity aliases.",
                     }
                 ),
                 new ChangelogEntry(

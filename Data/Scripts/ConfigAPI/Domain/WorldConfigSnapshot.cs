@@ -7,16 +7,11 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
         public ConfigIdentity Identity { get; }
         public ConfigDocument Stored { get; }
         public ConfigDocument Applied { get; }
-        public ConfigDocument Document => Applied;
-        public ulong Revision => ServerIteration;
-        public ulong ServerIteration { get; }
-        public string CurrentFile { get; }
+        public ulong Revision { get; }
+        public string CurrentVariant { get; }
         public bool HasUnsavedChanges => !Applied.Equals(Stored);
 
-        public WorldConfigSnapshot(ConfigIdentity identity, ConfigDocument document, ulong serverIteration, string currentFile)
-            : this(identity, document, document, serverIteration, currentFile) { }
-
-        public WorldConfigSnapshot(ConfigIdentity identity, ConfigDocument stored, ConfigDocument applied, ulong serverIteration, string currentFile)
+        public WorldConfigSnapshot(ConfigIdentity identity, ConfigDocument stored, ConfigDocument applied, ulong revision, string currentVariant)
         {
             if (identity == null)
                 throw new ArgumentNullException(nameof(identity));
@@ -24,12 +19,16 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
                 throw new ArgumentNullException(nameof(stored));
             if (applied == null)
                 throw new ArgumentNullException(nameof(applied));
+            if (string.IsNullOrWhiteSpace(currentVariant))
+                throw new ArgumentException("Current variant must not be empty.", nameof(currentVariant));
+            if (currentVariant.IndexOf('.') >= 0)
+                throw new ArgumentException("Current variant must not contain '.'.", nameof(currentVariant));
 
             Identity = identity;
             Stored = stored;
             Applied = applied;
-            ServerIteration = serverIteration;
-            CurrentFile = currentFile;
+            Revision = revision;
+            CurrentVariant = currentVariant;
         }
     }
 }

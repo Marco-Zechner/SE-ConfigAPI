@@ -32,17 +32,16 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         }
 
         public ulong LocalPeerId => _transport.LocalPeerId;
-
         public event Action<WorldConfigNetworkResponse> ResponseSent;
 
-        public void BroadcastAppliedResponse(WorldConfigNetworkResponse response)
+        public void BroadcastChangedResponse(WorldConfigNetworkResponse response)
         {
             ThrowIfDisposed();
 
             if (response == null)
                 throw new ArgumentNullException(nameof(response));
-            if (response.Kind != WorldConfigNetworkResponseKind.Snapshot || !response.IsApplied)
-                throw new ArgumentException("Only applied authoritative snapshot responses can be broadcast.", nameof(response));
+            if (response.Kind != WorldConfigNetworkResponseKind.Snapshot || !response.IsChanged)
+                throw new ArgumentException("Only changed authoritative snapshot responses can be broadcast.", nameof(response));
 
             byte[] payload = WorldConfigNetworkCodec.EncodeResponse(response);
             var envelope = new NetworkEnvelope(ResponseMessageType, _transport.LocalPeerId, false, payload);
@@ -69,9 +68,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             WorldConfigNetworkRequest request = WorldConfigNetworkCodec.DecodeRequest(context.Envelope.Payload);
             ulong requesterId = context.Envelope.OriginalSenderId;
             WorldConfigNetworkResponse response = _handler.Handle(requesterId, request);
-            if (response.Kind == WorldConfigNetworkResponseKind.Snapshot && response.IsApplied)
+
+            if (response.Kind == WorldConfigNetworkResponseKind.Snapshot && response.IsChanged)
             {
-                BroadcastAppliedResponse(response);
+                BroadcastChangedResponse(response);
                 return;
             }
 

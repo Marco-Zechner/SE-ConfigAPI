@@ -16,7 +16,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Exists, storage.Read, storage.Write, storage.ListKnown);
 
             var transport = new RecordingServerTransport();
             var endpoint = new NetworkEndpoint(transport);
@@ -30,20 +30,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(runtime.ClientAdapter, Is.Null);
             });
 
-            var request = new WorldConfigNetworkRequest(
-                1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL,
-                "settings.toml", false, Document(Entry("Value", Integer(10))), null);
-
+            var request = new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, null, Document(Entry("Value", Integer(10))), null);
             NetworkReceiveContext context;
-            bool dispatched = endpoint.Receive(
-                new NetworkEnvelope(
-                    WorldConfigServerNetworkAdapter.RequestMessageType,
-                    999UL,
-                    false,
-                    WorldConfigNetworkCodec.EncodeRequest(request)),
-                111UL,
-                false,
-                out context);
+            bool dispatched = endpoint.Receive(new NetworkEnvelope(WorldConfigServerNetworkAdapter.RequestMessageType, 999UL, false, WorldConfigNetworkCodec.EncodeRequest(request)), 111UL, false, out context);
 
             Assert.Multiple(() =>
             {
@@ -53,8 +42,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(transport.PeerMessages[0].PeerId, Is.EqualTo(111UL));
             });
 
-            WorldConfigNetworkResponse response =
-                WorldConfigNetworkCodec.DecodeResponse(transport.PeerMessages[0].Envelope.Payload);
+            WorldConfigNetworkResponse response = WorldConfigNetworkCodec.DecodeResponse(transport.PeerMessages[0].Envelope.Payload);
 
             Assert.Multiple(() =>
             {
@@ -63,25 +51,17 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(response.TriggeredBy, Is.EqualTo(111UL));
                 Assert.That(response.Snapshot.Identity.OwnerId, Is.EqualTo("Example.Mod"));
                 Assert.That(response.Snapshot.Identity.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(response.Snapshot.CurrentVariant, Is.EqualTo("default"));
             });
 
             runtime.Dispose();
 
-            bool dispatchedAfterDispose = endpoint.Receive(
-                new NetworkEnvelope(
-                    WorldConfigServerNetworkAdapter.RequestMessageType,
-                    111UL,
-                    false,
-                    WorldConfigNetworkCodec.EncodeRequest(request)),
-                111UL,
-                false,
-                out context);
-
+            bool dispatchedAfterDispose = endpoint.Receive(new NetworkEnvelope(WorldConfigServerNetworkAdapter.RequestMessageType, 111UL, false, WorldConfigNetworkCodec.EncodeRequest(request)), 111UL, false, out context);
             Assert.That(dispatchedAfterDispose, Is.False);
         }
 
         [Test]
-        public void Client_Transport_Creates_Client_Runtime_And_Sends_Open()
+        public void Client_Transport_Creates_Client_Runtime_And_Sends_Canonical_Open()
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var transport = new RecordingClientTransport();
@@ -96,55 +76,51 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(runtime.ClientAdapter, Is.Not.Null);
             });
 
-            ulong requestId = runtime.ClientAdapter.Open(
-                "Example.Mod", "Settings", "settings.toml",
-                Document(Entry("Value", Integer(10))));
+            ulong requestId = runtime.ClientAdapter.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10))));
 
             Assert.That(requestId, Is.EqualTo(1UL));
             Assert.That(transport.ServerMessages.Count, Is.EqualTo(1));
 
-            WorldConfigNetworkRequest request =
-                WorldConfigNetworkCodec.DecodeRequest(transport.ServerMessages[0].Payload);
+            WorldConfigNetworkRequest request = WorldConfigNetworkCodec.DecodeRequest(transport.ServerMessages[0].Payload);
 
             Assert.Multiple(() =>
             {
                 Assert.That(request.ConsumerId, Is.EqualTo("Example.Mod"));
                 Assert.That(request.ConfigKey, Is.EqualTo("Settings"));
                 Assert.That(request.Operation, Is.EqualTo(WorldConfigNetworkOperation.Open));
-                Assert.That(request.File, Is.EqualTo("settings.toml"));
+                Assert.That(request.ExpectedRevision, Is.EqualTo(0UL));
+                Assert.That(request.Variant, Is.Null);
+                Assert.That(request.Defaults, Is.Not.Null);
             });
 
             runtime.Dispose();
-
-            Assert.Throws<InvalidOperationException>(() =>
-                runtime.ClientAdapter.Open(
-                    "Example.Mod", "Settings", "settings.toml",
-                    Document(Entry("Value", Integer(10)))));
+            Assert.Throws<InvalidOperationException>(() => runtime.ClientAdapter.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10)))));
         }
 
         [Test]
         public void Runtime_Forwards_Bootstrap_Store_To_Server_And_Client()
         {
             var identity = new ConfigIdentity("Example.Mod", "Settings");
-            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(30))), 5UL, "settings.toml"));
+            var bootstrap = new MemoryBootstrapStore(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(30))), Document(Entry("Value", Integer(30))), 5UL, "default"));
 
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            storage.Write(2, "settings.toml", "Value = 40\n");
-            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            storage.Set(2, "Settings.default.toml", "Value = 40\n");
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Exists, storage.Read, storage.Write, storage.ListKnown);
 
             var serverTransport = new RecordingServerTransport();
             var serverEndpoint = new NetworkEndpoint(serverTransport);
             var serverRuntime = new WorldConfigNetworkRuntime(serverEndpoint, serverTransport, registry, new FixedClock(), new AllowAllAuthorization(), bootstrap);
 
-            WorldConfigSnapshot serverSnapshot = serverRuntime.ServerService.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            WorldConfigSnapshot serverSnapshot = serverRuntime.ServerService.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10))));
 
             Assert.Multiple(() =>
             {
-                Assert.That(serverSnapshot.ServerIteration, Is.EqualTo(5UL));
-                AssertDocumentValue(serverSnapshot.Document, 40);
-                Assert.That(bootstrap.Current.ServerIteration, Is.EqualTo(5UL));
-                AssertDocumentValue(bootstrap.Current.Document, 40);
+                Assert.That(serverSnapshot.Revision, Is.EqualTo(5UL));
+                Assert.That(serverSnapshot.CurrentVariant, Is.EqualTo("default"));
+                AssertDocumentValue(serverSnapshot.Applied, 40);
+                Assert.That(bootstrap.Current.Revision, Is.EqualTo(5UL));
+                AssertDocumentValue(bootstrap.Current.Applied, 40);
             });
 
             var clientTransport = new RecordingClientTransport();
@@ -159,8 +135,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             Assert.Multiple(() =>
             {
-                Assert.That(clientBootstrap.ServerIteration, Is.EqualTo(5UL));
-                AssertDocumentValue(clientState.Authoritative.Document, 40);
+                Assert.That(clientBootstrap.Revision, Is.EqualTo(5UL));
+                Assert.That(clientState.Authoritative.CurrentVariant, Is.EqualTo("default"));
+                AssertDocumentValue(clientState.Authoritative.Applied, 40);
             });
 
             clientRuntime.Dispose();
@@ -195,40 +172,38 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             }
         }
 
-        private static ConfigDocument Document(params ConfigObjectEntry[] entries)
-        {
-            return new ConfigDocument(new ConfigObjectNode(entries));
-        }
-
-        private static ConfigObjectEntry Entry(string name, ConfigNode value)
-        {
-            return new ConfigObjectEntry(name, value);
-        }
-
-        private static ConfigScalarNode Integer(long value)
-        {
-            return ConfigScalarNode.Integer(value);
-        }
+        private static ConfigDocument Document(params ConfigObjectEntry[] entries) => new ConfigDocument(new ConfigObjectNode(entries));
+        private static ConfigObjectEntry Entry(string name, ConfigNode value) => new ConfigObjectEntry(name, value);
+        private static ConfigScalarNode Integer(long value) => ConfigScalarNode.Integer(value);
 
         private sealed class AllowAllAuthorization : IWorldConfigAuthorization
         {
-            public bool IsAdmin(ulong playerId)
-            {
-                return true;
-            }
+            public bool IsAdmin(ulong playerId) => true;
         }
 
         private sealed class FixedClock : IConfigClock
         {
-            public DateTime UtcNow
-            {
-                get { return new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc); }
-            }
+            public DateTime UtcNow => new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc);
         }
 
         private sealed class MemoryStorage
         {
             private readonly Dictionary<string, string> _content = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            public bool Exists(int location, string file) => _content.ContainsKey(Key(location, file));
+
+            public string[] ListKnown(int location)
+            {
+                string prefix = location + "|";
+                var files = new List<string>();
+
+                foreach (string key in _content.Keys)
+                    if (key.StartsWith(prefix, StringComparison.Ordinal))
+                        files.Add(key.Substring(prefix.Length));
+
+                files.Sort(StringComparer.Ordinal);
+                return files.ToArray();
+            }
 
             public string Read(int location, string file)
             {
@@ -236,15 +211,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 return _content.TryGetValue(Key(location, file), out content) ? content : null;
             }
 
-            public void Write(int location, string file, string content)
-            {
-                _content[Key(location, file)] = content;
-            }
-
-            private static string Key(int location, string file)
-            {
-                return location + "|" + file;
-            }
+            public void Write(int location, string file, string content) => _content[Key(location, file)] = content;
+            public void Set(int location, string file, string content) => _content[Key(location, file)] = content;
+            private static string Key(int location, string file) => location + "|" + file;
         }
 
         private sealed class PeerMessage
@@ -255,30 +224,22 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 PeerId = peerId;
             }
 
-            public NetworkEnvelope Envelope { get; private set; }
-            public ulong PeerId { get; private set; }
+            public NetworkEnvelope Envelope { get; }
+            public ulong PeerId { get; }
         }
 
         private sealed class RecordingServerTransport : INetworkTransport
         {
-            public bool IsServer { get { return true; } }
-            public ulong LocalPeerId { get { return 777UL; } }
-            public List<PeerMessage> PeerMessages { get; private set; }
-
-            public RecordingServerTransport()
-            {
-                PeerMessages = new List<PeerMessage>();
-            }
+            public bool IsServer => true;
+            public ulong LocalPeerId => 777UL;
+            public List<PeerMessage> PeerMessages { get; } = new List<PeerMessage>();
 
             public void SendToServer(NetworkEnvelope envelope)
             {
                 throw new InvalidOperationException("Server runtime must not send requests to itself through the transport.");
             }
 
-            public void SendToPeer(NetworkEnvelope envelope, ulong peerId)
-            {
-                PeerMessages.Add(new PeerMessage(envelope, peerId));
-            }
+            public void SendToPeer(NetworkEnvelope envelope, ulong peerId) => PeerMessages.Add(new PeerMessage(envelope, peerId));
 
             public void SendToOthers(NetworkEnvelope envelope, ulong excludedPeerId)
             {
@@ -292,19 +253,11 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
         private sealed class RecordingClientTransport : INetworkTransport
         {
-            public bool IsServer { get { return false; } }
-            public ulong LocalPeerId { get { return 111UL; } }
-            public List<NetworkEnvelope> ServerMessages { get; private set; }
+            public bool IsServer => false;
+            public ulong LocalPeerId => 111UL;
+            public List<NetworkEnvelope> ServerMessages { get; } = new List<NetworkEnvelope>();
 
-            public RecordingClientTransport()
-            {
-                ServerMessages = new List<NetworkEnvelope>();
-            }
-
-            public void SendToServer(NetworkEnvelope envelope)
-            {
-                ServerMessages.Add(envelope);
-            }
+            public void SendToServer(NetworkEnvelope envelope) => ServerMessages.Add(envelope);
 
             public void SendToPeer(NetworkEnvelope envelope, ulong peerId)
             {
