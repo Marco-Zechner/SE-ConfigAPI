@@ -1,8 +1,8 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Logging;
 
-namespace MarcoZechner.ConfigAPI.V2
+namespace MarcoZechner.ConfigAPI
 {
     public sealed class ConfigApiRuntimeConfig
     {

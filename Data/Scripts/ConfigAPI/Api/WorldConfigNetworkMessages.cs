@@ -1,7 +1,7 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public enum WorldConfigNetworkOperation
     {

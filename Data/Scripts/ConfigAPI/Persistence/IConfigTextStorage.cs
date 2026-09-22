@@ -1,6 +1,6 @@
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public interface IConfigTextStorage
     {

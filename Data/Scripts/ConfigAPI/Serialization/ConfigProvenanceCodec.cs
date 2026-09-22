@@ -1,10 +1,10 @@
 using System;
 using System.Globalization;
 using System.Text;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 
-namespace MarcoZechner.ConfigAPI.V2.Serialization
+namespace MarcoZechner.ConfigAPI.Serialization
 {
     public static class ConfigProvenanceCodec
     {

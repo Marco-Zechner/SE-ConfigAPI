@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
-using MarcoZechner.ConfigAPI.V2.Serialization;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
+using MarcoZechner.ConfigAPI.Serialization;
 using NUnit.Framework;
 
 namespace MarcoZechner.ConfigAPI.Tests.V2.Persistence

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.Networking;
 using NUnit.Framework;
 
@@ -119,6 +119,31 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Missing_Variant_Load_Replies_With_Error_Instead_Of_Dropping_Request()
+        {
+            TestRig rig = CreateRig(222UL);
+            Open(rig, 111UL);
+
+            var request = new WorldConfigNetworkRequest(4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Load, 0UL, "missing", null, null);
+            Receive(rig, request, 999UL, 222UL);
+            WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Transport.PeerMessages.Count, Is.EqualTo(1));
+                Assert.That(rig.Transport.PeerMessages[0].PeerId, Is.EqualTo(222UL));
+                Assert.That(rig.Transport.EveryoneMessages.Count, Is.EqualTo(0));
+                Assert.That(response.RequestId, Is.EqualTo(4UL));
+                Assert.That(response.Operation, Is.EqualTo(WorldConfigNetworkOperation.Load));
+                Assert.That(response.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(response.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(response.IsChanged, Is.False);
+                Assert.That(response.IsStale, Is.False);
+                Assert.That(response.Snapshot, Is.Null);
+                Assert.That(response.Error, Does.Contain("variant does not exist: missing"));
+            });
+        }
         [Test]
         public void Unchanged_Save_Replies_Only_To_Requester()
         {

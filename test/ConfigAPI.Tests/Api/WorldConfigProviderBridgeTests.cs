@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.Networking;
 using NUnit.Framework;
 

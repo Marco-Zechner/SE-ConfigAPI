@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Persistence;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class ConfigConsumerRegistrationRegistry
     {

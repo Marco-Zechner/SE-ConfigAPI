@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using NUnit.Framework;
 
 namespace MarcoZechner.ConfigAPI.Tests.V2.Api
@@ -160,6 +160,38 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Missing_And_Duplicate_Variants_Return_Request_Errors_Without_Changing_Authority()
+        {
+            TestRig rig = CreateRig(222UL);
+            var handler = new WorldConfigServerRequestHandler(rig.Service, rig.Authorization);
+            handler.Handle(111UL, OpenRequest(1UL));
+            rig.Storage.ClearOperations();
+
+            WorldConfigNetworkResponse missing = handler.Handle(222UL, new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Load, 0UL, "missing", null, null));
+            WorldConfigNetworkResponse duplicate = handler.Handle(222UL, new WorldConfigNetworkRequest(3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.SaveAs, 0UL, "default", null, null));
+            WorldConfigSnapshot current = rig.Service.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(missing.RequestId, Is.EqualTo(2UL));
+                Assert.That(missing.Operation, Is.EqualTo(WorldConfigNetworkOperation.Load));
+                Assert.That(missing.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(missing.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(missing.Error, Does.Contain("variant does not exist: missing"));
+
+                Assert.That(duplicate.RequestId, Is.EqualTo(3UL));
+                Assert.That(duplicate.Operation, Is.EqualTo(WorldConfigNetworkOperation.SaveAs));
+                Assert.That(duplicate.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(duplicate.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(duplicate.Error, Does.Contain("variant already exists: default"));
+
+                Assert.That(current.Revision, Is.EqualTo(0UL));
+                Assert.That(current.CurrentVariant, Is.EqualTo("default"));
+                AssertDocumentValue(current.Applied, 10);
+                Assert.That(rig.Storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
         [Test]
         public void ListVariants_Is_Admin_Gated_Like_Other_NonOpen_Operations()
         {

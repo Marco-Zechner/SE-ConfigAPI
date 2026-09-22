@@ -1,7 +1,7 @@
 using System;
 using Mz.Networking;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class WorldConfigServerNetworkAdapter : IDisposable
     {

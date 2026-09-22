@@ -1,9 +1,9 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.Logging;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class ConfigApiPersistenceService
     {

@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public static class ConfigBackupName
     {

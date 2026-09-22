@@ -1,9 +1,9 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Storage;
 using Mz.Storage.SpaceEngineers;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     internal sealed class ConfigApiSpaceEngineersTextStorage : IIndexedConfigTextStorage
     {

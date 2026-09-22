@@ -1,6 +1,6 @@
 using System;
 
-namespace MarcoZechner.ConfigAPI.V2.Domain
+namespace MarcoZechner.ConfigAPI.Domain
 {
     public sealed class WorldConfigAuthorityResult
     {

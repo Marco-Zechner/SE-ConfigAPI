@@ -1,6 +1,6 @@
 using System;
-using MarcoZechner.ConfigAPI.V2;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Logging;
 using NUnit.Framework;
 

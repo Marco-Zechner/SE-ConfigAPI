@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Serialization;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Serialization;
 using Mz.Toml;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public sealed class ConfigPersistedSourcePlan
     {

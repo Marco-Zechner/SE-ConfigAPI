@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Networking;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class WorldConfigClientNetworkAdapter : IDisposable
     {

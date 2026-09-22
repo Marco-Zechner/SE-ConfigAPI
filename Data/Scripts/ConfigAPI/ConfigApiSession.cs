@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.ApiProtocol.SpaceEngineers;
 using Mz.Networking.SpaceEngineers;
 using Sandbox.ModAPI;
@@ -12,7 +12,7 @@ using Mz.Logging.SpaceEngineers;
 using Mz.SemanticVersioning;
 using VRage.Game.Components;
 
-namespace MarcoZechner.ConfigAPI.V2
+namespace MarcoZechner.ConfigAPI
 {
     [MySessionComponentDescriptor(MyUpdateOrder.NoUpdate)]
     public sealed class ConfigApiSession : MySessionComponentBase

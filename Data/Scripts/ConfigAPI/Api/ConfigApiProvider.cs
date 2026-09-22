@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
 using Mz.Logging;
 using Mz.SemanticVersioning;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class ConfigApiProvider : IDisposable
     {

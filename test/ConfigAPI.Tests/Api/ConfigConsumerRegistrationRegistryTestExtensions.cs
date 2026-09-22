@@ -1,5 +1,5 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Api;
+using MarcoZechner.ConfigAPI.Api;
 
 namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 {

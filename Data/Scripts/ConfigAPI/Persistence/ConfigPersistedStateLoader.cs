@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Serialization;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Serialization;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public sealed class ConfigPersistedLoadResult
     {

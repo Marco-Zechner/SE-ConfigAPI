@@ -1,7 +1,7 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class WorldConfigServerRequestHandler
     {
@@ -29,24 +29,35 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (request.Operation != WorldConfigNetworkOperation.Open && !_authorization.IsAdmin(requesterId))
                 return Error(request, requesterId, PermissionDeniedError);
 
-            switch (request.Operation)
+            try
             {
-                case WorldConfigNetworkOperation.Open:
-                    return HandleOpen(requesterId, request);
-                case WorldConfigNetworkOperation.Apply:
-                    return HandleApply(requesterId, request);
-                case WorldConfigNetworkOperation.Save:
-                    return HandleSave(requesterId, request);
-                case WorldConfigNetworkOperation.Reload:
-                    return HandleReload(requesterId, request);
-                case WorldConfigNetworkOperation.Load:
-                    return HandleLoad(requesterId, request);
-                case WorldConfigNetworkOperation.SaveAs:
-                    return HandleSaveAs(requesterId, request);
-                case WorldConfigNetworkOperation.ListVariants:
-                    return HandleListVariants(requesterId, request);
-                default:
-                    throw new ArgumentException("Unsupported World config network operation: " + request.Operation, nameof(request));
+                switch (request.Operation)
+                {
+                    case WorldConfigNetworkOperation.Open:
+                        return HandleOpen(requesterId, request);
+                    case WorldConfigNetworkOperation.Apply:
+                        return HandleApply(requesterId, request);
+                    case WorldConfigNetworkOperation.Save:
+                        return HandleSave(requesterId, request);
+                    case WorldConfigNetworkOperation.Reload:
+                        return HandleReload(requesterId, request);
+                    case WorldConfigNetworkOperation.Load:
+                        return HandleLoad(requesterId, request);
+                    case WorldConfigNetworkOperation.SaveAs:
+                        return HandleSaveAs(requesterId, request);
+                    case WorldConfigNetworkOperation.ListVariants:
+                        return HandleListVariants(requesterId, request);
+                    default:
+                        throw new ArgumentException("Unsupported World config network operation: " + request.Operation, nameof(request));
+                }
+            }
+            catch (ArgumentException exception)
+            {
+                return Error(request, requesterId, exception.Message);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Error(request, requesterId, exception.Message);
             }
         }
 
