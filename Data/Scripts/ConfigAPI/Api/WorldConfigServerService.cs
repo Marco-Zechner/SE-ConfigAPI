@@ -117,6 +117,101 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return authority;
         }
 
+        public WorldConfigAuthorityResult Load(string consumerId, string configKey, ulong expectedRevision, string variant)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            string normalizedVariant = NormalizeVariant(variant);
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+            WorldConfigAuthorityResult stale = RejectStale(state, expectedRevision);
+            if (stale != null)
+                return stale;
+
+            string file = GetVariantFile(normalizedConfigKey, normalizedVariant);
+            IIndexedConfigTextStorage storage = _registry.GetCurrentIndexedStorage(normalizedConsumerId);
+            if (!storage.Exists(ConfigLocation.World, file))
+                throw new InvalidOperationException("World config variant does not exist: " + normalizedVariant);
+
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(ConfigLocation.World, file, state.Snapshot.Identity, state.CurrentDefaults);
+            WorldConfigAuthorityResult authority = WorldConfigOperations.Load(state.Snapshot, expectedRevision, loadResult.State.PlayerValues, file);
+
+            if (NeedsPersistence(loadResult))
+                new ConfigPersistedStateWriter(storage, _clock).Write(ConfigLocation.World, loadResult, state.CurrentDefaults);
+
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
+            return authority;
+        }
+
+        public WorldConfigAuthorityResult SaveAs(string consumerId, string configKey, ulong expectedRevision, string variant)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            string normalizedVariant = NormalizeVariant(variant);
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+            WorldConfigAuthorityResult stale = RejectStale(state, expectedRevision);
+            if (stale != null)
+                return stale;
+
+            string file = GetVariantFile(normalizedConfigKey, normalizedVariant);
+            IIndexedConfigTextStorage storage = _registry.GetCurrentIndexedStorage(normalizedConsumerId);
+            if (storage.Exists(ConfigLocation.World, file))
+                throw new InvalidOperationException("World config variant already exists: " + normalizedVariant);
+
+            WorldConfigAuthorityResult authority = WorldConfigOperations.SaveAs(state.Snapshot, expectedRevision, file);
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(ConfigLocation.World, file, state.Snapshot.Identity, state.CurrentDefaults);
+            ValidateDocument(loadResult, state.Snapshot.Applied, state.CurrentDefaults, nameof(state.Snapshot.Applied));
+            PersistDocument(storage, loadResult, state.Snapshot.Applied, state.CurrentDefaults);
+
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
+            return authority;
+        }
+
+        public string[] ListVariants(string consumerId, string configKey)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            GetRequiredState(StateKey(normalizedConsumerId, normalizedConfigKey), normalizedConsumerId, normalizedConfigKey);
+
+            string prefix = normalizedConfigKey + ".";
+            const string suffix = ".toml";
+            string[] files = _registry.GetCurrentIndexedStorage(normalizedConsumerId).ListKnown(ConfigLocation.World);
+            var variants = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var index = 0; index < files.Length; index++)
+            {
+                string file = files[index];
+                if (string.IsNullOrEmpty(file) || !file.StartsWith(prefix, StringComparison.Ordinal) || !file.EndsWith(suffix, StringComparison.Ordinal))
+                    continue;
+
+                int variantLength = file.Length - prefix.Length - suffix.Length;
+                if (variantLength <= 0)
+                    continue;
+
+                string candidate = file.Substring(prefix.Length, variantLength);
+                string normalizedVariant;
+                try
+                {
+                    normalizedVariant = NormalizeVariant(candidate);
+                }
+                catch (ArgumentException)
+                {
+                    continue;
+                }
+
+                if (!string.Equals(file, GetVariantFile(normalizedConfigKey, normalizedVariant), StringComparison.Ordinal))
+                    continue;
+
+                variants.Add(normalizedVariant);
+            }
+
+            var result = new List<string>(variants);
+            result.Sort(StringComparer.Ordinal);
+            return result.ToArray();
+        }
         public WorldConfigAuthorityResult Save(string consumerId, string configKey, ulong baseIteration, ConfigDocument draft)
         {
             string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
@@ -305,6 +400,19 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return WorldConfigOperations.Export(state.Snapshot, document, file, overwrite);
         }
 
+        private static string NormalizeVariant(string variant)
+        {
+            if (string.IsNullOrWhiteSpace(variant))
+                throw new ArgumentException("Variant must not be empty.", nameof(variant));
+
+            string normalized = variant.Trim();
+            if (normalized.IndexOf('.') >= 0)
+                throw new ArgumentException("Variant must not contain '.'.", nameof(variant));
+
+            return normalized;
+        }
+
+        private static string GetVariantFile(string configKey, string variant) => configKey + "." + NormalizeVariant(variant) + ".toml";
         private static void ValidateDocument(ConfigPersistedLoadResult loadResult, ConfigDocument document, ConfigDocument currentDefaults, string parameterName)
         {
             ConfigDefaultReconciliationResult validation = ConfigDefaultReconciler.Reconcile(

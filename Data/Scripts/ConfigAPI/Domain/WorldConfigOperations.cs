@@ -21,6 +21,27 @@ namespace MarcoZechner.ConfigAPI.V2.Domain
 
             return WorldConfigAuthority.Update(current, expectedRevision, current.Applied, current.Applied, current.CurrentFile);
         }
+        public static WorldConfigAuthorityResult Load(WorldConfigSnapshot current, ulong expectedRevision, ConfigDocument loadedDocument, string currentFile)
+        {
+            if (current == null)
+                throw new ArgumentNullException(nameof(current));
+            if (loadedDocument == null)
+                throw new ArgumentNullException(nameof(loadedDocument));
+            if (string.IsNullOrWhiteSpace(currentFile))
+                throw new ArgumentException("Current config file must not be empty.", nameof(currentFile));
+
+            return WorldConfigAuthority.Update(current, expectedRevision, loadedDocument, loadedDocument, currentFile);
+        }
+
+        public static WorldConfigAuthorityResult SaveAs(WorldConfigSnapshot current, ulong expectedRevision, string currentFile)
+        {
+            if (current == null)
+                throw new ArgumentNullException(nameof(current));
+            if (string.IsNullOrWhiteSpace(currentFile))
+                throw new ArgumentException("Current config file must not be empty.", nameof(currentFile));
+
+            return WorldConfigAuthority.Update(current, expectedRevision, current.Applied, current.Applied, currentFile);
+        }
         public static WorldConfigAuthorityResult Reload(WorldConfigSnapshot current, ulong baseIteration, ConfigDocument loadedDocument)
         {
             if (current == null)

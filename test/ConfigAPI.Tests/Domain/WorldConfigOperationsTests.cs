@@ -68,6 +68,44 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Domain
         }
 
         [Test]
+        public void Load_Replaces_Stored_And_Applied_State_And_Switches_File()
+        {
+            var current = new WorldConfigSnapshot(new ConfigIdentity("12345", "ServerSettings"), Document(Entry("Value", Integer(10))), Document(Entry("Value", Integer(15))), 7UL, "ServerSettings.default.toml");
+            var loaded = Document(Entry("Value", Integer(30)));
+
+            WorldConfigAuthorityResult result = WorldConfigOperations.Load(current, 7UL, loaded, "ServerSettings.combat.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(8UL));
+                Assert.That(result.Snapshot.CurrentFile, Is.EqualTo("ServerSettings.combat.toml"));
+                AssertValue(result.Snapshot.Stored, Integer(30), "Value");
+                AssertValue(result.Snapshot.Applied, Integer(30), "Value");
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.False);
+            });
+        }
+
+        [Test]
+        public void SaveAs_Changes_Stored_Identity_Without_Changing_Applied_Value()
+        {
+            var current = new WorldConfigSnapshot(new ConfigIdentity("12345", "ServerSettings"), Document(Entry("Value", Integer(10))), Document(Entry("Value", Integer(15))), 7UL, "ServerSettings.default.toml");
+
+            WorldConfigAuthorityResult result = WorldConfigOperations.SaveAs(current, 7UL, "ServerSettings.combat.toml");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(8UL));
+                Assert.That(result.Snapshot.CurrentFile, Is.EqualTo("ServerSettings.combat.toml"));
+                AssertValue(result.Snapshot.Stored, Integer(15), "Value");
+                AssertValue(result.Snapshot.Applied, Integer(15), "Value");
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.False);
+            });
+        }
+        [Test]
         public void Reload_Replaces_Authoritative_Document_And_Keeps_Current_File()
         {
             var current = Snapshot(10, 7UL, "server.toml");

@@ -169,6 +169,105 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Canonical_Load_Uses_Derived_Variant_File_And_Is_Failure_Atomic()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Exists, storage.Read, storage.Write, storage.ListKnown);
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "Settings.default.toml", Document(Entry("Value", Integer(10))));
+            storage.Set(2, "Settings.combat.toml", "Value = 30\n");
+            storage.ClearOperations();
+
+            Assert.Throws<InvalidOperationException>(() => service.Load("Example.Mod", "Settings", 0UL, "missing"));
+            WorldConfigSnapshot afterMissing = service.Open("Example.Mod", "Settings", "Settings.default.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(afterMissing, Is.SameAs(opened));
+                Assert.That(afterMissing.Revision, Is.EqualTo(0UL));
+                Assert.That(afterMissing.CurrentFile, Is.EqualTo("Settings.default.toml"));
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+
+            WorldConfigAuthorityResult loaded = service.Load("Example.Mod", "Settings", 0UL, " combat ");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(loaded.IsApplied, Is.True);
+                Assert.That(loaded.IsStale, Is.False);
+                Assert.That(loaded.Snapshot.Revision, Is.EqualTo(1UL));
+                Assert.That(loaded.Snapshot.CurrentFile, Is.EqualTo("Settings.combat.toml"));
+                AssertDocumentValue(loaded.Snapshot.Stored, 30, "Value");
+                AssertDocumentValue(loaded.Snapshot.Applied, 30, "Value");
+                Assert.That(loaded.Snapshot.HasUnsavedChanges, Is.False);
+                Assert.That(storage.Get(2, "Settings.combat.toml.configapi.provenance"), Is.Not.Null);
+            });
+        }
+
+        [Test]
+        public void Canonical_SaveAs_Persists_Applied_Rejects_Collisions_And_Switches_Only_After_Success()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Exists, storage.Read, storage.Write, storage.ListKnown);
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "Settings.default.toml", Document(Entry("Value", Integer(10))));
+            service.Apply("Example.Mod", "Settings", 0UL, Document(Entry("Value", Integer(20))));
+            storage.Set(2, "Settings.combat.toml", "Value = 30\n");
+            storage.ClearOperations();
+
+            Assert.Throws<InvalidOperationException>(() => service.SaveAs("Example.Mod", "Settings", 1UL, "combat"));
+            WorldConfigSnapshot afterCollision = service.Open("Example.Mod", "Settings", "Settings.default.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(afterCollision.Revision, Is.EqualTo(1UL));
+                Assert.That(afterCollision.CurrentFile, Is.EqualTo("Settings.default.toml"));
+                AssertDocumentValue(afterCollision.Stored, 10, "Value");
+                AssertDocumentValue(afterCollision.Applied, 20, "Value");
+                Assert.That(afterCollision.HasUnsavedChanges, Is.True);
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+
+            WorldConfigAuthorityResult saved = service.SaveAs("Example.Mod", "Settings", 1UL, " cargo_2 ");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(saved.IsApplied, Is.True);
+                Assert.That(saved.IsStale, Is.False);
+                Assert.That(saved.Snapshot.Revision, Is.EqualTo(2UL));
+                Assert.That(saved.Snapshot.CurrentFile, Is.EqualTo("Settings.cargo_2.toml"));
+                AssertDocumentValue(saved.Snapshot.Stored, 20, "Value");
+                AssertDocumentValue(saved.Snapshot.Applied, 20, "Value");
+                Assert.That(saved.Snapshot.HasUnsavedChanges, Is.False);
+                Assert.That(storage.Get(2, "Settings.default.toml"), Does.Contain("Value = 10"));
+                Assert.That(storage.Get(2, "Settings.cargo_2.toml"), Does.Contain("Value = 20"));
+                Assert.That(storage.Get(2, "Settings.cargo_2.toml.configapi.provenance"), Is.Not.Null);
+            });
+        }
+
+        [Test]
+        public void Canonical_ListVariants_Filters_And_Reconstructs_Exact_Derived_Files()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.Register("Example.Mod", Guid.NewGuid(), storage.Exists, storage.Read, storage.Write, storage.ListKnown);
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "Settings.default.toml", Document(Entry("Value", Integer(10))));
+            storage.Set(2, "Settings.combat.toml", "Value = 20\n");
+            storage.Set(2, "Settings.cargo_2.toml", "Value = 30\n");
+            storage.Set(2, "Settings.bad.name.toml", "Value = 40\n");
+            storage.Set(2, "Settings..toml", "Value = 50\n");
+            storage.Set(2, "Settings. spaced .toml", "Value = 60\n");
+            storage.Set(2, "Settings.combat.toml.bak", "Value = 70\n");
+            storage.Set(2, "Settings.defaults", "ignored");
+            storage.Set(2, "Other.default.toml", "Value = 80\n");
+
+            Assert.That(service.ListVariants("Example.Mod", "Settings"), Is.EqualTo(new[] { "cargo_2", "combat", "default" }));
+            Assert.Throws<ArgumentException>(() => service.SaveAs("Example.Mod", "Settings", 0UL, "combat.v2"));
+        }
+        [Test]
         public void Save_Matching_Iteration_Persists_World_And_Increments_Authority()
         {
             var registry = new ConfigConsumerRegistrationRegistry();
@@ -539,6 +638,20 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             public int TotalWrites { get; private set; }
 
+            public bool Exists(int location, string file) => _content.ContainsKey(Key(location, file));
+
+            public string[] ListKnown(int location)
+            {
+                string prefix = location + "|";
+                var files = new List<string>();
+
+                foreach (string key in _content.Keys)
+                    if (key.StartsWith(prefix, StringComparison.Ordinal))
+                        files.Add(key.Substring(prefix.Length));
+
+                files.Sort(StringComparer.Ordinal);
+                return files.ToArray();
+            }
             public string Read(int location, string file)
             {
                 string content;
