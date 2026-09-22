@@ -23,10 +23,6 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         public const string LoadAndSwitchWorldConfigEndpoint = "LoadAndSwitchWorldConfig";
         public const string SaveAndSwitchWorldConfigEndpoint = "SaveAndSwitchWorldConfig";
         public const string ExportWorldConfigEndpoint = "ExportWorldConfig";
-        public const string ApplyPresetConfigEndpoint = "ApplyPresetConfig";
-        public const string ApplyPresetWorldConfigEndpoint = "ApplyPresetWorldConfig";
-        public const string SavePresetConfigEndpoint = "SavePresetConfig";
-        public const string SavePresetWorldConfigEndpoint = "SavePresetWorldConfig";
 
         private readonly Logger _logger;
         private readonly ApiDiscoveryProvider _provider;
@@ -71,8 +67,6 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             Func<string, Guid, string, int, string, object, object> openConfig = _persistence.Open;
             Func<string, Guid, string, int, string, object, object, object> saveConfig = _persistence.Save;
-            Func<string, Guid, string, int, string, string, object, object> applyPresetConfig = _persistence.ApplyPreset;
-            Func<string, Guid, string, int, string, string, object, object, bool, object> savePresetConfig = _persistence.SavePreset;
             Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig = _worldBridge.Register;
             Action<string, Guid, string, string, object> openWorldConfig = _worldBridge.Open;
             Action<string, Guid, string, object> saveWorldConfig = _worldBridge.Save;
@@ -80,16 +74,12 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             Action<string, Guid, string, string> loadAndSwitchWorldConfig = _worldBridge.LoadAndSwitch;
             Action<string, Guid, string, string, object> saveAndSwitchWorldConfig = _worldBridge.SaveAndSwitch;
             Action<string, Guid, string, string, object, bool> exportWorldConfig = _worldBridge.Export;
-            Action<string, Guid, string, string> applyPresetWorldConfig = _worldBridge.ApplyPreset;
-            Action<string, Guid, string, string, object, bool> savePresetWorldConfig = _worldBridge.SavePreset;
 
             var endpoints = new Dictionary<string, Delegate>(StringComparer.Ordinal)
             {
                 { RegisterConsumerEndpoint, registerConsumer },
                 { OpenConfigEndpoint, openConfig },
                 { SaveConfigEndpoint, saveConfig },
-                { ApplyPresetConfigEndpoint, applyPresetConfig },
-                { SavePresetConfigEndpoint, savePresetConfig },
                 { RegisterWorldConfigEndpoint, registerWorldConfig },
                 { OpenWorldConfigEndpoint, openWorldConfig },
                 { SaveWorldConfigEndpoint, saveWorldConfig },
@@ -97,8 +87,6 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 { LoadAndSwitchWorldConfigEndpoint, loadAndSwitchWorldConfig },
                 { SaveAndSwitchWorldConfigEndpoint, saveAndSwitchWorldConfig },
                 { ExportWorldConfigEndpoint, exportWorldConfig },
-                { ApplyPresetWorldConfigEndpoint, applyPresetWorldConfig },
-                { SavePresetWorldConfigEndpoint, savePresetWorldConfig },
             };
 
             _provider = new ApiDiscoveryProvider(

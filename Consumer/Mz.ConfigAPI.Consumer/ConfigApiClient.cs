@@ -19,10 +19,6 @@ namespace Mz.ConfigApi
         public const string LoadAndSwitchWorldConfigEndpoint = "LoadAndSwitchWorldConfig";
         public const string SaveAndSwitchWorldConfigEndpoint = "SaveAndSwitchWorldConfig";
         public const string ExportWorldConfigEndpoint = "ExportWorldConfig";
-        public const string ApplyPresetConfigEndpoint = "ApplyPresetConfig";
-        public const string ApplyPresetWorldConfigEndpoint = "ApplyPresetWorldConfig";
-        public const string SavePresetConfigEndpoint = "SavePresetConfig";
-        public const string SavePresetWorldConfigEndpoint = "SavePresetWorldConfig";
         private readonly ApiDiscoveryConsumer _consumer;
 
         private readonly string _consumerId;
@@ -37,16 +33,12 @@ namespace Mz.ConfigApi
         private Action _providerUnregister;
         private Guid _registrationId;
         private Func<string, Guid, string, int, string, object, object, object> _saveConfig;
-        private Func<string, Guid, string, int, string, string, object, object> _applyPresetConfig;
-        private Func<string, Guid, string, int, string, string, object, object, bool, object> _savePresetConfig;
         private Action<string, Guid, string, string, object> _openWorldConfig;
         private Action<string, Guid, string, object> _saveWorldConfig;
         private Action<string, Guid, string> _reloadWorldConfig;
         private Action<string, Guid, string, string> _loadAndSwitchWorldConfig;
         private Action<string, Guid, string, string, object> _saveAndSwitchWorldConfig;
         private Action<string, Guid, string, string, object, bool> _exportWorldConfig;
-        private Action<string, Guid, string, string> _applyPresetWorldConfig;
-        private Action<string, Guid, string, string, object, bool> _savePresetWorldConfig;
         private Action _providerWorldUnregister;
 
         public ConfigApiClient(
@@ -114,10 +106,6 @@ namespace Mz.ConfigApi
         public SemanticVersion ProviderApiVersion { get; private set; }
         public bool SupportsWorldConfigs => _providerWorldUnregister != null && _openWorldConfig != null && _saveWorldConfig != null;
         public bool SupportsWorldFileOperations => SupportsWorldConfigs && _reloadWorldConfig != null && _loadAndSwitchWorldConfig != null && _saveAndSwitchWorldConfig != null && _exportWorldConfig != null;
-        public bool SupportsPresets => IsConnected && _applyPresetConfig != null;
-        public bool SupportsWorldPresets => SupportsWorldConfigs && _applyPresetWorldConfig != null;
-        public bool SupportsPresetSaving => IsConnected && _savePresetConfig != null;
-        public bool SupportsWorldPresetSaving => SupportsWorldConfigs && _savePresetWorldConfig != null;
 
         public Exception LastError => _lastError ?? _consumer.LastError;
 
@@ -274,60 +262,6 @@ namespace Mz.ConfigApi
             return ConfigDocumentWireCodec.Decode(payload);
         }
 
-        public T SavePreset<T>(ConfigDefinition<T> definition, ConfigLocation location, string presetFile, T playerValues, bool overwrite = false) where T : class
-        {
-            if (definition == null)
-                throw new ArgumentNullException(nameof(definition));
-
-            return definition.Deserialize(SavePreset(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant), presetFile, definition.Serialize(definition.CreateDefaults()), definition.Serialize(playerValues), overwrite));
-        }
-
-        public ConfigDocument SavePreset(string configKey, ConfigLocation location, string canonicalFile, string presetFile, ConfigDocument currentDefaults, ConfigDocument playerValues, bool overwrite = false)
-        {
-            ThrowIfDisposed();
-            EnsurePresetSavingConnected();
-
-            if (string.IsNullOrWhiteSpace(configKey))
-                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
-            if (string.IsNullOrWhiteSpace(canonicalFile))
-                throw new ArgumentException("Canonical config file must not be empty.", nameof(canonicalFile));
-            if (string.IsNullOrWhiteSpace(presetFile))
-                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-            if (string.Equals(canonicalFile, presetFile, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Preset target must not be the canonical active config file: " + presetFile);
-            if (currentDefaults == null)
-                throw new ArgumentNullException(nameof(currentDefaults));
-            if (playerValues == null)
-                throw new ArgumentNullException(nameof(playerValues));
-
-            object payload = _savePresetConfig(_consumerId, _registrationId, configKey.Trim(), ValidateLocation(location), canonicalFile, presetFile, ConfigDocumentWireCodec.Encode(currentDefaults), ConfigDocumentWireCodec.Encode(playerValues), overwrite);
-            return ConfigDocumentWireCodec.Decode(payload);
-        }
-        public T ApplyPreset<T>(ConfigDefinition<T> definition, ConfigLocation location, string presetFile) where T : class
-        {
-            if (definition == null)
-                throw new ArgumentNullException(nameof(definition));
-
-            return definition.Deserialize(ApplyPreset(definition.ConfigKey, location, definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant), presetFile, definition.Serialize(definition.CreateDefaults())));
-        }
-
-        public ConfigDocument ApplyPreset(string configKey, ConfigLocation location, string canonicalFile, string presetFile, ConfigDocument currentDefaults)
-        {
-            ThrowIfDisposed();
-            EnsurePresetConnected();
-
-            if (string.IsNullOrWhiteSpace(configKey))
-                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
-            if (string.IsNullOrWhiteSpace(canonicalFile))
-                throw new ArgumentException("Canonical config file must not be empty.", nameof(canonicalFile));
-            if (string.IsNullOrWhiteSpace(presetFile))
-                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-            if (currentDefaults == null)
-                throw new ArgumentNullException(nameof(currentDefaults));
-
-            object payload = _applyPresetConfig(_consumerId, _registrationId, configKey.Trim(), ValidateLocation(location), canonicalFile, presetFile, ConfigDocumentWireCodec.Encode(currentDefaults));
-            return ConfigDocumentWireCodec.Decode(payload);
-        }
         public void OpenWorld<T>(ConfigDefinition<T> definition) where T : class
         {
             if (definition == null)
@@ -458,48 +392,6 @@ namespace Mz.ConfigApi
             _exportWorldConfig(_consumerId, _registrationId, configKey.Trim(), file, ConfigDocumentWireCodec.Encode(playerValues), overwrite);
         }
 
-        public void SavePresetWorld<T>(ConfigDefinition<T> definition, string presetFile, T playerValues, bool overwrite = false) where T : class
-        {
-            if (definition == null)
-                throw new ArgumentNullException(nameof(definition));
-
-            SavePresetWorld(definition.ConfigKey, presetFile, definition.Serialize(playerValues), overwrite);
-        }
-
-        public void SavePresetWorld(string configKey, string presetFile, ConfigDocument playerValues, bool overwrite = false)
-        {
-            ThrowIfDisposed();
-            EnsureWorldPresetSavingConnected();
-
-            if (string.IsNullOrWhiteSpace(configKey))
-                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
-            if (string.IsNullOrWhiteSpace(presetFile))
-                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-            if (playerValues == null)
-                throw new ArgumentNullException(nameof(playerValues));
-
-            _savePresetWorldConfig(_consumerId, _registrationId, configKey.Trim(), presetFile, ConfigDocumentWireCodec.Encode(playerValues), overwrite);
-        }
-        public void ApplyPresetWorld<T>(ConfigDefinition<T> definition, string presetFile) where T : class
-        {
-            if (definition == null)
-                throw new ArgumentNullException(nameof(definition));
-
-            ApplyPresetWorld(definition.ConfigKey, presetFile);
-        }
-
-        public void ApplyPresetWorld(string configKey, string presetFile)
-        {
-            ThrowIfDisposed();
-            EnsureWorldPresetConnected();
-
-            if (string.IsNullOrWhiteSpace(configKey))
-                throw new ArgumentException("Config key must not be empty.", nameof(configKey));
-            if (string.IsNullOrWhiteSpace(presetFile))
-                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-
-            _applyPresetWorldConfig(_consumerId, _registrationId, configKey.Trim(), presetFile);
-        }
         public void Stop()
         {
             ThrowIfDisposed();
@@ -523,10 +415,6 @@ namespace Mz.ConfigApi
                 Action<string, Guid, string, string> loadAndSwitchWorldConfig;
                 Action<string, Guid, string, string, object> saveAndSwitchWorldConfig;
                 Action<string, Guid, string, string, object, bool> exportWorldConfig;
-                Func<string, Guid, string, int, string, string, object, object> applyPresetConfig;
-                Action<string, Guid, string, string> applyPresetWorldConfig;
-                Func<string, Guid, string, int, string, string, object, object, bool, object> savePresetConfig;
-                Action<string, Guid, string, string, object, bool> savePresetWorldConfig;
 
                 if (!eventArgs.Connection.TryGetEndpoint(RegisterConsumerEndpoint, out registerConsumer))
                 {
@@ -553,10 +441,6 @@ namespace Mz.ConfigApi
                 bool hasLoadAndSwitchWorldConfig = eventArgs.Connection.TryGetEndpoint(LoadAndSwitchWorldConfigEndpoint, out loadAndSwitchWorldConfig);
                 bool hasSaveAndSwitchWorldConfig = eventArgs.Connection.TryGetEndpoint(SaveAndSwitchWorldConfigEndpoint, out saveAndSwitchWorldConfig);
                 bool hasExportWorldConfig = eventArgs.Connection.TryGetEndpoint(ExportWorldConfigEndpoint, out exportWorldConfig);
-                bool hasApplyPresetConfig = eventArgs.Connection.TryGetEndpoint(ApplyPresetConfigEndpoint, out applyPresetConfig);
-                bool hasApplyPresetWorldConfig = eventArgs.Connection.TryGetEndpoint(ApplyPresetWorldConfigEndpoint, out applyPresetWorldConfig);
-                bool hasSavePresetConfig = eventArgs.Connection.TryGetEndpoint(SavePresetConfigEndpoint, out savePresetConfig);
-                bool hasSavePresetWorldConfig = eventArgs.Connection.TryGetEndpoint(SavePresetWorldConfigEndpoint, out savePresetWorldConfig);
                 bool hasAnyWorldConfigEndpoint = hasRegisterWorldConfig || hasOpenWorldConfig || hasSaveWorldConfig;
                 bool hasWorldConfigEndpoints = hasRegisterWorldConfig && hasOpenWorldConfig && hasSaveWorldConfig;
                 bool hasAnyWorldFileOperationEndpoint = hasReloadWorldConfig || hasLoadAndSwitchWorldConfig || hasSaveAndSwitchWorldConfig || hasExportWorldConfig;
@@ -567,12 +451,6 @@ namespace Mz.ConfigApi
 
                 if (hasAnyWorldFileOperationEndpoint && (!hasWorldConfigEndpoints || !hasWorldFileOperationEndpoints))
                     throw new InvalidOperationException("The ConfigAPI provider exposes an incomplete World file-operation endpoint set.");
-
-                if (hasApplyPresetWorldConfig && !hasWorldConfigEndpoints)
-                    throw new InvalidOperationException("The ConfigAPI provider exposes a World preset endpoint without the required World config endpoint set.");
-
-                if (hasSavePresetWorldConfig && !hasWorldConfigEndpoints)
-                    throw new InvalidOperationException("The ConfigAPI provider exposes a World preset-saving endpoint without the required World config endpoint set.");
 
                 var registrationId = Guid.NewGuid();
 
@@ -602,10 +480,6 @@ namespace Mz.ConfigApi
                     }
                 }
 
-                _applyPresetConfig = hasApplyPresetConfig ? applyPresetConfig : null;
-                _savePresetConfig = hasSavePresetConfig ? savePresetConfig : null;
-                _applyPresetWorldConfig = hasApplyPresetWorldConfig ? applyPresetWorldConfig : null;
-                _savePresetWorldConfig = hasSavePresetWorldConfig ? savePresetWorldConfig : null;
                 _openConfig = openConfig;
                 _saveConfig = saveConfig;
                 _registrationId = registrationId;
@@ -670,16 +544,12 @@ namespace Mz.ConfigApi
             _providerWorldUnregister = null;
             _openConfig = null;
             _saveConfig = null;
-            _applyPresetConfig = null;
-            _savePresetConfig = null;
             _openWorldConfig = null;
             _saveWorldConfig = null;
             _reloadWorldConfig = null;
             _loadAndSwitchWorldConfig = null;
             _saveAndSwitchWorldConfig = null;
             _exportWorldConfig = null;
-            _applyPresetWorldConfig = null;
-            _savePresetWorldConfig = null;
             _registrationId = Guid.Empty;
             ProviderModVersion = null;
             ProviderApiVersion = null;
@@ -714,36 +584,6 @@ namespace Mz.ConfigApi
                 throw new InvalidOperationException("The connected ConfigAPI provider does not support World config file-operation endpoints.");
         }
 
-        private void EnsurePresetSavingConnected()
-        {
-            EnsureConnected();
-
-            if (!SupportsPresetSaving)
-                throw new InvalidOperationException("The connected ConfigAPI provider does not support preset-saving endpoints.");
-        }
-
-        private void EnsureWorldPresetSavingConnected()
-        {
-            EnsureWorldConnected();
-
-            if (!SupportsWorldPresetSaving)
-                throw new InvalidOperationException("The connected ConfigAPI provider does not support World preset-saving endpoints.");
-        }
-        private void EnsurePresetConnected()
-        {
-            EnsureConnected();
-
-            if (!SupportsPresets)
-                throw new InvalidOperationException("The connected ConfigAPI provider does not support preset endpoints.");
-        }
-
-        private void EnsureWorldPresetConnected()
-        {
-            EnsureWorldConnected();
-
-            if (!SupportsWorldPresets)
-                throw new InvalidOperationException("The connected ConfigAPI provider does not support World preset endpoints.");
-        }
         private void OnWorldConfigResponse(IDictionary<string, object> payload)
         {
             try

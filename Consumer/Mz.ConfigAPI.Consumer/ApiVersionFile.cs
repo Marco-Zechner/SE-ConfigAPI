@@ -29,12 +29,10 @@ namespace Mz.ConfigApi
                     "2.3.0",
                     new[]
                     {
-                        "Added optional ApplyPreset support for Local and Global configs while preserving the canonical ConfigDefinition<T>.DefaultFile as the active config file.",
-                        "Added optional asynchronous ApplyPresetWorld support for server-authoritative World configs without changing the existing ConfigAPI 2.2 World file-operation capability group.",
-                        "Added SupportsPresets and SupportsWorldPresets; older 2.0-2.2 providers remain compatible and simply report these capabilities as unavailable.",
-                        "Added optional SavePreset support for Local and Global configs with overwrite disabled by default; preset saves do not change active config identity.",
-                        "Added optional asynchronous SavePresetWorld support plus SupportsPresetSaving and SupportsWorldPresetSaving; World preset saves do not switch CurrentFile or advance ServerIteration.",
                         "Added indexed consumer storage callbacks backed by Mz.Storage 0.1.0 for existence checks and logical-name discovery.",
+                        "Added typed ConfigHandle<T> runtime state separating Defaults, Stored, Applied, and mutable Draft values, with Apply, DiscardDraft, ResetDraftToDefaults, HasDraftChanges, and HasUnsavedChanges.",
+                        "Added named Local and Global config variants derived as <ConfigKey>.<variant>.toml, with default as the initial active variant.",
+                        "Added ListVariants, Load, Reload, Save, and SaveAs variant workflows; SaveAs persists Applied values and changes CurrentVariant only after successful persistence.",
                     }
                 ),
                 new ChangelogEntry(

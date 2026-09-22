@@ -138,34 +138,6 @@ namespace Mz.ConfigApi
             return stored;
         }
 
-        public T SavePreset(string presetFile, bool overwrite = false)
-        {
-            if (string.IsNullOrWhiteSpace(presetFile))
-                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-
-            string defaultFile = _definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant);
-            if (string.Equals(defaultFile, presetFile, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Preset target must not be the canonical active config file: " + presetFile);
-
-            return _definition.Deserialize(_client.SavePreset(_definition.ConfigKey, Location, defaultFile, presetFile, _defaultsDocument, _appliedDocument, overwrite));
-        }
-
-        public T ApplyPreset(string presetFile)
-        {
-            if (string.IsNullOrWhiteSpace(presetFile))
-                throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-
-            string defaultFile = _definition.GetVariantFile(ConfigDefinition<T>.DefaultVariant);
-            ConfigDocument loaded = _client.ApplyPreset(_definition.ConfigKey, Location, defaultFile, presetFile, _defaultsDocument);
-            T draft = DeserializeCopy(loaded);
-
-            CurrentVariant = ConfigDefinition<T>.DefaultVariant;
-            _storedDocument = loaded;
-            _appliedDocument = loaded;
-            _draft = draft;
-            return Applied;
-        }
-
         private T DeserializeCopy(ConfigDocument document) => _definition.Deserialize(document);
     }
 }

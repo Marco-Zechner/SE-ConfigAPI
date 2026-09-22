@@ -80,66 +80,6 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return SaveCore(storage, consumerId, configKey, location, file, currentDefaults, playerValues);
         }
 
-        public object ApplyPreset(string consumerId, Guid registrationId, string configKey, int location, string canonicalFile, string presetFile, object currentDefaultsPayload)
-        {
-            Log(LogLevel.Debug, $"ApplyPreset requested: consumer='{consumerId}', config='{configKey}', location={location}, canonical='{canonicalFile}', preset='{presetFile}'.");
-
-            try
-            {
-                if (string.IsNullOrWhiteSpace(presetFile))
-                    throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-
-                IConfigTextStorage storage = _registry.GetStorage(consumerId, registrationId);
-                ConfigLocation configLocation = ParseLocation(location);
-                ConfigDocument currentDefaults = ConfigDocumentWireCodec.Decode(currentDefaultsPayload);
-                var identity = new ConfigIdentity(consumerId.Trim(), configKey);
-
-                if (storage.Read(configLocation, presetFile) == null)
-                    throw new InvalidOperationException("Preset config file does not exist: " + presetFile);
-
-                ConfigPersistedLoadResult preset = new ConfigPersistedStateLoader(storage).Load(configLocation, presetFile, identity, currentDefaults);
-                object result = Save(consumerId, registrationId, configKey, location, canonicalFile, currentDefaultsPayload, ConfigDocumentWireCodec.Encode(preset.State.PlayerValues));
-
-                Log(LogLevel.Debug, $"ApplyPreset completed: consumer='{consumerId}', config='{configKey}', canonical='{canonicalFile}', preset='{presetFile}'.");
-                return result;
-            }
-            catch (Exception exception)
-            {
-                Log(LogLevel.Error, $"ApplyPreset failed: consumer='{consumerId}', config='{configKey}', location={location}, canonical='{canonicalFile}', preset='{presetFile}'.", exception);
-                throw;
-            }
-        }
-
-        public object SavePreset(string consumerId, Guid registrationId, string configKey, int location, string canonicalFile, string presetFile, object currentDefaultsPayload, object playerValuesPayload, bool overwrite)
-        {
-            Log(LogLevel.Debug, $"SavePreset requested: consumer='{consumerId}', config='{configKey}', location={location}, canonical='{canonicalFile}', preset='{presetFile}', overwrite={overwrite}.");
-
-            try
-            {
-                if (string.IsNullOrWhiteSpace(canonicalFile))
-                    throw new ArgumentException("Canonical config file must not be empty.", nameof(canonicalFile));
-                if (string.IsNullOrWhiteSpace(presetFile))
-                    throw new ArgumentException("Preset file must not be empty.", nameof(presetFile));
-                if (string.Equals(canonicalFile, presetFile, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Preset target must not be the canonical active config file: " + presetFile);
-
-                IConfigTextStorage storage = _registry.GetStorage(consumerId, registrationId);
-                ConfigLocation configLocation = ParseLocation(location);
-
-                if (!overwrite && (storage.Read(configLocation, presetFile) != null || storage.Read(configLocation, ConfigPersistedStateLoader.GetProvenanceFile(presetFile)) != null))
-                    throw new InvalidOperationException("Config preset target already exists: " + presetFile);
-
-                object result = Save(consumerId, registrationId, configKey, location, presetFile, currentDefaultsPayload, playerValuesPayload);
-                Log(LogLevel.Debug, $"SavePreset completed: consumer='{consumerId}', config='{configKey}', preset='{presetFile}', overwrite={overwrite}.");
-                return result;
-            }
-            catch (Exception exception)
-            {
-                Log(LogLevel.Error, $"SavePreset failed: consumer='{consumerId}', config='{configKey}', location={location}, canonical='{canonicalFile}', preset='{presetFile}', overwrite={overwrite}.", exception);
-                throw;
-            }
-        }
-
         private ConfigDocument OpenCore(IConfigTextStorage storage, string consumerId, string configKey, ConfigLocation location, string file, ConfigDocument currentDefaults)
         {
             if (currentDefaults == null)
