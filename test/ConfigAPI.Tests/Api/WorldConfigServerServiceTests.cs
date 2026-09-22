@@ -62,6 +62,113 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
+        public void Apply_Matching_Revision_Changes_Runtime_Without_Writing()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.Apply("Example.Mod", "Settings", 0UL, Document(Entry("Value", Integer(20))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(1UL));
+                AssertDocumentValue(result.Snapshot.Stored, 10, "Value");
+                AssertDocumentValue(result.Snapshot.Applied, 20, "Value");
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.True);
+                Assert.That(storage.Get(2, "settings.toml"), Does.Contain("Value = 10"));
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void Save_Matching_Revision_Persists_Applied_Without_Changing_Runtime()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            service.Apply("Example.Mod", "Settings", 0UL, Document(Entry("Value", Integer(20))));
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.Save("Example.Mod", "Settings", 1UL);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.True);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(2UL));
+                AssertDocumentValue(result.Snapshot.Stored, 20, "Value");
+                AssertDocumentValue(result.Snapshot.Applied, 20, "Value");
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.False);
+                Assert.That(storage.Get(2, "settings.toml"), Does.Contain("Value = 20"));
+                Assert.That(storage.TotalWrites, Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void Save_Without_Unsaved_Changes_Is_Authoritative_NoOp()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            WorldConfigSnapshot opened = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult result = service.Save("Example.Mod", "Settings", 0UL);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.IsApplied, Is.False);
+                Assert.That(result.IsStale, Is.False);
+                Assert.That(ReferenceEquals(result.Snapshot, opened), Is.True);
+                Assert.That(result.Snapshot.Revision, Is.EqualTo(0UL));
+                Assert.That(result.Snapshot.HasUnsavedChanges, Is.False);
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+
+        [Test]
+        public void Canonical_Apply_And_Save_Reject_Stale_Revision_Without_Writing()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new MemoryStorage();
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+
+            var service = new WorldConfigServerService(registry, new FixedClock());
+            service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+            service.Apply("Example.Mod", "Settings", 0UL, Document(Entry("Value", Integer(20))));
+            storage.ClearOperations();
+
+            WorldConfigAuthorityResult staleApply = service.Apply("Example.Mod", "Settings", 0UL, Document(Entry("Value", Integer(30))));
+            WorldConfigAuthorityResult staleSave = service.Save("Example.Mod", "Settings", 0UL);
+            WorldConfigSnapshot current = service.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(staleApply.IsApplied, Is.False);
+                Assert.That(staleApply.IsStale, Is.True);
+                Assert.That(staleSave.IsApplied, Is.False);
+                Assert.That(staleSave.IsStale, Is.True);
+                Assert.That(current.Revision, Is.EqualTo(1UL));
+                AssertDocumentValue(current.Stored, 10, "Value");
+                AssertDocumentValue(current.Applied, 20, "Value");
+                Assert.That(current.HasUnsavedChanges, Is.True);
+                Assert.That(storage.TotalWrites, Is.EqualTo(0));
+            });
+        }
+
+        [Test]
         public void Save_Matching_Iteration_Persists_World_And_Increments_Authority()
         {
             var registry = new ConfigConsumerRegistrationRegistry();

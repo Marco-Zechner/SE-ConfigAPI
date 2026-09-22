@@ -71,6 +71,52 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return snapshot;
         }
 
+        public WorldConfigAuthorityResult Apply(string consumerId, string configKey, ulong expectedRevision, ConfigDocument draft)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            if (draft == null)
+                throw new ArgumentNullException(nameof(draft));
+
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+            WorldConfigAuthorityResult stale = RejectStale(state, expectedRevision);
+            if (stale != null)
+                return stale;
+
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(ConfigLocation.World, state.Snapshot.CurrentFile, state.Snapshot.Identity, state.CurrentDefaults);
+            ValidateDocument(loadResult, draft, state.CurrentDefaults, nameof(draft));
+
+            WorldConfigAuthorityResult authority = WorldConfigOperations.Apply(state.Snapshot, expectedRevision, draft);
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
+            return authority;
+        }
+
+        public WorldConfigAuthorityResult Save(string consumerId, string configKey, ulong expectedRevision)
+        {
+            string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
+            string normalizedConfigKey = NormalizeRequired(configKey, nameof(configKey));
+            string key = StateKey(normalizedConsumerId, normalizedConfigKey);
+            ServerState state = GetRequiredState(key, normalizedConsumerId, normalizedConfigKey);
+            WorldConfigAuthorityResult stale = RejectStale(state, expectedRevision);
+            if (stale != null)
+                return stale;
+            if (!state.Snapshot.HasUnsavedChanges)
+                return new WorldConfigAuthorityResult(false, false, state.Snapshot);
+
+            IConfigTextStorage storage = _registry.GetCurrentStorage(normalizedConsumerId);
+            ConfigPersistedLoadResult loadResult = new ConfigPersistedStateLoader(storage).Load(ConfigLocation.World, state.Snapshot.CurrentFile, state.Snapshot.Identity, state.CurrentDefaults);
+            ValidateDocument(loadResult, state.Snapshot.Applied, state.CurrentDefaults, nameof(state.Snapshot.Applied));
+            PersistDocument(storage, loadResult, state.Snapshot.Applied, state.CurrentDefaults);
+
+            WorldConfigAuthorityResult authority = WorldConfigOperations.Save(state.Snapshot, expectedRevision);
+            _states[key] = new ServerState(authority.Snapshot, state.CurrentDefaults);
+            _bootstrapStore.Write(authority.Snapshot);
+            return authority;
+        }
+
         public WorldConfigAuthorityResult Save(string consumerId, string configKey, ulong baseIteration, ConfigDocument draft)
         {
             string normalizedConsumerId = NormalizeRequired(consumerId, nameof(consumerId));
