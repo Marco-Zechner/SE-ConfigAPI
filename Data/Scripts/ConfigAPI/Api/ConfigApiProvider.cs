@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MarcoZechner.ConfigAPI.V2.Domain;
 using MarcoZechner.ConfigAPI.V2.Persistence;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
@@ -29,6 +30,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         private readonly Logger _logger;
         private readonly ApiDiscoveryProvider _provider;
+        private readonly ConfigApiPersistenceService _persistence;
         private readonly WorldConfigProviderBridge _worldBridge;
 
         public ConfigApiProvider(IModMessageBus messageBus, ConfigConsumerRegistrationRegistry registry, SemanticVersion modVersion)
@@ -44,19 +46,15 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         {
             if (messageBus == null)
                 throw new ArgumentNullException(nameof(messageBus));
-
             if (registry == null)
                 throw new ArgumentNullException(nameof(registry));
-
             if (clock == null)
                 throw new ArgumentNullException(nameof(clock));
-
             if (modVersion == null)
                 throw new ArgumentNullException(nameof(modVersion));
 
             _logger = logger;
-
-            var persistence = new ConfigApiPersistenceService(registry, clock, logger);
+            _persistence = new ConfigApiPersistenceService(registry, clock, logger);
             _worldBridge = new WorldConfigProviderBridge(registry, logger);
 
             Func<string, Guid, Func<int, string, bool>, Func<int, string, string>, Action<int, string, string>, Func<int, string[]>, Action> registerConsumer = (consumerId, registrationId, exists, read, write, listKnown) =>
@@ -71,10 +69,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 };
             };
 
-            Func<string, Guid, string, int, string, object, object> openConfig = persistence.Open;
-            Func<string, Guid, string, int, string, object, object, object> saveConfig = persistence.Save;
-            Func<string, Guid, string, int, string, string, object, object> applyPresetConfig = persistence.ApplyPreset;
-            Func<string, Guid, string, int, string, string, object, object, bool, object> savePresetConfig = persistence.SavePreset;
+            Func<string, Guid, string, int, string, object, object> openConfig = _persistence.Open;
+            Func<string, Guid, string, int, string, object, object, object> saveConfig = _persistence.Save;
+            Func<string, Guid, string, int, string, string, object, object> applyPresetConfig = _persistence.ApplyPreset;
+            Func<string, Guid, string, int, string, string, object, object, bool, object> savePresetConfig = _persistence.SavePreset;
             Func<string, Guid, Action<IDictionary<string, object>>, Action> registerWorldConfig = _worldBridge.Register;
             Action<string, Guid, string, string, object> openWorldConfig = _worldBridge.Open;
             Action<string, Guid, string, object> saveWorldConfig = _worldBridge.Save;
@@ -112,6 +110,21 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         public bool IsStarted => _provider.IsStarted;
 
+        internal ConfigDocument OpenInternal(string consumerId, string configKey, ConfigLocation location, string file, ConfigDocument currentDefaults)
+            => _persistence.OpenInternal(consumerId, configKey, location, file, currentDefaults);
+
+        internal ConfigDocument SaveInternal(string consumerId, string configKey, ConfigLocation location, string file, ConfigDocument currentDefaults, ConfigDocument playerValues)
+            => _persistence.SaveInternal(consumerId, configKey, location, file, currentDefaults, playerValues);
+
+        internal Action RegisterWorldInternal(string consumerId, Guid registrationId, Action<IDictionary<string, object>> responseCallback)
+            => _worldBridge.RegisterInternal(consumerId, registrationId, responseCallback);
+
+        internal void OpenWorldInternal(string consumerId, Guid registrationId, string configKey, string file, ConfigDocument defaults)
+            => _worldBridge.Open(consumerId, registrationId, configKey, file, ConfigDocumentWireCodec.Encode(defaults));
+
+        internal void SaveWorldInternal(string consumerId, Guid registrationId, string configKey, ConfigDocument document)
+            => _worldBridge.Save(consumerId, registrationId, configKey, ConfigDocumentWireCodec.Encode(document));
+
         public void Dispose()
         {
             Log(LogLevel.Debug, "Disposing ConfigAPI discovery provider.");
@@ -119,15 +132,9 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             _worldBridge.Dispose();
         }
 
-        public void AttachWorldRuntime(WorldConfigNetworkRuntime runtime)
-        {
-            _worldBridge.AttachRuntime(runtime);
-        }
+        public void AttachWorldRuntime(WorldConfigNetworkRuntime runtime) => _worldBridge.AttachRuntime(runtime);
 
-        public void DetachWorldRuntime()
-        {
-            _worldBridge.DetachRuntime();
-        }
+        public void DetachWorldRuntime() => _worldBridge.DetachRuntime();
 
         public void Start()
         {
@@ -162,6 +169,5 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             {
             }
         }
-
     }
 }

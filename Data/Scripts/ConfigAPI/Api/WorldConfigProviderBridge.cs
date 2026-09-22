@@ -43,8 +43,22 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             string normalizedConsumerId = consumerId.Trim();
             string key = RegistrationKey(normalizedConsumerId, registrationId);
-            _registrations[key] = new Registration(key, normalizedConsumerId, registrationId, responseCallback);
+            _registrations[key] = new Registration(key, normalizedConsumerId, registrationId, responseCallback, false);
 
+            return () => Unregister(key);
+        }
+
+        internal Action RegisterInternal(string consumerId, Guid registrationId, Action<IDictionary<string, object>> responseCallback)
+        {
+            ThrowIfDisposed();
+
+            if (responseCallback == null)
+                throw new ArgumentNullException(nameof(responseCallback));
+
+            string normalizedConsumerId = consumerId == null ? null : consumerId.Trim();
+            _registry.GetCurrentStorage(normalizedConsumerId);
+            string key = RegistrationKey(normalizedConsumerId, registrationId);
+            _registrations[key] = new Registration(key, normalizedConsumerId, registrationId, responseCallback, true);
             return () => Unregister(key);
         }
 
@@ -684,7 +698,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (!_registrations.TryGetValue(key, out registration))
                 throw new InvalidOperationException("World config consumer is not registered: " + normalizedConsumerId);
 
-            _registry.GetStorage(normalizedConsumerId, registrationId);
+            RequireCurrentRegistration(registration);
             return registration;
         }
 
@@ -692,13 +706,21 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         {
             try
             {
-                _registry.GetStorage(registration.ConsumerId, registration.RegistrationId);
+                RequireCurrentRegistration(registration);
                 return true;
             }
             catch (InvalidOperationException)
             {
                 return false;
             }
+        }
+
+        private void RequireCurrentRegistration(Registration registration)
+        {
+            if (registration.IsInternal)
+                _registry.GetCurrentStorage(registration.ConsumerId);
+            else
+                _registry.GetStorage(registration.ConsumerId, registration.RegistrationId);
         }
 
         private void Unregister(string key)
@@ -761,18 +783,20 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         private sealed class Registration
         {
-            public Registration(string key, string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
+            public Registration(string key, string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback, bool isInternal)
             {
                 Key = key;
                 ConsumerId = consumerId;
                 RegistrationId = registrationId;
                 Callback = callback;
+                IsInternal = isInternal;
             }
 
             public string Key { get; }
             public string ConsumerId { get; }
             public Guid RegistrationId { get; }
             public Action<IDictionary<string, object>> Callback { get; }
+            public bool IsInternal { get; }
         }
 
         private sealed class PendingRoute

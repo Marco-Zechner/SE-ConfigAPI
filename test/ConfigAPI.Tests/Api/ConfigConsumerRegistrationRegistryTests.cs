@@ -153,6 +153,44 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        [Test]
+        public void Internal_Storage_Reserves_Consumer_Id_And_Allows_Tokenless_Access()
+        {
+            var registry = new ConfigConsumerRegistrationRegistry();
+            var storage = new InternalStorage();
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var registerInternal = typeof(ConfigConsumerRegistrationRegistry).GetMethod("RegisterInternalStorage", flags);
+            var getCurrent = typeof(ConfigConsumerRegistrationRegistry).GetMethod("GetCurrentStorage", flags);
+            var getCurrentIndexed = typeof(ConfigConsumerRegistrationRegistry).GetMethod("GetCurrentIndexedStorage", flags);
+            var unregisterInternal = typeof(ConfigConsumerRegistrationRegistry).GetMethod("UnregisterInternalStorage", flags);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(registerInternal, Is.Not.Null);
+                Assert.That(getCurrent, Is.Not.Null);
+                Assert.That(getCurrentIndexed, Is.Not.Null);
+                Assert.That(unregisterInternal, Is.Not.Null);
+            });
+
+            registerInternal.Invoke(registry, new object[] { "ConfigAPI", storage });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(getCurrent.Invoke(registry, new object[] { "ConfigAPI" }), Is.SameAs(storage));
+                Assert.That(getCurrentIndexed.Invoke(registry, new object[] { "ConfigAPI" }), Is.SameAs(storage));
+                Assert.Throws<InvalidOperationException>(() => registry.GetStorage("ConfigAPI", Guid.NewGuid()));
+                Assert.Throws<InvalidOperationException>(() => registry.Register("ConfigAPI", Guid.NewGuid(), (location, file) => false, (location, file) => null, (location, file, content) => { }, location => new string[0]));
+            });
+
+            Assert.That((bool)unregisterInternal.Invoke(registry, new object[] { "ConfigAPI" }), Is.True);
+        }
+        private sealed class InternalStorage : IIndexedConfigTextStorage
+        {
+            public bool Exists(ConfigLocation location, string file) => false;
+            public string Read(ConfigLocation location, string file) => null;
+            public void Write(ConfigLocation location, string file, string content) { }
+            public string[] ListKnown(ConfigLocation location) => new string[0];
+        }
         private static void RegisterValue(ConfigConsumerRegistrationRegistry registry, string consumerId, Guid registrationId, string value)
         {
             registry.Register(consumerId, registrationId, (location, file) => value != null, (location, file) => value, (location, file, content) => { }, location => new string[0]);

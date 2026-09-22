@@ -1,5 +1,5 @@
 using System;
-using Mz.ConfigApi;
+using MarcoZechner.ConfigAPI.V2.Domain;
 using Mz.Logging;
 
 namespace MarcoZechner.ConfigAPI.V2
@@ -11,22 +11,34 @@ namespace MarcoZechner.ConfigAPI.V2
 
     public static class ConfigApiRuntimeConfigDefinition
     {
-        public static readonly ConfigDefinition<ConfigApiRuntimeConfig> Definition = new ConfigDefinition<ConfigApiRuntimeConfig>(
-            "ConfigAPI", "ConfigAPI.toml", () => new ConfigApiRuntimeConfig(), Serialize, Deserialize);
+        public const string ConfigKey = "ConfigAPI";
+        public const string FileName = "ConfigAPI.toml";
 
-        private static ConfigDocument Serialize(ConfigApiRuntimeConfig config)
+        public static ConfigDocument CreateDefaults() => Serialize(new ConfigApiRuntimeConfig());
+
+        public static ConfigDocument Serialize(ConfigApiRuntimeConfig config)
         {
-            return new ConfigDocument(new ConfigEntry("MinimumLogLevel", ConfigValue.String(config.MinimumLogLevel.ToString())));
+            if (config == null)
+                throw new ArgumentNullException(nameof(config));
+
+            return new ConfigDocument(new ConfigObjectNode(
+                new ConfigObjectEntry("MinimumLogLevel", ConfigScalarNode.String(config.MinimumLogLevel.ToString()))));
         }
 
-        private static ConfigApiRuntimeConfig Deserialize(ConfigDocument document)
+        public static ConfigApiRuntimeConfig Deserialize(ConfigDocument document)
         {
-            ConfigValue minimumLogLevel;
+            if (document == null)
+                throw new ArgumentNullException(nameof(document));
 
-            if (!document.TryGet("MinimumLogLevel", out minimumLogLevel) || minimumLogLevel.Kind != ConfigValueKind.String)
+            ConfigNode node;
+            if (!document.TryGet(new ConfigValuePath("MinimumLogLevel"), out node))
                 throw new FormatException("ConfigAPI runtime config requires a string MinimumLogLevel.");
 
-            return new ConfigApiRuntimeConfig { MinimumLogLevel = ParseLogLevel((string)minimumLogLevel.ScalarValue) };
+            var minimumLogLevel = node as ConfigScalarNode;
+            if (minimumLogLevel == null || minimumLogLevel.Kind != ConfigScalarKind.String)
+                throw new FormatException("ConfigAPI runtime config requires a string MinimumLogLevel.");
+
+            return new ConfigApiRuntimeConfig { MinimumLogLevel = ParseLogLevel((string)minimumLogLevel.Value) };
         }
 
         private static LogLevel ParseLogLevel(string value)
