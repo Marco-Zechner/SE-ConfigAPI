@@ -93,6 +93,51 @@ namespace Mz.ConfigApi
             return Applied;
         }
 
+        public string[] ListVariants()
+        {
+            string prefix = _definition.ConfigKey + ".";
+            const string suffix = ".toml";
+            string[] files = _client.ListKnownFiles(Location);
+            var variants = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+
+            for (var index = 0; index < files.Length; index++)
+            {
+                string file = files[index];
+                if (string.IsNullOrEmpty(file) || !file.StartsWith(prefix, StringComparison.Ordinal) || !file.EndsWith(suffix, StringComparison.Ordinal))
+                    continue;
+
+                int variantLength = file.Length - prefix.Length - suffix.Length;
+                if (variantLength <= 0)
+                    continue;
+
+                string variant = file.Substring(prefix.Length, variantLength);
+                if (variant.IndexOf('.') >= 0 || !string.Equals(variant, variant.Trim(), StringComparison.Ordinal))
+                    continue;
+
+                variants.Add(variant);
+            }
+
+            var result = new System.Collections.Generic.List<string>(variants);
+            result.Sort(StringComparer.Ordinal);
+            return result.ToArray();
+        }
+
+        public T SaveAs(string variant)
+        {
+            string normalizedVariant = _definition.NormalizeVariant(variant);
+            string file = _definition.GetVariantFile(normalizedVariant);
+
+            if (_client.StorageExists(Location, file))
+                throw new InvalidOperationException("Config variant already exists: " + normalizedVariant);
+
+            ConfigDocument saved = _client.Save(_definition.ConfigKey, Location, file, _defaultsDocument, _appliedDocument);
+            T stored = DeserializeCopy(saved);
+
+            CurrentVariant = normalizedVariant;
+            _storedDocument = saved;
+            return stored;
+        }
+
         public T SavePreset(string presetFile, bool overwrite = false)
         {
             if (string.IsNullOrWhiteSpace(presetFile))

@@ -180,6 +180,21 @@ namespace Mz.ConfigApi
             return _consumer.Rediscover();
         }
 
+        internal bool StorageExists(ConfigLocation location, string file)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrWhiteSpace(file))
+                throw new ArgumentException("Config file must not be empty.", nameof(file));
+
+            return _exists(ValidateLocation(location), file);
+        }
+
+        internal string[] ListKnownFiles(ConfigLocation location)
+        {
+            ThrowIfDisposed();
+            string[] files = _listKnown(ValidateLocation(location));
+            return files ?? new string[0];
+        }
         public ConfigHandle<T> OpenHandle<T>(ConfigDefinition<T> definition, ConfigLocation location) where T : class
         {
             if (definition == null)

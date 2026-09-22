@@ -608,6 +608,128 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             provider.Dispose();
         }
         [Test]
+        public void Handle_ListVariants_Filters_Exact_Config_Variant_Files_And_Sorts_Names()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => false, (location, file) => null, (location, file, content) => { },
+                location => new[] { "Settings.combat.toml", "Other.default.toml", "Settings.default.toml", "Settings.combat.toml.bak", "Settings.defaults", "Settings.bad.name.toml", "Settings..toml", "Settings.cargo_2.toml" });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+
+            Assert.That(handle.ListVariants(), Is.EqualTo(new[] { "cargo_2", "combat", "default" }));
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_SaveAs_Rejects_Existing_Target_And_Switches_Only_After_Success()
+        {
+            var bus = new RecordingModMessageBus();
+            var saveCount = 0;
+            string savedFile = null;
+            ConfigDocument savedDocument = null;
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
+                {
+                    saveCount++;
+                    savedFile = file;
+                    savedDocument = ConfigDocumentWireCodec.Decode(playerValues);
+                    return playerValues;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => file == "Settings.existing.toml", (location, file) => null, (location, file, content) => { }, location => new string[0]);
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Global);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            InvalidOperationException collision = Assert.Throws<InvalidOperationException>(() => handle.SaveAs(" existing "));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(collision.Message, Does.Contain("already exists"));
+                Assert.That(saveCount, Is.EqualTo(0));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            handle.SaveAs(" snapshot ");
+
+            ConfigValue savedValue;
+            Assert.That(savedDocument.TryGet("Value", out savedValue), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(saveCount, Is.EqualTo(1));
+                Assert.That(savedFile, Is.EqualTo("Settings.snapshot.toml"));
+                Assert.That((long)savedValue.ScalarValue, Is.EqualTo(20L));
+                Assert.That(handle.CurrentVariant, Is.EqualTo("snapshot"));
+                Assert.That(handle.Stored.Value, Is.EqualTo(20));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
+        public void Handle_SaveAs_Failure_Preserves_Current_Variant_And_Runtime_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
+                {
+                    throw new InvalidOperationException("Synthetic SaveAs failure.");
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => false, (location, file) => null, (location, file, content) => { }, location => new string[0]);
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.SaveAs("snapshot"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic SaveAs failure."));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
         public void Typed_Open_Delegate_Failures_Stop_At_Expected_Provider_Boundary()
         {
             var bus = new RecordingModMessageBus();
@@ -1203,11 +1325,11 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             });
         }
 
-        private static ConfigApiClient CreateClient(IModMessageBus bus, Func<int, string, string> read, Action<int, string, string> write)
-        {
-            return new ConfigApiClient(bus, "Example.Mod", "Example Mod", new SemanticVersion(2, 3, 4), true,
-                "Uses ConfigAPI for configuration.", (location, file) => read(location, file) != null, read, write, location => new string[0]);
-        }
+        private static ConfigApiClient CreateClient(IModMessageBus bus, Func<int, string, string> read, Action<int, string, string> write) =>
+            CreateClient(bus, (location, file) => read(location, file) != null, read, write, location => new string[0]);
+
+        private static ConfigApiClient CreateClient(IModMessageBus bus, Func<int, string, bool> exists, Func<int, string, string> read, Action<int, string, string> write, Func<int, string[]> listKnown) =>
+            new ConfigApiClient(bus, "Example.Mod", "Example Mod", new SemanticVersion(2, 3, 4), true, "Uses ConfigAPI for configuration.", exists, read, write, listKnown);
         private static ApiDiscoveryProvider CreateProvider(
             IModMessageBus bus,
             SemanticVersion apiVersion,
