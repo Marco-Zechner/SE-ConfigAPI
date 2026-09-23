@@ -16,7 +16,7 @@ The package contains:
 After installing SELibs, run these commands from the root of the mod project:
 
     selibs init
-    selibs add Mz.Storage@0.1.0
+    selibs add Mz.Storage@0.1.1
 
 Skip `selibs init` when the project already contains `selibs.json`.
 
@@ -53,7 +53,8 @@ Local and World storage, but the mod whitelist does not expose the reflection
 APIs required to recover that exact scope name safely for Global storage.
 
 For owner `MyMod`, logical name `config.toml` is stored physically as
-`MyMod.config.toml`, while the private global index is `.MyMod.index`. Callers
+`MyMod.config.toml`, while leading-dot metadata such as `.defaults` is stored as
+`.MyMod.defaults` and the private global index is `.MyMod.index`. Callers
 continue to work only with the unprefixed logical name `config.toml`.
 
 ## Save, load, probe, and list
@@ -102,7 +103,8 @@ transport:
 Then construct `IndexedStorage` directly. The two-argument constructor prefixes
 physical filenames using the default `.index` name. The three-argument
 constructor lets a backend choose an independent physical index filename while
-preserving the same logical names.
+preserving the same logical names. The four-argument constructor additionally
+allows leading-dot logical metadata names to use a separate physical prefix.
 
 ## Package version
 

@@ -20,7 +20,7 @@ namespace Mz.Storage
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 0;
+        public const int Patch = 1;
 
         /// <summary>
         /// Gets the version string.
@@ -41,6 +41,10 @@ namespace Mz.Storage
             VersionString,
             new[]
             {
+                new ChangelogEntry("0.1.1", new[]
+                {
+                    "Global storage maps leading-dot logical metadata names after the owner prefix, avoiding duplicated dots such as MyMod..defaults."
+                }),
                 new ChangelogEntry("0.1.0", new[]
                 {
                     "Published indexed logical-name storage with persisted discovery and stale-entry repair.",

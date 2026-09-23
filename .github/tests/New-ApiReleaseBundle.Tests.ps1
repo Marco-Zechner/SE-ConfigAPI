@@ -93,7 +93,7 @@ try {
     Assert-Equal -Expected "0.3.1" -Actual ([string]$manifest.dependencies."Mz.ApiProtocol") -Message "ApiProtocol dependency is incorrect."
     Assert-Equal -Expected "0.1.0" -Actual ([string]$manifest.dependencies."Mz.Collections") -Message "Collections dependency is incorrect."
     Assert-Equal -Expected "0.2.0" -Actual ([string]$manifest.dependencies."Mz.SemanticVersioning") -Message "SemanticVersioning dependency is incorrect."
-    Assert-Equal -Expected "0.1.0" -Actual ([string]$manifest.dependencies."Mz.Storage") -Message "Storage dependency is incorrect."
+    Assert-Equal -Expected "0.1.1" -Actual ([string]$manifest.dependencies."Mz.Storage") -Message "Storage dependency is incorrect."
 
     $hash = (Get-FileHash -LiteralPath $componentPath -Algorithm SHA256).Hash.ToLowerInvariant()
     Assert-Equal -Expected $hash -Actual ([string]$manifest.component.sha256) -Message "Manifest component checksum is incorrect."

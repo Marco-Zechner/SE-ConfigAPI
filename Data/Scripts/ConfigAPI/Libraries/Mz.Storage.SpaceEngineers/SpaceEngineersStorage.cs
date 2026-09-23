@@ -41,7 +41,7 @@ namespace Mz.Storage.SpaceEngineers
             if (string.IsNullOrWhiteSpace(owner))
                 throw new ArgumentException("A stable global storage owner prefix is required.", nameof(ownerPrefix));
 
-            return new IndexedStorage(new GlobalStorageBackend(), owner + ".", "." + owner + IndexedStorage.IndexFileName);
+            return new IndexedStorage(new GlobalStorageBackend(), owner + ".", "." + owner + ".", "." + owner + IndexedStorage.IndexFileName);
         }
     }
 }

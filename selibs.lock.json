@@ -2,6 +2,50 @@
     "schemaVersion":  1,
     "registry":  "https://raw.githubusercontent.com/Marco-Zechner/selibs/main/registry/packages.json",
     "packages":  {
+                     "Mz.SemanticVersioning":  {
+                                                   "version":  "0.2.0",
+                                                   "direct":  false,
+                                                   "source":  {
+                                                                  "provider":  "github",
+                                                                  "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                                  "releasePrefix":  "release/Mz.SemanticVersioning/"
+                                                              },
+                                                   "dependencies":  {
+
+                                                                    },
+                                                   "folders":  [
+                                                                   "Mz.SemanticVersioning"
+                                                               ],
+                                                   "files":  {
+                                                                 "Mz.SemanticVersioning/Changelog.cs":  "2f055000d86a26742d0c0b667c32ce8f03cace14500a10872dc9b5d26544c80e",
+                                                                 "Mz.SemanticVersioning/ChangelogEntry.cs":  "7a541764a92a45f1ab85616696be8a5c2a76ac113c22c5ef8125392afe5cfa36",
+                                                                 "Mz.SemanticVersioning/LibraryDependency.cs":  "a2439c31dde8b815ba27cedae5debc6c96a418af95644922ee9c5c7a98f07c6c",
+                                                                 "Mz.SemanticVersioning/LibraryVersionFile.cs":  "1d80ab85acd6cf8633f2ebcfce9a76f5a4284fb13a37ea8977777d814281043f",
+                                                                 "Mz.SemanticVersioning/README.md":  "36db9fa9cf3b6014dfd178cf7cdca30943764bfcc2cce62dfac464a64311e61d",
+                                                                 "Mz.SemanticVersioning/SemanticVersion.cs":  "713b1e15240b4e44d7c09a29085645c4e1ea74d1e362bc5bc6abdf21b15364e6"
+                                                             }
+                                               },
+                     "Mz.Collections":  {
+                                            "version":  "0.1.0",
+                                            "direct":  false,
+                                            "source":  {
+                                                           "provider":  "github",
+                                                           "repository":  "Marco-Zechner/space-engineers-mod-libraries",
+                                                           "releasePrefix":  "release/Mz.Collections/"
+                                                       },
+                                            "dependencies":  {
+                                                                 "Mz.SemanticVersioning":  "0.2.0"
+                                                             },
+                                            "folders":  [
+                                                            "Mz.Collections"
+                                                        ],
+                                            "files":  {
+                                                          "Mz.Collections/LibraryVersionFile.cs":  "01db8cf20ce6102ceb1d08d7ffd83e9e88ca873ddc2514bf26ac394b2d38bca9",
+                                                          "Mz.Collections/README.md":  "cb7560c354802faee642863885452fa30dbf7640fa37e39bfaba9fd5419dd861",
+                                                          "Mz.Collections/ReadOnlyDictionaryView.cs":  "4a9b8ca03fb6ef2493b8f0637ad8de8e00759abde802ab342984b0bef60ae027",
+                                                          "Mz.Collections/ReadOnlyListView.cs":  "a8b2a83342ad778bf3b8fc81a7162b0180b9c14ba7aaf435426cfbba819e8758"
+                                                      }
+                                        },
                      "Mz.ApiProtocol":  {
                                             "version":  "0.3.1",
                                             "direct":  true,
@@ -56,27 +100,6 @@
                                                           "Mz.ApiProtocol.SpaceEngineers/Messaging/IModMessageBus.cs":  "d21f5add3f9e84f8ca7e184f6b45b9f78e9652e3910c267070bbd31a612ec4fe",
                                                           "Mz.ApiProtocol.SpaceEngineers/Messaging/ModMessageSubscription.cs":  "7c026e365de35a83e8d2573f8840744c5fa7fc5f364250b2ea275e852c835caf",
                                                           "Mz.ApiProtocol.SpaceEngineers/Messaging/SpaceEngineersModMessageBus.cs":  "dfdcc424bf852a8fbe3fb0ecede8020c62f273890ec3729218a026eb582d615b"
-                                                      }
-                                        },
-                     "Mz.Collections":  {
-                                            "version":  "0.1.0",
-                                            "direct":  false,
-                                            "source":  {
-                                                           "provider":  "github",
-                                                           "repository":  "Marco-Zechner/space-engineers-mod-libraries",
-                                                           "releasePrefix":  "release/Mz.Collections/"
-                                                       },
-                                            "dependencies":  {
-                                                                 "Mz.SemanticVersioning":  "0.2.0"
-                                                             },
-                                            "folders":  [
-                                                            "Mz.Collections"
-                                                        ],
-                                            "files":  {
-                                                          "Mz.Collections/LibraryVersionFile.cs":  "01db8cf20ce6102ceb1d08d7ffd83e9e88ca873ddc2514bf26ac394b2d38bca9",
-                                                          "Mz.Collections/README.md":  "cb7560c354802faee642863885452fa30dbf7640fa37e39bfaba9fd5419dd861",
-                                                          "Mz.Collections/ReadOnlyDictionaryView.cs":  "4a9b8ca03fb6ef2493b8f0637ad8de8e00759abde802ab342984b0bef60ae027",
-                                                          "Mz.Collections/ReadOnlyListView.cs":  "a8b2a83342ad778bf3b8fc81a7162b0180b9c14ba7aaf435426cfbba819e8758"
                                                       }
                                         },
                      "Mz.CommandAPI.Consumer":  {
@@ -189,31 +212,8 @@
                                                          "Mz.Networking.SpaceEngineers/Wire/SpaceEngineersNetworkWireCodec.cs":  "8216b3e5b285e065052dd644356514f7cd7bd6edae6ba6bc18ef5d20e94826b1"
                                                      }
                                        },
-                     "Mz.SemanticVersioning":  {
-                                                   "version":  "0.2.0",
-                                                   "direct":  false,
-                                                   "source":  {
-                                                                  "provider":  "github",
-                                                                  "repository":  "Marco-Zechner/space-engineers-mod-libraries",
-                                                                  "releasePrefix":  "release/Mz.SemanticVersioning/"
-                                                              },
-                                                   "dependencies":  {
-
-                                                                    },
-                                                   "folders":  [
-                                                                   "Mz.SemanticVersioning"
-                                                               ],
-                                                   "files":  {
-                                                                 "Mz.SemanticVersioning/Changelog.cs":  "2f055000d86a26742d0c0b667c32ce8f03cace14500a10872dc9b5d26544c80e",
-                                                                 "Mz.SemanticVersioning/ChangelogEntry.cs":  "7a541764a92a45f1ab85616696be8a5c2a76ac113c22c5ef8125392afe5cfa36",
-                                                                 "Mz.SemanticVersioning/LibraryDependency.cs":  "a2439c31dde8b815ba27cedae5debc6c96a418af95644922ee9c5c7a98f07c6c",
-                                                                 "Mz.SemanticVersioning/LibraryVersionFile.cs":  "1d80ab85acd6cf8633f2ebcfce9a76f5a4284fb13a37ea8977777d814281043f",
-                                                                 "Mz.SemanticVersioning/README.md":  "36db9fa9cf3b6014dfd178cf7cdca30943764bfcc2cce62dfac464a64311e61d",
-                                                                 "Mz.SemanticVersioning/SemanticVersion.cs":  "713b1e15240b4e44d7c09a29085645c4e1ea74d1e362bc5bc6abdf21b15364e6"
-                                                             }
-                                               },
                      "Mz.Storage":  {
-                                        "version":  "0.1.0",
+                                        "version":  "0.1.1",
                                         "direct":  true,
                                         "source":  {
                                                        "provider":  "github",
@@ -228,13 +228,13 @@
                                                         "Mz.Storage.SpaceEngineers"
                                                     ],
                                         "files":  {
-                                                      "Mz.Storage.Core/IndexedStorage.cs":  "5ed310fb483bd3c1d3f03481216ff0b1a2d00b0b5161a822d5b82a7a19d8563f",
+                                                      "Mz.Storage.Core/IndexedStorage.cs":  "7d28f6a2fe32786de4d37a95c8e9ba03739250189abf223c5c3f4af6a47620ae",
                                                       "Mz.Storage.Core/IStorageBackend.cs":  "20adcd7d0749d5995b0392b2d8522736efb34d0613f46227800d1a3592f69e22",
-                                                      "Mz.Storage.Core/LibraryVersionFile.cs":  "86ca2dc6d89b78637d968fa0670d0edccaca023c81fe9f716218a4e36e45b4cd",
-                                                      "Mz.Storage.Core/README.md":  "104551095b00728d3e28d2a752a9b25bd58b934098a1aaaa29997639a87211da",
+                                                      "Mz.Storage.Core/LibraryVersionFile.cs":  "6434b83a5a506e9963741a8a99daab9b6f1d132b4233f45420988c6f0a3a4d9f",
+                                                      "Mz.Storage.Core/README.md":  "7c089d3ccfb1175579a011cd23d31b7e8249dc2e6064d15364fdde1b3bec3a8f",
                                                       "Mz.Storage.SpaceEngineers/GlobalStorageBackend.cs":  "6d16298cd82e0c18e5c4d0f706a1a27f1eaafba8ed8caf3a0f34d02ba5e3a863",
                                                       "Mz.Storage.SpaceEngineers/LocalStorageBackend.cs":  "888b5fb50ef916da9826d6bdfe4ca6b613c544634c4926e0cd265c425fb63bee",
-                                                      "Mz.Storage.SpaceEngineers/SpaceEngineersStorage.cs":  "0c3281b3baa48376e5ea3f8fa050449decd47e15fe285573ffcd2e9478e32d6c",
+                                                      "Mz.Storage.SpaceEngineers/SpaceEngineersStorage.cs":  "7ad5e5f09c5e6a8239210dd80bd25b4978c7e338b21c830787da7d44e83c8269",
                                                       "Mz.Storage.SpaceEngineers/WorldStorageBackend.cs":  "1cdcbea5599760958b7e857833f5fc9e70c7b09f930c3c391ee8810a60c98c8a"
                                                   }
                                     },

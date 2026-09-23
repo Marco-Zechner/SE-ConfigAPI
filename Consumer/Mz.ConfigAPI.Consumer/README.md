@@ -11,7 +11,7 @@ The package contains only the consumer-facing source required by another mod to 
 - `Mz.ApiProtocol` 0.3.1
 - `Mz.Collections` 0.1.0
 - `Mz.SemanticVersioning` 0.2.0
-- `Mz.Storage` 0.1.0
+- `Mz.Storage` 0.1.1
 
 Space Engineers API assemblies used by the storage adapter are game/runtime references, not SELibs package dependencies.
 

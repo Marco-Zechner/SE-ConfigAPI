@@ -16,26 +16,34 @@ namespace Mz.Storage
 
         private readonly IStorageBackend _backend;
         private readonly string _physicalPrefix;
+        private readonly string _physicalLeadingDotPrefix;
         private readonly string _physicalIndexName;
 
         /// <summary>
         /// Creates indexed storage without a physical filename prefix.
         /// </summary>
-        public IndexedStorage(IStorageBackend backend) : this(backend, string.Empty, IndexFileName)
+        public IndexedStorage(IStorageBackend backend) : this(backend, string.Empty, string.Empty, IndexFileName)
         {
         }
 
         /// <summary>
         /// Creates indexed storage with a prefix applied to every physical filename.
         /// </summary>
-        public IndexedStorage(IStorageBackend backend, string physicalPrefix) : this(backend, physicalPrefix, physicalPrefix + IndexFileName)
+        public IndexedStorage(IStorageBackend backend, string physicalPrefix) : this(backend, physicalPrefix, physicalPrefix, physicalPrefix + IndexFileName)
         {
         }
 
         /// <summary>
         /// Creates indexed storage with independent physical data-prefix and index-filename mappings.
         /// </summary>
-        public IndexedStorage(IStorageBackend backend, string physicalPrefix, string physicalIndexName)
+        public IndexedStorage(IStorageBackend backend, string physicalPrefix, string physicalIndexName) : this(backend, physicalPrefix, physicalPrefix, physicalIndexName)
+        {
+        }
+
+        /// <summary>
+        /// Creates indexed storage with separate physical prefixes for regular and leading-dot logical names.
+        /// </summary>
+        public IndexedStorage(IStorageBackend backend, string physicalPrefix, string physicalLeadingDotPrefix, string physicalIndexName)
         {
             if (backend == null)
                 throw new ArgumentNullException(nameof(backend));
@@ -43,11 +51,15 @@ namespace Mz.Storage
             if (physicalPrefix == null)
                 throw new ArgumentNullException(nameof(physicalPrefix));
 
+            if (physicalLeadingDotPrefix == null)
+                throw new ArgumentNullException(nameof(physicalLeadingDotPrefix));
+
             if (string.IsNullOrWhiteSpace(physicalIndexName))
                 throw new ArgumentException("A physical index filename is required.", nameof(physicalIndexName));
 
             _backend = backend;
             _physicalPrefix = physicalPrefix;
+            _physicalLeadingDotPrefix = physicalLeadingDotPrefix;
             _physicalIndexName = physicalIndexName;
         }
 
@@ -172,7 +184,7 @@ namespace Mz.Storage
             return result;
         }
 
-        private string GetPhysicalName(string name) => _physicalPrefix + name;
+        private string GetPhysicalName(string name) => name[0] == '.' ? _physicalLeadingDotPrefix + name.Substring(1) : _physicalPrefix + name;
 
         private static void ValidateName(string name)
         {
