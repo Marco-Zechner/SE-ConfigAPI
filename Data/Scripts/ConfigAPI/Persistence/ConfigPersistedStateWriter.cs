@@ -1,32 +1,29 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Serialization;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Serialization;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public sealed class ConfigPersistedWriteResult
     {
         public string ActiveSource { get; }
-        public string ProvenanceFile { get; }
-        public string ProvenanceSource { get; }
+        public string DefaultsFile { get; }
+        public string DefaultsSource { get; }
         public string BackupFile { get; }
         public bool UsedCanonicalRegeneration { get; }
 
-        internal ConfigPersistedWriteResult(string activeSource, string provenanceFile, string provenanceSource,
-                                            string backupFile, bool usedCanonicalRegeneration)
+        internal ConfigPersistedWriteResult(string activeSource, string defaultsFile, string defaultsSource, string backupFile, bool usedCanonicalRegeneration)
         {
             if (activeSource == null)
                 throw new ArgumentNullException(nameof(activeSource));
-
-            if (string.IsNullOrWhiteSpace(provenanceFile))
-                throw new ArgumentException("Provenance file must not be empty.", nameof(provenanceFile));
-
-            if (provenanceSource == null)
-                throw new ArgumentNullException(nameof(provenanceSource));
+            if (string.IsNullOrWhiteSpace(defaultsFile))
+                throw new ArgumentException("Defaults file must not be empty.", nameof(defaultsFile));
+            if (defaultsSource == null)
+                throw new ArgumentNullException(nameof(defaultsSource));
 
             ActiveSource = activeSource;
-            ProvenanceFile = provenanceFile;
-            ProvenanceSource = provenanceSource;
+            DefaultsFile = defaultsFile;
+            DefaultsSource = defaultsSource;
             BackupFile = backupFile;
             UsedCanonicalRegeneration = usedCanonicalRegeneration;
         }
@@ -41,7 +38,6 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         {
             if (storage == null)
                 throw new ArgumentNullException(nameof(storage));
-
             if (clock == null)
                 throw new ArgumentNullException(nameof(clock));
 
@@ -53,21 +49,18 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
         {
             if (loadResult == null)
                 throw new ArgumentNullException(nameof(loadResult));
-
             if (currentDefaults == null)
                 throw new ArgumentNullException(nameof(currentDefaults));
 
             ConfigPersistedSourcePlan plan = ConfigPersistedSourcePlanner.Plan(loadResult, currentDefaults);
+            var entry = new ConfigDefaultsEntry(loadResult.State.CurrentFile, loadResult.State.Identity, loadResult.State.BaselineDefaults);
+            ConfigDefaultsStore defaultsStore = loadResult.DefaultsStore.With(entry);
+            string defaultsSource = ConfigDefaultsStoreCodec.Encode(defaultsStore);
 
-            string provenanceSource = ConfigProvenanceCodec.Encode(
-                new ConfigProvenance(loadResult.State.Identity, loadResult.State.BaselineDefaults));
+            ConfigTextWriteResult activeWrite = _writeCoordinator.Write(location, loadResult.State.CurrentFile, plan.ActiveSource, plan.RequiresBackup);
+            _storage.Write(location, loadResult.DefaultsFile, defaultsSource);
 
-            ConfigTextWriteResult activeWrite = _writeCoordinator.Write(location, loadResult.State.CurrentFile, 
-                                                                        plan.ActiveSource, plan.RequiresBackup);
-
-            _storage.Write(location, loadResult.ProvenanceFile, provenanceSource);
-
-            return new ConfigPersistedWriteResult(plan.ActiveSource, loadResult.ProvenanceFile, provenanceSource,
+            return new ConfigPersistedWriteResult(plan.ActiveSource, loadResult.DefaultsFile, defaultsSource,
                                                   activeWrite.BackupFile, plan.UsedCanonicalRegeneration);
         }
     }

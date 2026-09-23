@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Networking;
 using NUnit.Framework;
 
@@ -16,28 +16,24 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             TestRig rig = CreateRig();
             ConfigDocument defaults = Document(Entry("Value", Integer(10)));
 
-            ulong requestId = rig.Adapter.Open("Example.Mod", "Settings", "settings.toml", defaults);
-
-            Assert.That(requestId, Is.EqualTo(1UL));
-            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(1));
-
-            WorldConfigNetworkRequest request = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[0].Payload);
+            ulong requestId = rig.Adapter.Open("Example.Mod", "Settings", defaults);
+            WorldConfigNetworkRequest request = DecodeRequest(rig, 0);
 
             Assert.Multiple(() =>
             {
+                Assert.That(requestId, Is.EqualTo(1UL));
                 Assert.That(request.RequestId, Is.EqualTo(1UL));
                 Assert.That(request.ConsumerId, Is.EqualTo("Example.Mod"));
                 Assert.That(request.ConfigKey, Is.EqualTo("Settings"));
                 Assert.That(request.Operation, Is.EqualTo(WorldConfigNetworkOperation.Open));
-                Assert.That(request.BaseIteration, Is.EqualTo(0UL));
-                Assert.That(request.File, Is.EqualTo("settings.toml"));
+                Assert.That(request.ExpectedRevision, Is.EqualTo(0UL));
+                Assert.That(request.Variant, Is.Null);
                 Assert.That(request.Defaults, Is.EqualTo(defaults));
                 Assert.That(request.Document, Is.Null);
                 Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(1));
             });
 
-            WorldConfigSnapshot snapshot = Snapshot(10, 0UL);
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(1UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, rig.Transport.LocalPeerId, false, false, snapshot, null));
+            ReceiveResponse(rig, SnapshotResponse(requestId, WorldConfigNetworkOperation.Open, rig.Transport.LocalPeerId, false, false, Snapshot(10, 10, 0UL, "default")));
 
             WorldConfigClientState state;
             Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
@@ -45,76 +41,121 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             Assert.Multiple(() =>
             {
                 Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
-                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(0UL));
-                AssertDocumentValue(state.Authoritative.Document, 10, "Value");
-                AssertDocumentValue(state.Draft, 10, "Value");
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(0UL));
+                Assert.That(state.Authoritative.CurrentVariant, Is.EqualTo("default"));
+                AssertDocumentValue(state.Authoritative.Stored, 10);
+                AssertDocumentValue(state.Authoritative.Applied, 10);
+                AssertDocumentValue(state.Draft, 10);
             });
         }
 
         [Test]
-        public void Bootstrap_Seed_Is_Provisional_And_Correlated_Open_Replaces_It_Even_At_Lower_Iteration()
+        public void Bootstrap_Seed_Is_Provisional_And_Correlated_Open_Replaces_Lower_Revision()
         {
-            var bootstrap = new MemoryBootstrapStore(Snapshot(30, 5UL, "alternate.toml"));
-            var transport = new RecordingClientTransport();
-            var endpoint = new NetworkEndpoint(transport);
-            var adapter = new WorldConfigClientNetworkAdapter(endpoint, transport, bootstrap);
-            var rig = new TestRig(endpoint, transport, adapter, 777UL);
+            var bootstrap = new MemoryBootstrapStore(Snapshot(30, 30, 5UL, "combat"));
+            TestRig rig = CreateRig(bootstrap);
 
-            WorldConfigSnapshot bootstrapSnapshot;
-            Assert.That(adapter.TrySeedBootstrap("Example.Mod", "Settings", out bootstrapSnapshot), Is.True);
+            WorldConfigSnapshot seededSnapshot;
+            Assert.That(rig.Adapter.TrySeedBootstrap("Example.Mod", "Settings", out seededSnapshot), Is.True);
 
-            WorldConfigClientState seeded;
-            Assert.That(adapter.TryGetState("Example.Mod", "Settings", out seeded), Is.True);
+            ulong requestId = rig.Adapter.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10))));
+            ReceiveResponse(rig, SnapshotResponse(requestId, WorldConfigNetworkOperation.Open, rig.Transport.LocalPeerId, false, false, Snapshot(40, 40, 0UL, "default")));
 
-            Assert.Multiple(() =>
-            {
-                Assert.That(bootstrapSnapshot.ServerIteration, Is.EqualTo(5UL));
-                Assert.That(seeded.Authoritative.CurrentFile, Is.EqualTo("alternate.toml"));
-                AssertDocumentValue(seeded.Authoritative.Document, 30, "Value");
-                AssertDocumentValue(seeded.Draft, 30, "Value");
-                Assert.That(transport.ServerMessages.Count, Is.EqualTo(0));
-            });
-
-            ulong requestId = adapter.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, transport.LocalPeerId, false, false, Snapshot(40, 0UL), null));
-
-            WorldConfigClientState reconciled;
-            Assert.That(adapter.TryGetState("Example.Mod", "Settings", out reconciled), Is.True);
+            WorldConfigClientState state;
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
 
             Assert.Multiple(() =>
             {
-                Assert.That(adapter.PendingRequestCount, Is.EqualTo(0));
-                Assert.That(reconciled.Authoritative.ServerIteration, Is.EqualTo(0UL));
-                Assert.That(reconciled.Authoritative.CurrentFile, Is.EqualTo("settings.toml"));
-                AssertDocumentValue(reconciled.Authoritative.Document, 40, "Value");
-                AssertDocumentValue(reconciled.Draft, 40, "Value");
+                Assert.That(seededSnapshot.Revision, Is.EqualTo(5UL));
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(0UL));
+                Assert.That(state.Authoritative.CurrentVariant, Is.EqualTo("default"));
+                AssertDocumentValue(state.Authoritative.Applied, 40);
+                AssertDocumentValue(state.Draft, 40);
             });
         }
 
         [Test]
         public void Correlated_Open_Preserves_Draft_Edited_After_Bootstrap_Seed()
         {
-            var bootstrap = new MemoryBootstrapStore(Snapshot(30, 5UL));
-            var transport = new RecordingClientTransport();
-            var endpoint = new NetworkEndpoint(transport);
-            var adapter = new WorldConfigClientNetworkAdapter(endpoint, transport, bootstrap);
-            var rig = new TestRig(endpoint, transport, adapter, 777UL);
+            TestRig rig = CreateRig(new MemoryBootstrapStore(Snapshot(30, 30, 5UL, "combat")));
 
-            WorldConfigSnapshot bootstrapSnapshot;
-            Assert.That(adapter.TrySeedBootstrap("Example.Mod", "Settings", out bootstrapSnapshot), Is.True);
-            adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(35))));
+            WorldConfigSnapshot bootstrap;
+            Assert.That(rig.Adapter.TrySeedBootstrap("Example.Mod", "Settings", out bootstrap), Is.True);
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(35))));
 
-            ulong requestId = adapter.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, transport.LocalPeerId, false, false, Snapshot(40, 0UL), null));
+            ulong requestId = rig.Adapter.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10))));
+            ReceiveResponse(rig, SnapshotResponse(requestId, WorldConfigNetworkOperation.Open, rig.Transport.LocalPeerId, false, false, Snapshot(40, 40, 0UL, "default")));
 
             WorldConfigClientState state;
-            Assert.That(adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
 
             Assert.Multiple(() =>
             {
-                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(0UL));
-                AssertDocumentValue(state.Authoritative.Document, 40, "Value");
-                AssertDocumentValue(state.Draft, 35, "Value");
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(0UL));
+                AssertDocumentValue(state.Authoritative.Applied, 40);
+                AssertDocumentValue(state.Draft, 35);
+                Assert.That(state.HasDraftChanges, Is.True);
+                Assert.That(state.IsDraftStale, Is.True);
+            });
+        }
+
+        [Test]
+        public void Canonical_Mutation_Requests_Use_Current_Revision_And_Expected_Payloads()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(25))));
+            ulong applyId = rig.Adapter.Apply("Example.Mod", "Settings");
+            ulong saveId = rig.Adapter.Save("Example.Mod", "Settings");
+            ulong reloadId = rig.Adapter.Reload("Example.Mod", "Settings");
+            ulong loadId = rig.Adapter.Load("Example.Mod", "Settings", "combat");
+            ulong saveAsId = rig.Adapter.SaveAs("Example.Mod", "Settings", "cargo_2");
+            ulong listId = rig.Adapter.ListVariants("Example.Mod", "Settings");
+
+            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(6));
+
+            WorldConfigNetworkRequest apply = DecodeRequest(rig, 0);
+            WorldConfigNetworkRequest save = DecodeRequest(rig, 1);
+            WorldConfigNetworkRequest reload = DecodeRequest(rig, 2);
+            WorldConfigNetworkRequest load = DecodeRequest(rig, 3);
+            WorldConfigNetworkRequest saveAs = DecodeRequest(rig, 4);
+            WorldConfigNetworkRequest list = DecodeRequest(rig, 5);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(applyId, Is.EqualTo(2UL));
+                Assert.That(apply.Operation, Is.EqualTo(WorldConfigNetworkOperation.Apply));
+                Assert.That(apply.ExpectedRevision, Is.EqualTo(4UL));
+                AssertDocumentValue(apply.Document, 25);
+
+                Assert.That(saveId, Is.EqualTo(3UL));
+                Assert.That(save.Operation, Is.EqualTo(WorldConfigNetworkOperation.Save));
+                Assert.That(save.ExpectedRevision, Is.EqualTo(4UL));
+                Assert.That(save.Document, Is.Null);
+
+                Assert.That(reloadId, Is.EqualTo(4UL));
+                Assert.That(reload.Operation, Is.EqualTo(WorldConfigNetworkOperation.Reload));
+                Assert.That(reload.ExpectedRevision, Is.EqualTo(4UL));
+                Assert.That(reload.Variant, Is.Null);
+
+                Assert.That(loadId, Is.EqualTo(5UL));
+                Assert.That(load.Operation, Is.EqualTo(WorldConfigNetworkOperation.Load));
+                Assert.That(load.ExpectedRevision, Is.EqualTo(4UL));
+                Assert.That(load.Variant, Is.EqualTo("combat"));
+
+                Assert.That(saveAsId, Is.EqualTo(6UL));
+                Assert.That(saveAs.Operation, Is.EqualTo(WorldConfigNetworkOperation.SaveAs));
+                Assert.That(saveAs.ExpectedRevision, Is.EqualTo(4UL));
+                Assert.That(saveAs.Variant, Is.EqualTo("cargo_2"));
+
+                Assert.That(listId, Is.EqualTo(7UL));
+                Assert.That(list.Operation, Is.EqualTo(WorldConfigNetworkOperation.ListVariants));
+                Assert.That(list.ExpectedRevision, Is.EqualTo(0UL));
+                Assert.That(list.Variant, Is.Null);
+
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(6));
             });
         }
 
@@ -125,25 +166,22 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             Open(rig, 10, 0UL);
 
             rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(15))));
-            ulong localSaveRequestId = rig.Adapter.Save("Example.Mod", "Settings");
+            ulong localApplyRequestId = rig.Adapter.Apply("Example.Mod", "Settings");
 
-            Assert.That(localSaveRequestId, Is.EqualTo(2UL));
-            Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(1));
+            ReceiveResponse(rig, SnapshotResponse(localApplyRequestId, WorldConfigNetworkOperation.Apply, 222UL, true, false, Snapshot(10, 20, 1UL, "default")));
 
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(2UL, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Snapshot, 222UL, true, false, Snapshot(20, 1UL), null));
-
-            WorldConfigClientState afterOtherClient;
-            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out afterOtherClient), Is.True);
+            WorldConfigClientState afterBroadcast;
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out afterBroadcast), Is.True);
 
             Assert.Multiple(() =>
             {
-                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(1), "Another client's colliding request ID must not consume our pending request.");
-                Assert.That(afterOtherClient.Authoritative.ServerIteration, Is.EqualTo(1UL));
-                AssertDocumentValue(afterOtherClient.Authoritative.Document, 20, "Value");
-                AssertDocumentValue(afterOtherClient.Draft, 15, "Value");
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(1));
+                Assert.That(afterBroadcast.Authoritative.Revision, Is.EqualTo(1UL));
+                AssertDocumentValue(afterBroadcast.Authoritative.Applied, 20);
+                AssertDocumentValue(afterBroadcast.Draft, 15);
             });
 
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(2UL, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Snapshot, rig.Transport.LocalPeerId, false, true, Snapshot(20, 1UL), null));
+            ReceiveResponse(rig, SnapshotResponse(localApplyRequestId, WorldConfigNetworkOperation.Apply, rig.Transport.LocalPeerId, false, true, Snapshot(10, 20, 1UL, "default")));
 
             WorldConfigClientState afterStaleReply;
             Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out afterStaleReply), Is.True);
@@ -151,9 +189,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             Assert.Multiple(() =>
             {
                 Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
-                Assert.That(afterStaleReply.Authoritative.ServerIteration, Is.EqualTo(1UL));
-                AssertDocumentValue(afterStaleReply.Authoritative.Document, 20, "Value");
-                AssertDocumentValue(afterStaleReply.Draft, 15, "Value");
+                Assert.That(afterStaleReply.Authoritative.Revision, Is.EqualTo(1UL));
+                AssertDocumentValue(afterStaleReply.Authoritative.Applied, 20);
+                AssertDocumentValue(afterStaleReply.Draft, 15);
             });
         }
 
@@ -162,11 +200,10 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             TestRig rig = CreateRig();
             Open(rig, 10, 0UL);
-
             rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(15))));
-            ulong requestId = rig.Adapter.Save("Example.Mod", "Settings");
 
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Error, rig.Transport.LocalPeerId, false, false, null, WorldConfigServerRequestHandler.PermissionDeniedError));
+            ulong requestId = rig.Adapter.Apply("Example.Mod", "Settings");
+            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Apply, WorldConfigNetworkResponseKind.Error, rig.Transport.LocalPeerId, false, false, null, null, WorldConfigServerRequestHandler.PermissionDeniedError));
 
             WorldConfigClientState state;
             Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
@@ -174,9 +211,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             Assert.Multiple(() =>
             {
                 Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
-                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(0UL));
-                AssertDocumentValue(state.Authoritative.Document, 10, "Value");
-                AssertDocumentValue(state.Draft, 15, "Value");
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(0UL));
+                AssertDocumentValue(state.Authoritative.Applied, 10);
+                AssertDocumentValue(state.Draft, 15);
             });
         }
 
@@ -186,16 +223,61 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             TestRig rig = CreateRig();
             Open(rig, 30, 3UL);
 
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(91UL, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Snapshot, 222UL, true, false, Snapshot(40, 4UL), null));
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(92UL, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Snapshot, 333UL, true, false, Snapshot(20, 2UL), null));
+            ReceiveResponse(rig, SnapshotResponse(91UL, WorldConfigNetworkOperation.Apply, 222UL, true, false, Snapshot(30, 40, 4UL, "default")));
+            ReceiveResponse(rig, SnapshotResponse(92UL, WorldConfigNetworkOperation.Apply, 333UL, true, false, Snapshot(20, 20, 2UL, "default")));
 
             WorldConfigClientState state;
             Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
 
             Assert.Multiple(() =>
             {
-                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(4UL));
-                AssertDocumentValue(state.Authoritative.Document, 40, "Value");
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(4UL));
+                AssertDocumentValue(state.Authoritative.Applied, 40);
+            });
+        }
+
+        [Test]
+        public void Load_Response_Updates_Authority_And_Preserves_Edited_Draft()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(15))));
+
+            ulong requestId = rig.Adapter.Load("Example.Mod", "Settings", "combat");
+            ReceiveResponse(rig, SnapshotResponse(requestId, WorldConfigNetworkOperation.Load, rig.Transport.LocalPeerId, true, false, Snapshot(30, 30, 5UL, "combat")));
+
+            WorldConfigClientState state;
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(5UL));
+                Assert.That(state.Authoritative.CurrentVariant, Is.EqualTo("combat"));
+                AssertDocumentValue(state.Authoritative.Applied, 30);
+                AssertDocumentValue(state.Draft, 15);
+                Assert.That(state.IsDraftStale, Is.True);
+            });
+        }
+
+        [Test]
+        public void Variant_List_Response_Consumes_Correlated_Request_Without_Mutating_State()
+        {
+            TestRig rig = CreateRig();
+            Open(rig, 10, 4UL);
+
+            ulong requestId = rig.Adapter.ListVariants("Example.Mod", "Settings");
+            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.ListVariants, WorldConfigNetworkResponseKind.Variants, rig.Transport.LocalPeerId, false, false, null, new[] { "combat", "default" }, null));
+
+            WorldConfigClientState state;
+            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
+                Assert.That(state.Authoritative.Revision, Is.EqualTo(4UL));
+                Assert.That(state.Authoritative.CurrentVariant, Is.EqualTo("default"));
+                AssertDocumentValue(state.Authoritative.Applied, 10);
             });
         }
 
@@ -206,187 +288,55 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             rig.Adapter.Dispose();
 
             NetworkReceiveContext context;
-            bool dispatched = rig.Endpoint.Receive(
-                new NetworkEnvelope(
-                    WorldConfigServerNetworkAdapter.ResponseMessageType,
-                    rig.ServerPeerId,
-                    false,
-                    WorldConfigNetworkCodec.EncodeResponse(
-                        new WorldConfigNetworkResponse(1UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, rig.Transport.LocalPeerId, false, false, Snapshot(10, 0UL), null))),
-                rig.ServerPeerId,
-                true,
-                out context);
+            bool dispatched = rig.Endpoint.Receive(new NetworkEnvelope(WorldConfigServerNetworkAdapter.ResponseMessageType, rig.ServerPeerId, false, WorldConfigNetworkCodec.EncodeResponse(SnapshotResponse(1UL, WorldConfigNetworkOperation.Open, rig.Transport.LocalPeerId, false, false, Snapshot(10, 10, 0UL, "default")))), rig.ServerPeerId, true, out context);
 
             Assert.Multiple(() =>
             {
                 Assert.That(dispatched, Is.False);
                 Assert.That(context, Is.Null);
-                Assert.Throws<InvalidOperationException>(() => rig.Adapter.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10)))));
+                Assert.Throws<InvalidOperationException>(() => rig.Adapter.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10)))));
             });
         }
 
-        [Test]
-        public void Back_To_Back_Saves_Before_Response_Use_The_Same_Base_Iteration()
-        {
-            TestRig rig = CreateRig();
-            Open(rig, 10, 4UL);
-
-            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(20))));
-            ulong firstRequestId = rig.Adapter.Save("Example.Mod", "Settings");
-            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(30))));
-            ulong secondRequestId = rig.Adapter.Save("Example.Mod", "Settings");
-
-            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(2));
-            WorldConfigNetworkRequest first = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[0].Payload);
-            WorldConfigNetworkRequest second = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[1].Payload);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(firstRequestId, Is.EqualTo(2UL));
-                Assert.That(secondRequestId, Is.EqualTo(3UL));
-                Assert.That(first.BaseIteration, Is.EqualTo(4UL));
-                Assert.That(second.BaseIteration, Is.EqualTo(4UL));
-                AssertDocumentValue(first.Document, 20, "Value");
-                AssertDocumentValue(second.Document, 30, "Value");
-                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(2));
-            });
-        }
-
-        [Test]
-        public void File_Operation_Requests_Use_Current_Authority_And_Draft()
-        {
-            TestRig rig = CreateRig();
-            Open(rig, 10, 4UL);
-            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(25))));
-
-            ulong reloadId = rig.Adapter.Reload("Example.Mod", "Settings");
-            ulong loadId = rig.Adapter.LoadAndSwitch("Example.Mod", "Settings", "alternate.toml");
-            ulong saveId = rig.Adapter.SaveAndSwitch("Example.Mod", "Settings", "saved.toml");
-            ulong exportId = rig.Adapter.Export("Example.Mod", "Settings", "copy.toml", true);
-
-            Assert.That(rig.Transport.ServerMessages.Count, Is.EqualTo(4));
-
-            WorldConfigNetworkRequest reload = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[0].Payload);
-            WorldConfigNetworkRequest load = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[1].Payload);
-            WorldConfigNetworkRequest save = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[2].Payload);
-            WorldConfigNetworkRequest export = WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[3].Payload);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(reloadId, Is.EqualTo(2UL));
-                Assert.That(reload.Operation, Is.EqualTo(WorldConfigNetworkOperation.Reload));
-                Assert.That(reload.BaseIteration, Is.EqualTo(4UL));
-                Assert.That(reload.File, Is.Null);
-                Assert.That(reload.Document, Is.Null);
-
-                Assert.That(loadId, Is.EqualTo(3UL));
-                Assert.That(load.Operation, Is.EqualTo(WorldConfigNetworkOperation.LoadAndSwitch));
-                Assert.That(load.BaseIteration, Is.EqualTo(4UL));
-                Assert.That(load.File, Is.EqualTo("alternate.toml"));
-                Assert.That(load.Document, Is.Null);
-
-                Assert.That(saveId, Is.EqualTo(4UL));
-                Assert.That(save.Operation, Is.EqualTo(WorldConfigNetworkOperation.SaveAndSwitch));
-                Assert.That(save.BaseIteration, Is.EqualTo(4UL));
-                Assert.That(save.File, Is.EqualTo("saved.toml"));
-                AssertDocumentValue(save.Document, 25, "Value");
-
-                Assert.That(exportId, Is.EqualTo(5UL));
-                Assert.That(export.Operation, Is.EqualTo(WorldConfigNetworkOperation.Export));
-                Assert.That(export.BaseIteration, Is.EqualTo(4UL));
-                Assert.That(export.File, Is.EqualTo("copy.toml"));
-                Assert.That(export.Overwrite, Is.True);
-                AssertDocumentValue(export.Document, 25, "Value");
-
-                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(4));
-            });
-        }
-
-        [Test]
-        public void Applied_File_Switch_Updates_Authority_And_Preserves_Edited_Draft()
-        {
-            TestRig rig = CreateRig();
-            Open(rig, 10, 4UL);
-            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(15))));
-
-            ulong requestId = rig.Adapter.LoadAndSwitch("Example.Mod", "Settings", "alternate.toml");
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.LoadAndSwitch, WorldConfigNetworkResponseKind.Snapshot, rig.Transport.LocalPeerId, true, false, Snapshot(30, 5UL, "alternate.toml"), null));
-
-            WorldConfigClientState state;
-            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
-                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(5UL));
-                Assert.That(state.Authoritative.CurrentFile, Is.EqualTo("alternate.toml"));
-                AssertDocumentValue(state.Authoritative.Document, 30, "Value");
-                AssertDocumentValue(state.Draft, 15, "Value");
-            });
-        }
-
-        [Test]
-        public void Exported_Response_Consumes_Request_Without_Changing_Authoritative_State_Or_Draft()
-        {
-            TestRig rig = CreateRig();
-            Open(rig, 10, 4UL);
-            rig.Adapter.SetDraft("Example.Mod", "Settings", Document(Entry("Value", Integer(40))));
-
-            ulong requestId = rig.Adapter.Export("Example.Mod", "Settings", "copy.toml", false);
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Export, WorldConfigNetworkResponseKind.Exported, rig.Transport.LocalPeerId, false, false, Snapshot(10, 4UL), null));
-
-            WorldConfigClientState state;
-            Assert.That(rig.Adapter.TryGetState("Example.Mod", "Settings", out state), Is.True);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(rig.Adapter.PendingRequestCount, Is.EqualTo(0));
-                Assert.That(state.Authoritative.ServerIteration, Is.EqualTo(4UL));
-                Assert.That(state.Authoritative.CurrentFile, Is.EqualTo("settings.toml"));
-                AssertDocumentValue(state.Authoritative.Document, 10, "Value");
-                AssertDocumentValue(state.Draft, 40, "Value");
-            });
-        }
-
-        private static TestRig CreateRig()
+        private static TestRig CreateRig(IWorldConfigBootstrapStore bootstrapStore = null)
         {
             var transport = new RecordingClientTransport();
             var endpoint = new NetworkEndpoint(transport);
-            var adapter = new WorldConfigClientNetworkAdapter(endpoint, transport);
+            var adapter = bootstrapStore == null ? new WorldConfigClientNetworkAdapter(endpoint, transport) : new WorldConfigClientNetworkAdapter(endpoint, transport, bootstrapStore);
             return new TestRig(endpoint, transport, adapter, 777UL);
         }
 
-        private static void Open(TestRig rig, long value, ulong iteration)
+        private static void Open(TestRig rig, long value, ulong revision)
         {
-            ulong requestId = rig.Adapter.Open("Example.Mod", "Settings", "settings.toml", Document(Entry("Value", Integer(10))));
-            ReceiveResponse(rig, new WorldConfigNetworkResponse(requestId, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, rig.Transport.LocalPeerId, false, false, Snapshot(value, iteration), null));
+            ulong requestId = rig.Adapter.Open("Example.Mod", "Settings", Document(Entry("Value", Integer(10))));
+            ReceiveResponse(rig, SnapshotResponse(requestId, WorldConfigNetworkOperation.Open, rig.Transport.LocalPeerId, false, false, Snapshot(value, value, revision, "default")));
             rig.Transport.ServerMessages.Clear();
         }
+
+        private static WorldConfigNetworkRequest DecodeRequest(TestRig rig, int index) => WorldConfigNetworkCodec.DecodeRequest(rig.Transport.ServerMessages[index].Payload);
+
+        private static WorldConfigNetworkResponse SnapshotResponse(ulong requestId, WorldConfigNetworkOperation operation, ulong triggeredBy, bool changed, bool stale, WorldConfigSnapshot snapshot)
+            => new WorldConfigNetworkResponse(requestId, operation, WorldConfigNetworkResponseKind.Snapshot, triggeredBy, changed, stale, snapshot, null, null);
 
         private static void ReceiveResponse(TestRig rig, WorldConfigNetworkResponse response)
         {
             NetworkReceiveContext context;
-            bool dispatched = rig.Endpoint.Receive(
-                new NetworkEnvelope(WorldConfigServerNetworkAdapter.ResponseMessageType, rig.ServerPeerId, false, WorldConfigNetworkCodec.EncodeResponse(response)),
-                rig.ServerPeerId,
-                true,
-                out context);
-
+            bool dispatched = rig.Endpoint.Receive(new NetworkEnvelope(WorldConfigServerNetworkAdapter.ResponseMessageType, rig.ServerPeerId, false, WorldConfigNetworkCodec.EncodeResponse(response)), rig.ServerPeerId, true, out context);
             Assert.That(dispatched, Is.True);
             Assert.That(context.TransportSenderIsServer, Is.True);
         }
 
-        private static WorldConfigSnapshot Snapshot(long value, ulong iteration, string file = "settings.toml")
-            => new WorldConfigSnapshot(new ConfigIdentity("Example.Mod", "Settings"), Document(Entry("Value", Integer(value))), iteration, file);
+        private static WorldConfigSnapshot Snapshot(long stored, long applied, ulong revision, string variant)
+            => new WorldConfigSnapshot(new ConfigIdentity("Example.Mod", "Settings"), Document(Entry("Value", Integer(stored))), Document(Entry("Value", Integer(applied))), revision, variant);
 
         private static ConfigDocument Document(params ConfigObjectEntry[] entries) => new ConfigDocument(new ConfigObjectNode(entries));
         private static ConfigObjectEntry Entry(string name, ConfigNode value) => new ConfigObjectEntry(name, value);
         private static ConfigScalarNode Integer(long value) => ConfigScalarNode.Integer(value);
 
-        private static void AssertDocumentValue(ConfigDocument document, long expected, params string[] path)
+        private static void AssertDocumentValue(ConfigDocument document, long expected)
         {
             ConfigNode actual;
-            Assert.That(document.TryGet(new ConfigValuePath(path), out actual), Is.True);
+            Assert.That(document.TryGet(new ConfigValuePath("Value"), out actual), Is.True);
             Assert.That(actual.Equals(Integer(expected)), Is.True);
         }
 
@@ -417,11 +367,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             public bool TryRead(ConfigIdentity identity, out WorldConfigSnapshot snapshot)
             {
-                snapshot = _snapshot != null && _snapshot.Identity.Equals(identity) ? _snapshot : null;
+                snapshot = identity.Equals(_snapshot.Identity) ? _snapshot : null;
                 return snapshot != null;
             }
 
-            public void Write(WorldConfigSnapshot snapshot) { }
+            public void Write(WorldConfigSnapshot snapshot)
+            {
+            }
         }
 
         private sealed class RecordingClientTransport : INetworkTransport
@@ -431,9 +383,18 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             public List<NetworkEnvelope> ServerMessages { get; } = new List<NetworkEnvelope>();
 
             public void SendToServer(NetworkEnvelope envelope) => ServerMessages.Add(envelope);
-            public void SendToPeer(NetworkEnvelope envelope, ulong peerId) { throw new InvalidOperationException("Client transport cannot send directly to peers."); }
-            public void SendToOthers(NetworkEnvelope envelope, ulong excludedPeerId) { throw new InvalidOperationException("Client transport cannot broadcast."); }
-            public void SendToEveryone(NetworkEnvelope envelope) { throw new InvalidOperationException("Client transport cannot broadcast."); }
+            public void SendToPeer(NetworkEnvelope envelope, ulong peerId)
+            {
+                throw new InvalidOperationException("Client transport must not send directly to peers.");
+            }
+            public void SendToOthers(NetworkEnvelope envelope, ulong excludedPeerId)
+            {
+                throw new InvalidOperationException("Client transport must not broadcast.");
+            }
+            public void SendToEveryone(NetworkEnvelope envelope)
+            {
+                throw new InvalidOperationException("Client transport must not broadcast.");
+            }
         }
     }
 }

@@ -1,39 +1,41 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Serialization;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Serialization;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public sealed class ConfigPersistedLoadResult
     {
         public ConfigPersistedState State { get; }
         public string ActiveSource { get; }
-        public string ProvenanceFile { get; }
+        public string DefaultsFile { get; }
         public bool WasActiveFileMissing { get; }
-        public bool WasProvenanceMissing { get; }
+        public bool WasDefaultsEntryMissing { get; }
         public IReadOnlyList<ConfigDefaultChange> Changes { get; }
         public bool RequiresBackup { get; }
 
-        internal ConfigPersistedLoadResult(ConfigPersistedState state,
-                                           string activeSource, string provenanceFile,
-                                           bool wasActiveFileMissing, bool wasProvenanceMissing,
+        internal ConfigDefaultsStore DefaultsStore { get; }
+
+        internal ConfigPersistedLoadResult(ConfigPersistedState state, string activeSource, string defaultsFile, ConfigDefaultsStore defaultsStore,
+                                           bool wasActiveFileMissing, bool wasDefaultsEntryMissing,
                                            IReadOnlyList<ConfigDefaultChange> changes, bool requiresBackup)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
-
-            if (string.IsNullOrWhiteSpace(provenanceFile))
-                throw new ArgumentException("Provenance file must not be empty.", nameof(provenanceFile));
-
+            if (string.IsNullOrWhiteSpace(defaultsFile))
+                throw new ArgumentException("Defaults file must not be empty.", nameof(defaultsFile));
+            if (defaultsStore == null)
+                throw new ArgumentNullException(nameof(defaultsStore));
             if (changes == null)
                 throw new ArgumentNullException(nameof(changes));
 
             State = state;
             ActiveSource = activeSource;
-            ProvenanceFile = provenanceFile;
+            DefaultsFile = defaultsFile;
+            DefaultsStore = defaultsStore;
             WasActiveFileMissing = wasActiveFileMissing;
-            WasProvenanceMissing = wasProvenanceMissing;
+            WasDefaultsEntryMissing = wasDefaultsEntryMissing;
             Changes = changes;
             RequiresBackup = requiresBackup;
         }
@@ -41,7 +43,7 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
 
     public sealed class ConfigPersistedStateLoader
     {
-        private const string ProvenanceSuffix = ".configapi.provenance";
+        public const string DefaultsFileName = ".defaults";
 
         private readonly IConfigTextStorage _storage;
 
@@ -53,37 +55,27 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             _storage = storage;
         }
 
-        public static string GetProvenanceFile(string activeFile)
-        {
-            if (string.IsNullOrWhiteSpace(activeFile))
-                throw new ArgumentException("Config file must not be empty.", nameof(activeFile));
-
-            return activeFile + ProvenanceSuffix;
-        }
-
         public ConfigPersistedLoadResult Load(ConfigLocation location, string activeFile, ConfigIdentity identity, ConfigDocument currentDefaults)
         {
             if (string.IsNullOrWhiteSpace(activeFile))
                 throw new ArgumentException("Config file must not be empty.", nameof(activeFile));
-
             if (identity == null)
                 throw new ArgumentNullException(nameof(identity));
-
             if (currentDefaults == null)
                 throw new ArgumentNullException(nameof(currentDefaults));
 
-            string provenanceFile = GetProvenanceFile(activeFile);
-
             string activeSource = _storage.Read(location, activeFile);
-
-            string provenanceSource = _storage.Read(location, provenanceFile);
+            string defaultsSource = _storage.Read(location, DefaultsFileName);
+            ConfigDefaultsStore defaultsStore = defaultsSource == null ? new ConfigDefaultsStore() : ConfigDefaultsStoreCodec.Decode(defaultsSource);
 
             bool wasActiveFileMissing = activeSource == null;
+            ConfigDefaultsEntry defaultsEntry;
+            bool hasDefaultsEntry = defaultsStore.TryGet(activeFile, out defaultsEntry);
 
-            bool wasProvenanceMissing = provenanceSource == null;
+            if (wasActiveFileMissing && hasDefaultsEntry)
+                throw new InvalidOperationException("Config defaults entry exists without its config file.");
 
-            if (wasActiveFileMissing && !wasProvenanceMissing)
-                throw new InvalidOperationException("Config provenance exists but the active TOML file is missing.");
+            bool wasDefaultsEntryMissing = !hasDefaultsEntry;
 
             ConfigDocument playerValues;
             ConfigDocument baselineDefaults;
@@ -97,34 +89,29 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             {
                 playerValues = ConfigTomlSourceDecoder.Decode(activeSource, currentDefaults);
 
-                if (wasProvenanceMissing)
+                if (!hasDefaultsEntry)
                 {
                     playerValues = FillMissingKnownValues(playerValues, currentDefaults);
                     baselineDefaults = currentDefaults;
                 }
                 else
                 {
-                    ConfigProvenance provenance = ConfigProvenanceCodec.Decode(provenanceSource);
+                    if (!defaultsEntry.Identity.Equals(identity))
+                        throw new InvalidOperationException("Config defaults identity does not match the requested config identity.");
 
-                    if (!provenance.Identity.Equals(identity))
-                        throw new InvalidOperationException("Config provenance identity does not match the requested config identity.");
-
-                    baselineDefaults = provenance.BaselineDefaults;
+                    baselineDefaults = defaultsEntry.BaselineDefaults;
                 }
             }
 
             var state = new ConfigPersistedState(identity, playerValues, baselineDefaults, activeFile);
+            ConfigPersistedStateReconciliationResult reconciliationResult = ConfigPersistedStateReconciler.Reconcile(state, currentDefaults);
 
-            var reconciliationResult = ConfigPersistedStateReconciler.Reconcile(state, currentDefaults);
-            
-            return new ConfigPersistedLoadResult(
-                reconciliationResult.State,
-                activeSource, provenanceFile,
-                wasActiveFileMissing, wasProvenanceMissing,
-                reconciliationResult.Changes, reconciliationResult.RequiresBackup);
+            return new ConfigPersistedLoadResult(reconciliationResult.State, activeSource, DefaultsFileName, defaultsStore,
+                                                 wasActiveFileMissing, wasDefaultsEntryMissing,
+                                                 reconciliationResult.Changes, reconciliationResult.RequiresBackup);
         }
 
-        private static ConfigDocument FillMissingKnownValues(ConfigDocument playerValues, ConfigDocument currentDefaults) 
+        private static ConfigDocument FillMissingKnownValues(ConfigDocument playerValues, ConfigDocument currentDefaults)
             => new ConfigDocument(FillMissingKnownValues(playerValues.Root, currentDefaults.Root));
 
         private static ConfigObjectNode FillMissingKnownValues(ConfigObjectNode player, ConfigObjectNode currentDefaults)
@@ -138,13 +125,11 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
                 if (currentDefaults.TryGet(playerEntry.Name, out currentDefault))
                 {
                     var playerObject = playerEntry.Value as ConfigObjectNode;
-
                     var defaultObject = currentDefault as ConfigObjectNode;
 
                     if (playerObject != null && defaultObject != null)
                     {
-                        ConfigObjectNode missingKnownValues = FillMissingKnownValues(playerObject, defaultObject);
-                        entries.Add(new ConfigObjectEntry(playerEntry.Name, missingKnownValues));
+                        entries.Add(new ConfigObjectEntry(playerEntry.Name, FillMissingKnownValues(playerObject, defaultObject)));
                         continue;
                     }
                 }
@@ -155,11 +140,8 @@ namespace MarcoZechner.ConfigAPI.V2.Persistence
             foreach (ConfigObjectEntry defaultEntry in currentDefaults.Entries)
             {
                 ConfigNode ignored;
-
-                if (player.TryGet(defaultEntry.Name, out ignored))
-                    continue;
-
-                entries.Add(defaultEntry);
+                if (!player.TryGet(defaultEntry.Name, out ignored))
+                    entries.Add(defaultEntry);
             }
 
             return new ConfigObjectNode(entries.ToArray());

@@ -1,18 +1,18 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.ApiProtocol.SpaceEngineers;
 using Mz.Networking.SpaceEngineers;
 using Sandbox.ModAPI;
 using Mz.CommandApi;
-using Mz.ConfigApi;
 using Mz.Logging;
 using Mz.Logging.SpaceEngineers;
 using Mz.SemanticVersioning;
 using VRage.Game.Components;
 
-namespace MarcoZechner.ConfigAPI.V2
+namespace MarcoZechner.ConfigAPI
 {
     [MySessionComponentDescriptor(MyUpdateOrder.NoUpdate)]
     public sealed class ConfigApiSession : MySessionComponentBase
@@ -21,17 +21,18 @@ namespace MarcoZechner.ConfigAPI.V2
         private const ushort WorldNetworkChannelId = 12345;
         private const string WorldNetworkId = "MarcoZechner.ConfigAPI.World";
         private const string WorldSmokeConfigKey = "WorldSmoke";
-        private const string WorldSmokeFile = "ConfigAPI.WorldSmoke.toml";
 
-        private ConfigApiClient _configClient;
-        private CommandApiClient _commandClient;
+        private readonly Guid _worldSmokeRegistrationId = Guid.NewGuid();
         private readonly List<CommandRegistrationHandle> _commandRegistrations = new List<CommandRegistrationHandle>();
+        private CommandApiClient _commandClient;
         private SpaceEngineersStorageLogger _logger;
         private ConfigApiProvider _provider;
         private ConfigConsumerRegistrationRegistry _registry;
         private SpaceEngineersNetworkSession _worldNetworkSession;
         private WorldConfigNetworkRuntime _worldNetworkRuntime;
-        private WorldConfigResponse _worldSmokeLastResponse;
+        private Action _worldSmokeUnregister;
+        private IDictionary<string, object> _worldSmokeLastResponse;
+        private bool _selfConfigLoaded;
 
         public override void LoadData()
         {
@@ -42,26 +43,13 @@ namespace MarcoZechner.ConfigAPI.V2
             {
                 var messageBus = new SpaceEngineersModMessageBus();
                 _registry = new ConfigConsumerRegistrationRegistry();
+                _registry.RegisterInternalStorage(ConfigApiProvider.ApiId, ConfigApiSpaceEngineersTextStorage.Create(ConfigApiProvider.ApiId, typeof(ConfigApiSession)));
 
                 _provider = new ConfigApiProvider(messageBus, _registry, _modVersion, _logger.Logger);
                 _provider.Start();
+                _worldSmokeUnregister = _provider.RegisterWorldInternal(ConfigApiProvider.ApiId, _worldSmokeRegistrationId, OnWorldConfigResponseReceived);
 
-                _configClient = ConfigApiClient.CreateForSpaceEngineers(
-                    messageBus, ConfigApiProvider.ApiId, "ConfigAPI", _modVersion, true, "Controls ConfigAPI runtime configuration.");
-
-                _configClient.Connected += OnSelfConfigConnected;
-                _configClient.Disconnected += OnSelfConfigDisconnected;
-                _configClient.WorldConfigResponseReceived += OnWorldConfigResponseReceived;
-
-                _logger.Logger.Debug("Starting ConfigAPI self-configuration consumer.");
-                _configClient.Start();
-
-                if (!_configClient.IsConnected)
-                {
-                    _logger.Logger.MinimumLevel = LogLevel.Trace;
-                    _logger.Logger.Error("ConfigAPI self-configuration consumer did not connect. Trace logging remains enabled.", _configClient.LastError);
-                }
-
+                LoadSelfConfig();
                 StartCommandApiIntegration(messageBus);
             }
             catch (Exception exception)
@@ -232,12 +220,20 @@ namespace MarcoZechner.ConfigAPI.V2
             _commandRegistrations.Add(
                 _commandClient.Register(
                     new CommandRegistration(
-                        "/cfg", "world-save", CommandExecutionLocation.Client, null,
-                        "Attempts a World smoke save from this player.",
-                        "Saves one string value through the client World path. Server authorization must accept admins and reject non-admins.",
-                        "world-save <value>", "ConfigAPI"),
-                    HandleCommandWorldSave));
+                        "/cfg", "world-apply", CommandExecutionLocation.Client, null,
+                        "Attempts a World smoke apply from this player.",
+                        "Applies one string value through the client World path without persisting it. Server authorization must accept admins and reject non-admins.",
+                        "world-apply <value>", "ConfigAPI"),
+                    HandleCommandWorldApply));
 
+            _commandRegistrations.Add(
+                _commandClient.Register(
+                    new CommandRegistration(
+                        "/cfg", "world-save", CommandExecutionLocation.Client, null,
+                        "Persists the current World smoke Applied value.",
+                        "Saves the current authoritative Applied state into the active World variant without accepting a new draft value.",
+                        "world-save", "ConfigAPI"),
+                    HandleCommandWorldSave));
             _commandRegistrations.Add(
                 _commandClient.Register(
                     new CommandRegistration(
@@ -250,11 +246,11 @@ namespace MarcoZechner.ConfigAPI.V2
             _commandRegistrations.Add(
                 _commandClient.Register(
                     new CommandRegistration(
-                        "/cfg", "world-save-stale", CommandExecutionLocation.Client, null,
-                        "Submits two immediate World smoke saves from this player.",
-                        "Submits two saves without waiting for the first response so both use the same base iteration and the second should be rejected as stale.",
-                        "world-save-stale <first-value> <second-value>", "ConfigAPI"),
-                    HandleCommandWorldSaveStale));
+                        "/cfg", "world-apply-stale", CommandExecutionLocation.Client, null,
+                        "Submits two immediate World smoke applies from this player.",
+                        "Submits two applies without waiting for the first response so both use the same revision and the second should be rejected as stale.",
+                        "world-apply-stale <first-value> <second-value>", "ConfigAPI"),
+                    HandleCommandWorldApplyStale));
         }
 
         private CommandResponse HandleCommandHelp(CommandRequest request)
@@ -265,15 +261,16 @@ namespace MarcoZechner.ConfigAPI.V2
             return new CommandResponse(
                 true,
                 "ConfigAPI commands",
-                "Available commands: 7",
+                "Available commands: 8",
                 new[]
                 {
                     "help - Lists ConfigAPI commands.",
                     "status - Reports ConfigAPI runtime status.",
                     "world-open - Opens the shared World smoke config on this client.",
                     "world-open-server - Opens the shared World smoke config on the server.",
-                    "world-save <value> - Attempts a player-authorized World save.",
-                    "world-save-stale <first-value> <second-value> - Submits two immediate saves to exercise stale-write correction.",
+                    "world-apply <value> - Attempts a player-authorized World apply.",
+                    "world-save - Persists the current authoritative World Applied value.",
+                    "world-apply-stale <first-value> <second-value> - Submits two immediate applies to exercise stale-write correction.",
                     "world-status - Reports the last World smoke response on this execution side."
                 });
         }
@@ -282,86 +279,87 @@ namespace MarcoZechner.ConfigAPI.V2
         {
             if (request.Arguments.Length != 0)
                 return new CommandResponse(false, "Invalid World open request", "World open does not accept arguments.", severity: CommandSeverity.Error, usageHint: "/cfg " + request.CommandName);
-
-            if (_configClient == null || !_configClient.SupportsWorldConfigs)
-                return new CommandResponse(false, "World configs unavailable", "The local ConfigAPI consumer is not connected to the World facade.", severity: CommandSeverity.Error);
+            if (_provider == null || _worldSmokeUnregister == null)
+                return new CommandResponse(false, "World configs unavailable", "The internal ConfigAPI World facade is unavailable.", severity: CommandSeverity.Error);
 
             try
             {
-                _configClient.OpenWorld(WorldSmokeConfigKey, WorldSmokeFile, CreateWorldSmokeDocument("initial"));
-                return new CommandResponse(
-                    true,
-                    "World smoke open requested",
-                    "The asynchronous World open request was submitted on the " + (request.IsServer ? "server." : "client."),
-                    new[] { "Run /cfg world-status on this side after the response arrives." },
-                    CommandSeverity.Success);
+                _provider.OpenWorldInternal(ConfigApiProvider.ApiId, _worldSmokeRegistrationId, WorldSmokeConfigKey, CreateWorldSmokeDocument("initial"));
+                return new CommandResponse(true, "World smoke open requested", "The asynchronous World open request was submitted on the " + (request.IsServer ? "server." : "client."), new[] { "Run /cfg world-status on this side after the response arrives." }, CommandSeverity.Success);
             }
             catch (Exception exception)
             {
                 return new CommandResponse(false, "World smoke open failed", exception.Message, severity: CommandSeverity.Error);
             }
         }
-
-        private CommandResponse HandleCommandWorldSave(CommandRequest request)
+        private CommandResponse HandleCommandWorldApply(CommandRequest request)
         {
             if (request.Arguments.Length != 1 || string.IsNullOrWhiteSpace(request.Arguments[0]))
-                return new CommandResponse(false, "Invalid World save request", "Expected exactly one non-empty string value.", severity: CommandSeverity.Error, usageHint: "/cfg world-save <value>");
-
-            if (_configClient == null || !_configClient.SupportsWorldConfigs)
-                return new CommandResponse(false, "World configs unavailable", "The local ConfigAPI consumer is not connected to the World facade.", severity: CommandSeverity.Error);
+                return new CommandResponse(false, "Invalid World apply request", "Expected exactly one non-empty string value.", severity: CommandSeverity.Error, usageHint: "/cfg world-apply <value>");
+            if (_provider == null || _worldSmokeUnregister == null)
+                return new CommandResponse(false, "World configs unavailable", "The internal ConfigAPI World facade is unavailable.", severity: CommandSeverity.Error);
 
             try
             {
-                _configClient.SaveWorld(WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[0]));
-                return new CommandResponse(
-                    true,
-                    "World smoke save requested",
-                    "The asynchronous player-authorized World save request was submitted.",
-                    new[]
-                    {
-                        "Requested value: " + request.Arguments[0],
-                        "Requester Steam ID: " + request.RequesterSteamId,
-                        "Run /cfg world-status after the response arrives."
-                    },
-                    CommandSeverity.Information);
+                _provider.ApplyWorldInternal(ConfigApiProvider.ApiId, _worldSmokeRegistrationId, WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[0]));
+                return new CommandResponse(true, "World smoke apply requested", "The asynchronous player-authorized World apply request was submitted.", new[]
+                {
+                    "Requested value: " + request.Arguments[0],
+                    "Requester Steam ID: " + request.RequesterSteamId,
+                    "Run /cfg world-status after the response arrives."
+                }, CommandSeverity.Information);
+            }
+            catch (Exception exception)
+            {
+                return new CommandResponse(false, "World smoke apply failed", exception.Message, severity: CommandSeverity.Error);
+            }
+        }
+        private CommandResponse HandleCommandWorldSave(CommandRequest request)
+        {
+            if (request.Arguments.Length != 0)
+                return new CommandResponse(false, "Invalid World save request", "World save does not accept arguments.", severity: CommandSeverity.Error, usageHint: "/cfg world-save");
+            if (_provider == null || _worldSmokeUnregister == null)
+                return new CommandResponse(false, "World configs unavailable", "The internal ConfigAPI World facade is unavailable.", severity: CommandSeverity.Error);
+
+            try
+            {
+                _provider.SaveWorldInternal(ConfigApiProvider.ApiId, _worldSmokeRegistrationId, WorldSmokeConfigKey);
+                return new CommandResponse(true, "World smoke save requested", "The asynchronous player-authorized World save request was submitted.", new[]
+                {
+                    "The current authoritative Applied value will be persisted to the active variant.",
+                    "Requester Steam ID: " + request.RequesterSteamId,
+                    "Run /cfg world-status after the response arrives."
+                }, CommandSeverity.Information);
             }
             catch (Exception exception)
             {
                 return new CommandResponse(false, "World smoke save failed", exception.Message, severity: CommandSeverity.Error);
             }
         }
-
-        private CommandResponse HandleCommandWorldSaveStale(CommandRequest request)
+        private CommandResponse HandleCommandWorldApplyStale(CommandRequest request)
         {
             if (request.Arguments.Length != 2 || string.IsNullOrWhiteSpace(request.Arguments[0]) || string.IsNullOrWhiteSpace(request.Arguments[1]))
-                return new CommandResponse(false, "Invalid stale World save request", "Expected exactly two non-empty string values.", severity: CommandSeverity.Error, usageHint: "/cfg world-save-stale <first-value> <second-value>");
-
-            if (_configClient == null || !_configClient.SupportsWorldConfigs)
-                return new CommandResponse(false, "World configs unavailable", "The local ConfigAPI consumer is not connected to the World facade.", severity: CommandSeverity.Error);
+                return new CommandResponse(false, "Invalid stale World apply request", "Expected exactly two non-empty string values.", severity: CommandSeverity.Error, usageHint: "/cfg world-apply-stale <first-value> <second-value>");
+            if (_provider == null || _worldSmokeUnregister == null)
+                return new CommandResponse(false, "World configs unavailable", "The internal ConfigAPI World facade is unavailable.", severity: CommandSeverity.Error);
 
             try
             {
-                _configClient.SaveWorld(WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[0]));
-                _configClient.SaveWorld(WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[1]));
-                return new CommandResponse(
-                    true,
-                    "World stale smoke saves requested",
-                    "Two asynchronous saves were submitted back-to-back without waiting for the first response.",
-                    new[]
-                    {
-                        "First value: " + request.Arguments[0],
-                        "Second value: " + request.Arguments[1],
-                        "Expected result: first save applies; second save returns Stale=True with the first authoritative value.",
-                        "Run /cfg world-status after both responses arrive."
-                    },
-                    CommandSeverity.Information);
+                _provider.ApplyWorldInternal(ConfigApiProvider.ApiId, _worldSmokeRegistrationId, WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[0]));
+                _provider.ApplyWorldInternal(ConfigApiProvider.ApiId, _worldSmokeRegistrationId, WorldSmokeConfigKey, CreateWorldSmokeDocument(request.Arguments[1]));
+                return new CommandResponse(true, "World stale smoke applies requested", "Two asynchronous applies were submitted back-to-back without waiting for the first response.", new[]
+                {
+                    "First value: " + request.Arguments[0],
+                    "Second value: " + request.Arguments[1],
+                    "Expected result: first apply changes authority; second apply returns Stale=True with the first authoritative value.",
+                    "Run /cfg world-status after both responses arrive."
+                }, CommandSeverity.Information);
             }
             catch (Exception exception)
             {
-                return new CommandResponse(false, "World stale smoke save failed", exception.Message, severity: CommandSeverity.Error);
+                return new CommandResponse(false, "World stale smoke apply failed", exception.Message, severity: CommandSeverity.Error);
             }
         }
-
         private CommandResponse HandleCommandWorldStatus(CommandRequest request)
         {
             if (request.Arguments.Length != 0)
@@ -370,24 +368,24 @@ namespace MarcoZechner.ConfigAPI.V2
             var detailLines = new List<string>
             {
                 "Execution side: " + (request.IsServer ? "server" : "client"),
-                "World facade: " + (_configClient != null && _configClient.SupportsWorldConfigs ? "available" : "unavailable")
+                "World facade: " + (_provider != null && _worldSmokeUnregister != null ? "available" : "unavailable")
             };
 
-            WorldConfigResponse response = _worldSmokeLastResponse;
+            IDictionary<string, object> response = _worldSmokeLastResponse;
             if (response == null)
             {
                 detailLines.Add("Last response: none");
             }
             else
             {
-                detailLines.Add("Operation: " + response.Operation);
-                detailLines.Add("TriggeredBy: " + response.TriggeredBy);
-                detailLines.Add("Applied: " + response.IsApplied);
-                detailLines.Add("Stale: " + response.IsStale);
-                detailLines.Add("Server iteration: " + (response.ServerIteration.HasValue ? response.ServerIteration.Value.ToString() : "(none)"));
-                detailLines.Add("Current file: " + (response.CurrentFile ?? "(none)"));
+                detailLines.Add("Operation: " + ResponseText(response, "Operation", "(none)"));
+                detailLines.Add("TriggeredBy: " + ResponseText(response, "TriggeredBy", "(none)"));
+                detailLines.Add("Changed: " + ResponseText(response, "IsChanged", "(none)"));
+                detailLines.Add("Stale: " + ResponseText(response, "IsStale", "(none)"));
+                detailLines.Add("Revision: " + ResponseText(response, "Revision", "(none)"));
+                detailLines.Add("Current variant: " + ResponseText(response, "CurrentVariant", "(none)"));
                 detailLines.Add("Value: " + ReadWorldSmokeValue(response));
-                detailLines.Add("Error: " + (response.Error ?? "(none)"));
+                detailLines.Add("Error: " + ResponseText(response, "Error", "(none)"));
             }
 
             return new CommandResponse(true, "World smoke status", response == null ? "No World smoke response has been observed on this side." : "The last local World smoke response is shown below.", detailLines.ToArray());
@@ -409,7 +407,7 @@ namespace MarcoZechner.ConfigAPI.V2
             var detailLines = new List<string>
             {
                 "Provider: " + (_provider != null && _provider.IsStarted ? "started" : "stopped"),
-                "Self config: " + (_configClient != null && _configClient.IsConnected ? "connected" : "disconnected"),
+                "Self config: " + (_selfConfigLoaded ? "loaded" : "not loaded"),
                 "CommandAPI: " + (_commandClient != null && _commandClient.IsConnected ? "connected" : "disconnected"),
                 "Mod version: " + _modVersion,
                 "Other registered mods: " + otherConsumers.Count
@@ -426,9 +424,9 @@ namespace MarcoZechner.ConfigAPI.V2
             return new CommandResponse(true, "ConfigAPI status", "ConfigAPI is running.", detailLines.ToArray());
         }
 
-        private void OnWorldConfigResponseReceived(WorldConfigResponse response)
+        private void OnWorldConfigResponseReceived(IDictionary<string, object> response)
         {
-            if (response == null || !string.Equals(response.ConfigKey, WorldSmokeConfigKey, StringComparison.Ordinal))
+            if (response == null || !string.Equals(ResponseValue(response, "ConfigKey") as string, WorldSmokeConfigKey, StringComparison.Ordinal))
                 return;
 
             _worldSmokeLastResponse = response;
@@ -437,33 +435,50 @@ namespace MarcoZechner.ConfigAPI.V2
         }
 
         private static ConfigDocument CreateWorldSmokeDocument(string value)
-            => new ConfigDocument(new ConfigEntry("Value", ConfigValue.String(value)));
+            => new ConfigDocument(new ConfigObjectNode(new ConfigObjectEntry("Value", ConfigScalarNode.String(value))));
 
-        private static string ReadWorldSmokeValue(WorldConfigResponse response)
+        private static string ReadWorldSmokeValue(IDictionary<string, object> response)
         {
-            if (response == null || response.Document == null)
+            object payload = ResponseValue(response, "Applied");
+            if (payload == null)
                 return "(none)";
 
-            ConfigValue value;
-            if (!response.Document.TryGet("Value", out value))
+            ConfigDocument document = ConfigDocumentWireCodec.Decode(payload);
+            ConfigNode node;
+            if (!document.TryGet(new ConfigValuePath("Value"), out node))
                 return "(missing)";
-            if (value.Kind != ConfigValueKind.String)
-                return "(" + value.Kind + ")";
 
-            return (string)value.ScalarValue;
+            var scalar = node as ConfigScalarNode;
+            if (scalar == null)
+                return "(" + node.GetType().Name + ")";
+            if (scalar.Kind != ConfigScalarKind.String)
+                return "(" + scalar.Kind + ")";
+
+            return (string)scalar.Value;
         }
 
-        private static string DescribeWorldSmokeResponse(WorldConfigResponse response)
+        private static string DescribeWorldSmokeResponse(IDictionary<string, object> response)
         {
-            string iteration = response.ServerIteration.HasValue ? response.ServerIteration.Value.ToString() : "none";
-            return "operation=" + response.Operation
-                + ", triggeredBy=" + response.TriggeredBy
-                + ", applied=" + response.IsApplied
-                + ", stale=" + response.IsStale
-                + ", iteration=" + iteration
-                + ", file=" + (response.CurrentFile ?? "none")
+            return "operation=" + ResponseText(response, "Operation", "none")
+                + ", triggeredBy=" + ResponseText(response, "TriggeredBy", "none")
+                + ", changed=" + ResponseText(response, "IsChanged", "none")
+                + ", stale=" + ResponseText(response, "IsStale", "none")
+                + ", revision=" + ResponseText(response, "Revision", "none")
+                + ", variant=" + ResponseText(response, "CurrentVariant", "none")
                 + ", value=" + ReadWorldSmokeValue(response)
-                + ", error=" + (response.Error ?? "none");
+                + ", error=" + ResponseText(response, "Error", "none");
+        }
+
+        private static object ResponseValue(IDictionary<string, object> response, string key)
+        {
+            object value;
+            return response != null && response.TryGetValue(key, out value) ? value : null;
+        }
+
+        private static string ResponseText(IDictionary<string, object> response, string key, string fallback)
+        {
+            object value = ResponseValue(response, key);
+            return value == null ? fallback : value.ToString();
         }
         private void OnCommandApiConnected()
         {
@@ -479,32 +494,25 @@ namespace MarcoZechner.ConfigAPI.V2
         {
             _logger?.Logger.Error("CommandAPI registration failed for " + registration.Prefix + " " + registration.CanonicalName + ".", exception);
         }
-        private void OnSelfConfigConnected()
+        private void LoadSelfConfig()
         {
-            _logger.Logger.Debug("ConfigAPI self-configuration consumer connected.");
+            _logger.Logger.Debug("Loading ConfigAPI self-configuration directly through provider persistence.");
 
             try
             {
-                ConfigApiRuntimeConfig config = _configClient.Open(ConfigApiRuntimeConfigDefinition.Definition, ConfigLocation.Local);
-                _logger.Logger.Info($"ConfigAPI runtime config loaded. Applying MinimumLogLevel={config.MinimumLogLevel}.");
+                ConfigDocument document = _provider.OpenInternal(ConfigApiProvider.ApiId, ConfigApiRuntimeConfigDefinition.ConfigKey, ConfigLocation.Local, ConfigApiRuntimeConfigDefinition.FileName, ConfigApiRuntimeConfigDefinition.CreateDefaults());
+                ConfigApiRuntimeConfig config = ConfigApiRuntimeConfigDefinition.Deserialize(document);
+                _logger.Logger.Info("ConfigAPI runtime config loaded. Applying MinimumLogLevel=" + config.MinimumLogLevel + ".");
                 _logger.Logger.MinimumLevel = config.MinimumLogLevel;
+                _selfConfigLoaded = true;
             }
             catch (Exception exception)
             {
+                _selfConfigLoaded = false;
                 _logger.Logger.MinimumLevel = LogLevel.Trace;
                 _logger.Logger.Error("Failed to load ConfigAPI.toml. Trace logging remains enabled.", exception);
             }
         }
-
-        private void OnSelfConfigDisconnected()
-        {
-            if (_logger == null)
-                return;
-
-            _logger.Logger.MinimumLevel = LogLevel.Trace;
-            _logger.Logger.Warning("ConfigAPI self-configuration consumer disconnected. Trace logging remains enabled.");
-        }
-
         protected override void UnloadData()
         {
             _logger?.Logger.Debug("ConfigAPI session unloading.");
@@ -537,23 +545,17 @@ namespace MarcoZechner.ConfigAPI.V2
 
             try
             {
-                if (_configClient != null)
-                {
-                    _configClient.Connected -= OnSelfConfigConnected;
-                    _configClient.Disconnected -= OnSelfConfigDisconnected;
-                    _configClient.WorldConfigResponseReceived -= OnWorldConfigResponseReceived;
-                    _configClient.Dispose();
-                }
+                _worldSmokeUnregister?.Invoke();
             }
             catch (Exception exception)
             {
-                _logger?.Logger.Error("ConfigAPI self-configuration consumer failed while unloading.", exception);
+                _logger?.Logger.Error("ConfigAPI internal World smoke registration failed while unloading.", exception);
             }
             finally
             {
-                _configClient = null;
+                _worldSmokeUnregister = null;
+                _worldSmokeLastResponse = null;
             }
-
             try
             {
                 _provider?.Dispose();
@@ -565,7 +567,12 @@ namespace MarcoZechner.ConfigAPI.V2
             finally
             {
                 _provider = null;
+
+                if (_registry != null)
+                    _registry.UnregisterInternalStorage(ConfigApiProvider.ApiId);
+
                 _registry = null;
+                _selfConfigLoaded = false;
 
                 _logger?.Logger.Info("ConfigAPI session stopped.");
                 _logger?.Dispose();

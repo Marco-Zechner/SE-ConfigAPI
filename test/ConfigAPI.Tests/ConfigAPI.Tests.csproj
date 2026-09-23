@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Data\ConfigAPI.csproj" />
+    <Compile Remove="Consumer\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

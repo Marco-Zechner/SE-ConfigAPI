@@ -21,7 +21,7 @@ namespace Mz.ApiProtocol
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 0;
+        public const int Patch = 1;
 
         /// <summary>
         /// Gets the version string.
@@ -32,6 +32,7 @@ namespace Mz.ApiProtocol
         /// Gets the exact package dependencies required by this release.
         /// </summary>
         public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.Collections", "0.1.0"),
             new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
         };
 
@@ -42,6 +43,11 @@ namespace Mz.ApiProtocol
             VersionString,
             new[]
             {
+                new ChangelogEntry("0.3.1", new[]
+                {
+                    "Replaced the duplicated internal read-only collection wrappers with Mz.Collections 0.1.0.",
+                    "Declared the exact Mz.Collections 0.1.0 package dependency."
+                }),
                 new ChangelogEntry(
                     "0.3.0",
                     new[]

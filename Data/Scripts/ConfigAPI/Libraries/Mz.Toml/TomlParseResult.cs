@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Mz.Toml.Internal;
+using Mz.Collections;
 
 namespace Mz.Toml
 {
@@ -12,7 +12,7 @@ namespace Mz.Toml
         {
             var copy = new List<TomlDiagnostic>(diagnostics);
             Document = document;
-            Diagnostics = new TomlReadOnlyList<TomlDiagnostic>(copy);
+            Diagnostics = new ReadOnlyListView<TomlDiagnostic>(copy);
             Syntax = syntax;
         }
 

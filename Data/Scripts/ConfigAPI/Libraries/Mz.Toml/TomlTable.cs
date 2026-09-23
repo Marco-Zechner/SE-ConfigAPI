@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Mz.Collections;
 using Mz.Toml.Internal;
 
 namespace Mz.Toml
@@ -21,7 +22,7 @@ namespace Mz.Toml
         internal TomlTable(int line, int column, TomlTableDefinitionKind definitionKind) : base(TomlNodeKind.Table, line, column)
         {
             _keys = new List<string>();
-            Keys = new TomlReadOnlyList<string>(_keys);
+            Keys = new ReadOnlyListView<string>(_keys);
             _values = new Dictionary<string, TomlNode>(StringComparer.Ordinal);
             DefinitionKind = definitionKind;
         }

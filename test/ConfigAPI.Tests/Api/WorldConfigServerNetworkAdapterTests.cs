@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.Networking;
 using NUnit.Framework;
 
@@ -15,11 +15,10 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         public void Open_Uses_Corrected_Transport_Sender_And_Replies_Only_To_Requester()
         {
             TestRig rig = CreateRig();
-            var request = new WorldConfigNetworkRequest(
-                1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL,
-                "settings.toml", false, Document(Entry("Value", Integer(10))), null);
+            var request = new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, null, Document(Entry("Value", Integer(10))), null);
 
             NetworkReceiveContext context = Receive(rig, request, 999UL, 111UL);
+            WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
 
             Assert.Multiple(() =>
             {
@@ -28,32 +27,24 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(rig.Transport.PeerMessages.Count, Is.EqualTo(1));
                 Assert.That(rig.Transport.EveryoneMessages.Count, Is.EqualTo(0));
                 Assert.That(rig.Transport.PeerMessages[0].PeerId, Is.EqualTo(111UL));
-            });
-
-            WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
-
-            Assert.Multiple(() =>
-            {
                 Assert.That(response.RequestId, Is.EqualTo(1UL));
                 Assert.That(response.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Snapshot));
                 Assert.That(response.TriggeredBy, Is.EqualTo(111UL));
-                Assert.That(response.IsApplied, Is.False);
+                Assert.That(response.IsChanged, Is.False);
                 Assert.That(response.IsStale, Is.False);
-                Assert.That(response.Snapshot.ServerIteration, Is.EqualTo(0UL));
+                Assert.That(response.Snapshot.Revision, Is.EqualTo(0UL));
+                Assert.That(response.Snapshot.CurrentVariant, Is.EqualTo("default"));
             });
         }
 
         [Test]
-        public void Denied_Save_Replies_To_Trusted_Requester_Without_Broadcast()
+        public void Denied_Apply_Replies_To_Trusted_Requester_Without_Broadcast()
         {
             TestRig rig = CreateRig();
             Open(rig, 111UL);
             rig.Transport.Clear();
 
-            var request = new WorldConfigNetworkRequest(
-                2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Save, 0UL,
-                null, false, null, Document(Entry("Value", Integer(20))));
-
+            var request = new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Apply, 0UL, null, null, Document(Entry("Value", Integer(20))));
             Receive(rig, request, 999UL, 111UL);
             WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
 
@@ -70,16 +61,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         }
 
         [Test]
-        public void Applied_Admin_Save_Broadcasts_Authoritative_Response()
+        public void Changed_Admin_Apply_Broadcasts_Authoritative_Response()
         {
             TestRig rig = CreateRig(222UL);
             Open(rig, 111UL);
             rig.Transport.Clear();
 
-            var request = new WorldConfigNetworkRequest(
-                3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Save, 0UL,
-                null, false, null, Document(Entry("Value", Integer(20))));
-
+            var request = new WorldConfigNetworkRequest(3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Apply, 0UL, null, null, Document(Entry("Value", Integer(20))));
             Receive(rig, request, 999UL, 222UL);
 
             Assert.Multiple(() =>
@@ -91,45 +79,32 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(rig.Transport.EveryoneMessages[0].OriginalSenderId, Is.EqualTo(rig.Transport.LocalPeerId));
             });
 
-            WorldConfigNetworkResponse response =
-                WorldConfigNetworkCodec.DecodeResponse(rig.Transport.EveryoneMessages[0].Payload);
+            WorldConfigNetworkResponse response = WorldConfigNetworkCodec.DecodeResponse(rig.Transport.EveryoneMessages[0].Payload);
 
             Assert.Multiple(() =>
             {
                 Assert.That(response.RequestId, Is.EqualTo(3UL));
                 Assert.That(response.TriggeredBy, Is.EqualTo(222UL));
                 Assert.That(response.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Snapshot));
-                Assert.That(response.IsApplied, Is.True);
+                Assert.That(response.IsChanged, Is.True);
                 Assert.That(response.IsStale, Is.False);
-                Assert.That(response.Snapshot.ServerIteration, Is.EqualTo(1UL));
-                AssertDocumentValue(response.Snapshot.Document, 20, "Value");
+                Assert.That(response.Snapshot.Revision, Is.EqualTo(1UL));
+                AssertDocumentValue(response.Snapshot.Stored, 10);
+                AssertDocumentValue(response.Snapshot.Applied, 20);
+                Assert.That(response.Snapshot.HasUnsavedChanges, Is.True);
             });
         }
 
         [Test]
-        public void Stale_Admin_Save_Replies_Only_To_Requester()
+        public void Stale_Admin_Apply_Replies_Only_To_Requester()
         {
             TestRig rig = CreateRig(222UL);
             Open(rig, 111UL);
 
-            Receive(
-                rig,
-                new WorldConfigNetworkRequest(
-                    2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Save, 0UL,
-                    null, false, null, Document(Entry("Value", Integer(20)))),
-                222UL,
-                222UL);
-
+            Receive(rig, new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Apply, 0UL, null, null, Document(Entry("Value", Integer(20)))), 222UL, 222UL);
             rig.Transport.Clear();
 
-            Receive(
-                rig,
-                new WorldConfigNetworkRequest(
-                    3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Save, 0UL,
-                    null, false, null, Document(Entry("Value", Integer(30)))),
-                999UL,
-                222UL);
-
+            Receive(rig, new WorldConfigNetworkRequest(3UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Apply, 0UL, null, null, Document(Entry("Value", Integer(30)))), 999UL, 222UL);
             WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
 
             Assert.Multiple(() =>
@@ -137,10 +112,56 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(rig.Transport.PeerMessages.Count, Is.EqualTo(1));
                 Assert.That(rig.Transport.PeerMessages[0].PeerId, Is.EqualTo(222UL));
                 Assert.That(rig.Transport.EveryoneMessages.Count, Is.EqualTo(0));
-                Assert.That(response.IsApplied, Is.False);
+                Assert.That(response.IsChanged, Is.False);
                 Assert.That(response.IsStale, Is.True);
-                Assert.That(response.Snapshot.ServerIteration, Is.EqualTo(1UL));
-                AssertDocumentValue(response.Snapshot.Document, 20, "Value");
+                Assert.That(response.Snapshot.Revision, Is.EqualTo(1UL));
+                AssertDocumentValue(response.Snapshot.Applied, 20);
+            });
+        }
+
+        [Test]
+        public void Missing_Variant_Load_Replies_With_Error_Instead_Of_Dropping_Request()
+        {
+            TestRig rig = CreateRig(222UL);
+            Open(rig, 111UL);
+
+            var request = new WorldConfigNetworkRequest(4UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Load, 0UL, "missing", null, null);
+            Receive(rig, request, 999UL, 222UL);
+            WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Transport.PeerMessages.Count, Is.EqualTo(1));
+                Assert.That(rig.Transport.PeerMessages[0].PeerId, Is.EqualTo(222UL));
+                Assert.That(rig.Transport.EveryoneMessages.Count, Is.EqualTo(0));
+                Assert.That(response.RequestId, Is.EqualTo(4UL));
+                Assert.That(response.Operation, Is.EqualTo(WorldConfigNetworkOperation.Load));
+                Assert.That(response.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Error));
+                Assert.That(response.TriggeredBy, Is.EqualTo(222UL));
+                Assert.That(response.IsChanged, Is.False);
+                Assert.That(response.IsStale, Is.False);
+                Assert.That(response.Snapshot, Is.Null);
+                Assert.That(response.Error, Does.Contain("variant does not exist: missing"));
+            });
+        }
+        [Test]
+        public void Unchanged_Save_Replies_Only_To_Requester()
+        {
+            TestRig rig = CreateRig(222UL);
+            Open(rig, 111UL);
+            rig.Transport.Clear();
+
+            Receive(rig, new WorldConfigNetworkRequest(2UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Save, 0UL, null, null, null), 222UL, 222UL);
+            WorldConfigNetworkResponse response = DecodePeerResponse(rig, 0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rig.Transport.PeerMessages.Count, Is.EqualTo(1));
+                Assert.That(rig.Transport.EveryoneMessages.Count, Is.EqualTo(0));
+                Assert.That(response.Kind, Is.EqualTo(WorldConfigNetworkResponseKind.Snapshot));
+                Assert.That(response.IsChanged, Is.False);
+                Assert.That(response.IsStale, Is.False);
+                Assert.That(response.Snapshot.Revision, Is.EqualTo(0UL));
             });
         }
 
@@ -150,20 +171,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             TestRig rig = CreateRig();
             rig.Adapter.Dispose();
 
-            var request = new WorldConfigNetworkRequest(
-                1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL,
-                "settings.toml", false, Document(Entry("Value", Integer(10))), null);
-
+            var request = new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, null, Document(Entry("Value", Integer(10))), null);
             NetworkReceiveContext context;
-            bool dispatched = rig.Endpoint.Receive(
-                new NetworkEnvelope(
-                    WorldConfigServerNetworkAdapter.RequestMessageType,
-                    111UL,
-                    false,
-                    WorldConfigNetworkCodec.EncodeRequest(request)),
-                111UL,
-                false,
-                out context);
+            bool dispatched = rig.Endpoint.Receive(new NetworkEnvelope(WorldConfigServerNetworkAdapter.RequestMessageType, 111UL, false, WorldConfigNetworkCodec.EncodeRequest(request)), 111UL, false, out context);
 
             Assert.Multiple(() =>
             {
@@ -178,7 +188,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var registry = new ConfigConsumerRegistrationRegistry();
             var storage = new MemoryStorage();
-            registry.Register("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage("Example.Mod", Guid.NewGuid(), storage.Read, storage.Write);
 
             var transport = new RecordingTransport();
             var endpoint = new NetworkEndpoint(transport);
@@ -192,30 +202,14 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
         private static void Open(TestRig rig, ulong requesterId)
         {
-            Receive(
-                rig,
-                new WorldConfigNetworkRequest(
-                    1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL,
-                    "settings.toml", false, Document(Entry("Value", Integer(10))), null),
-                requesterId,
-                requesterId);
-
+            Receive(rig, new WorldConfigNetworkRequest(1UL, "Example.Mod", "Settings", WorldConfigNetworkOperation.Open, 0UL, null, Document(Entry("Value", Integer(10))), null), requesterId, requesterId);
             rig.Transport.Clear();
         }
 
         private static NetworkReceiveContext Receive(TestRig rig, WorldConfigNetworkRequest request, ulong claimedSenderId, ulong trustedSenderId)
         {
             NetworkReceiveContext context;
-            bool dispatched = rig.Endpoint.Receive(
-                new NetworkEnvelope(
-                    WorldConfigServerNetworkAdapter.RequestMessageType,
-                    claimedSenderId,
-                    false,
-                    WorldConfigNetworkCodec.EncodeRequest(request)),
-                trustedSenderId,
-                false,
-                out context);
-
+            bool dispatched = rig.Endpoint.Receive(new NetworkEnvelope(WorldConfigServerNetworkAdapter.RequestMessageType, claimedSenderId, false, WorldConfigNetworkCodec.EncodeRequest(request)), trustedSenderId, false, out context);
             Assert.That(dispatched, Is.True);
             return context;
         }
@@ -226,18 +220,14 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             return WorldConfigNetworkCodec.DecodeResponse(rig.Transport.PeerMessages[index].Envelope.Payload);
         }
 
-        private static ConfigDocument Document(params ConfigObjectEntry[] entries)
-            => new ConfigDocument(new ConfigObjectNode(entries));
-
-        private static ConfigObjectEntry Entry(string name, ConfigNode value)
-            => new ConfigObjectEntry(name, value);
-
+        private static ConfigDocument Document(params ConfigObjectEntry[] entries) => new ConfigDocument(new ConfigObjectNode(entries));
+        private static ConfigObjectEntry Entry(string name, ConfigNode value) => new ConfigObjectEntry(name, value);
         private static ConfigScalarNode Integer(long value) => ConfigScalarNode.Integer(value);
 
-        private static void AssertDocumentValue(ConfigDocument document, long expected, params string[] path)
+        private static void AssertDocumentValue(ConfigDocument document, long expected)
         {
             ConfigNode actual;
-            Assert.That(document.TryGet(new ConfigValuePath(path), out actual), Is.True);
+            Assert.That(document.TryGet(new ConfigValuePath("Value"), out actual), Is.True);
             Assert.That(actual.Equals(Integer(expected)), Is.True);
         }
 
@@ -279,7 +269,6 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             public bool IsServer => true;
             public ulong LocalPeerId => 777UL;
-
             public List<PeerMessage> PeerMessages { get; } = new List<PeerMessage>();
             public List<NetworkEnvelope> EveryoneMessages { get; } = new List<NetworkEnvelope>();
 
@@ -287,21 +276,12 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             {
                 throw new InvalidOperationException("Server adapter must not send requests to itself through the transport.");
             }
-
-            public void SendToPeer(NetworkEnvelope envelope, ulong peerId)
-            {
-                PeerMessages.Add(new PeerMessage(envelope, peerId));
-            }
-
+            public void SendToPeer(NetworkEnvelope envelope, ulong peerId) => PeerMessages.Add(new PeerMessage(envelope, peerId));
             public void SendToOthers(NetworkEnvelope envelope, ulong excludedPeerId)
             {
                 throw new InvalidOperationException("World authoritative responses do not use request-envelope relay.");
             }
-
-            public void SendToEveryone(NetworkEnvelope envelope)
-            {
-                EveryoneMessages.Add(envelope);
-            }
+            public void SendToEveryone(NetworkEnvelope envelope) => EveryoneMessages.Add(envelope);
 
             public void Clear()
             {
@@ -334,15 +314,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             public string Read(int location, string file)
             {
                 string content;
-                return _content.TryGetValue(Key(location, file), out content) ? content : null;
+                return _content.TryGetValue(location + "|" + file, out content) ? content : null;
             }
 
             public void Write(int location, string file, string content)
             {
-                _content[Key(location, file)] = content;
+                _content[location + "|" + file] = content;
             }
-
-            private static string Key(int location, string file) => location + "|" + file;
         }
     }
 }

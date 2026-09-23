@@ -1,6 +1,6 @@
 using System;
 
-namespace MarcoZechner.ConfigAPI.V2.Persistence
+namespace MarcoZechner.ConfigAPI.Persistence
 {
     public interface IConfigClock
     {

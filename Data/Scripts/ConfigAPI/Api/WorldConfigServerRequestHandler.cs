@@ -1,7 +1,7 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class WorldConfigServerRequestHandler
     {
@@ -29,86 +29,96 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (request.Operation != WorldConfigNetworkOperation.Open && !_authorization.IsAdmin(requesterId))
                 return Error(request, requesterId, PermissionDeniedError);
 
-            switch (request.Operation)
+            try
             {
-                case WorldConfigNetworkOperation.Open:
-                    return HandleOpen(requesterId, request);
-                case WorldConfigNetworkOperation.Reload:
-                    return HandleReload(requesterId, request);
-                case WorldConfigNetworkOperation.LoadAndSwitch:
-                    return HandleLoadAndSwitch(requesterId, request);
-                case WorldConfigNetworkOperation.Save:
-                    return HandleSave(requesterId, request);
-                case WorldConfigNetworkOperation.SaveAndSwitch:
-                    return HandleSaveAndSwitch(requesterId, request);
-                case WorldConfigNetworkOperation.Export:
-                    return HandleExport(requesterId, request);
-                default:
-                    throw new ArgumentException("Unsupported World config network operation: " + request.Operation, nameof(request));
+                switch (request.Operation)
+                {
+                    case WorldConfigNetworkOperation.Open:
+                        return HandleOpen(requesterId, request);
+                    case WorldConfigNetworkOperation.Apply:
+                        return HandleApply(requesterId, request);
+                    case WorldConfigNetworkOperation.Save:
+                        return HandleSave(requesterId, request);
+                    case WorldConfigNetworkOperation.Reload:
+                        return HandleReload(requesterId, request);
+                    case WorldConfigNetworkOperation.Load:
+                        return HandleLoad(requesterId, request);
+                    case WorldConfigNetworkOperation.SaveAs:
+                        return HandleSaveAs(requesterId, request);
+                    case WorldConfigNetworkOperation.ListVariants:
+                        return HandleListVariants(requesterId, request);
+                    default:
+                        throw new ArgumentException("Unsupported World config network operation: " + request.Operation, nameof(request));
+                }
+            }
+            catch (ArgumentException exception)
+            {
+                return Error(request, requesterId, exception.Message);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Error(request, requesterId, exception.Message);
             }
         }
 
         private WorldConfigNetworkResponse HandleOpen(ulong requesterId, WorldConfigNetworkRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.File))
-                return Error(request, requesterId, "Open requires a config file.");
             if (request.Defaults == null)
                 return Error(request, requesterId, "Open requires current defaults.");
 
-            WorldConfigSnapshot snapshot = _service.Open(request.ConsumerId, request.ConfigKey, request.File, request.Defaults);
+            WorldConfigSnapshot snapshot = _service.Open(request.ConsumerId, request.ConfigKey, request.Defaults);
             return Snapshot(request, requesterId, false, false, snapshot);
         }
 
-        private WorldConfigNetworkResponse HandleReload(ulong requesterId, WorldConfigNetworkRequest request)
+        private WorldConfigNetworkResponse HandleApply(ulong requesterId, WorldConfigNetworkRequest request)
         {
-            WorldConfigAuthorityResult result = _service.Reload(request.ConsumerId, request.ConfigKey, request.BaseIteration);
-            return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
-        }
+            if (request.Document == null)
+                return Error(request, requesterId, "Apply requires a config document.");
 
-        private WorldConfigNetworkResponse HandleLoadAndSwitch(ulong requesterId, WorldConfigNetworkRequest request)
-        {
-            if (string.IsNullOrWhiteSpace(request.File))
-                return Error(request, requesterId, "LoadAndSwitch requires a config file.");
-
-            WorldConfigAuthorityResult result = _service.LoadAndSwitch(request.ConsumerId, request.ConfigKey, request.BaseIteration, request.File);
-            return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
+            WorldConfigAuthorityResult result = _service.Apply(request.ConsumerId, request.ConfigKey, request.ExpectedRevision, request.Document);
+            return Snapshot(request, requesterId, result.IsChanged, result.IsStale, result.Snapshot);
         }
 
         private WorldConfigNetworkResponse HandleSave(ulong requesterId, WorldConfigNetworkRequest request)
         {
-            if (request.Document == null)
-                return Error(request, requesterId, "Save requires a config document.");
-
-            WorldConfigAuthorityResult result = _service.Save(request.ConsumerId, request.ConfigKey, request.BaseIteration, request.Document);
-            return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
+            WorldConfigAuthorityResult result = _service.Save(request.ConsumerId, request.ConfigKey, request.ExpectedRevision);
+            return Snapshot(request, requesterId, result.IsChanged, result.IsStale, result.Snapshot);
         }
 
-        private WorldConfigNetworkResponse HandleSaveAndSwitch(ulong requesterId, WorldConfigNetworkRequest request)
+        private WorldConfigNetworkResponse HandleReload(ulong requesterId, WorldConfigNetworkRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.File))
-                return Error(request, requesterId, "SaveAndSwitch requires a config file.");
-            if (request.Document == null)
-                return Error(request, requesterId, "SaveAndSwitch requires a config document.");
-
-            WorldConfigAuthorityResult result = _service.SaveAndSwitch(request.ConsumerId, request.ConfigKey, request.BaseIteration, request.Document, request.File);
-            return Snapshot(request, requesterId, result.IsApplied, result.IsStale, result.Snapshot);
+            WorldConfigAuthorityResult result = _service.Reload(request.ConsumerId, request.ConfigKey, request.ExpectedRevision);
+            return Snapshot(request, requesterId, result.IsChanged, result.IsStale, result.Snapshot);
         }
 
-        private WorldConfigNetworkResponse HandleExport(ulong requesterId, WorldConfigNetworkRequest request)
+        private WorldConfigNetworkResponse HandleLoad(ulong requesterId, WorldConfigNetworkRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.File))
-                return Error(request, requesterId, "Export requires a config file.");
-            if (request.Document == null)
-                return Error(request, requesterId, "Export requires a config document.");
+            if (string.IsNullOrWhiteSpace(request.Variant))
+                return Error(request, requesterId, "Load requires a variant.");
 
-            WorldConfigExport export = _service.Export(request.ConsumerId, request.ConfigKey, request.Document, request.File, request.Overwrite);
-            return new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Exported, requesterId, false, false, export.Authoritative, null);
+            WorldConfigAuthorityResult result = _service.Load(request.ConsumerId, request.ConfigKey, request.ExpectedRevision, request.Variant);
+            return Snapshot(request, requesterId, result.IsChanged, result.IsStale, result.Snapshot);
         }
 
-        private static WorldConfigNetworkResponse Snapshot(WorldConfigNetworkRequest request, ulong requesterId, bool isApplied, bool isStale, WorldConfigSnapshot snapshot)
-            => new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Snapshot, requesterId, isApplied, isStale, snapshot, null);
+        private WorldConfigNetworkResponse HandleSaveAs(ulong requesterId, WorldConfigNetworkRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Variant))
+                return Error(request, requesterId, "SaveAs requires a variant.");
+
+            WorldConfigAuthorityResult result = _service.SaveAs(request.ConsumerId, request.ConfigKey, request.ExpectedRevision, request.Variant);
+            return Snapshot(request, requesterId, result.IsChanged, result.IsStale, result.Snapshot);
+        }
+
+        private WorldConfigNetworkResponse HandleListVariants(ulong requesterId, WorldConfigNetworkRequest request)
+        {
+            string[] variants = _service.ListVariants(request.ConsumerId, request.ConfigKey);
+            return new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Variants, requesterId, false, false, null, variants, null);
+        }
+
+        private static WorldConfigNetworkResponse Snapshot(WorldConfigNetworkRequest request, ulong requesterId, bool isChanged, bool isStale, WorldConfigSnapshot snapshot)
+            => new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Snapshot, requesterId, isChanged, isStale, snapshot, null, null);
 
         private static WorldConfigNetworkResponse Error(WorldConfigNetworkRequest request, ulong requesterId, string error)
-            => new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Error, requesterId, false, false, null, error);
+            => new WorldConfigNetworkResponse(request.RequestId, request.Operation, WorldConfigNetworkResponseKind.Error, requesterId, false, false, null, null, error);
     }
 }

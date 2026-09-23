@@ -6,10 +6,12 @@ The package contains only the consumer-facing source required by another mod to 
 
 ## SELibs dependencies
 
-`Mz.ConfigAPI.Consumer` 2.2.0 has these exact source-package dependencies:
+`Mz.ConfigAPI.Consumer` 2.3.0 has these exact source-package dependencies:
 
-- `Mz.ApiProtocol` 0.3.0
+- `Mz.ApiProtocol` 0.3.1
+- `Mz.Collections` 0.1.0
 - `Mz.SemanticVersioning` 0.2.0
+- `Mz.Storage` 0.1.1
 
 Space Engineers API assemblies used by the storage adapter are game/runtime references, not SELibs package dependencies.
 
@@ -17,13 +19,13 @@ Space Engineers API assemblies used by the storage adapter are game/runtime refe
 
 From the consuming mod root:
 
-    selibs add Mz.ConfigAPI.Consumer@2.2.0
+    selibs add Mz.ConfigAPI.Consumer@2.3.0
 
 SELibs installs this package under the consuming mod's `Data/Scripts/.../Libraries` tree together with its exact transitive source dependencies.
 
 ## Compatibility
 
-Consumer package version: `2.2.0`
+Consumer package version: `2.3.0`
 
 Minimum ConfigAPI provider API version: `2.0.0`
 
@@ -31,12 +33,22 @@ The consumer accepts newer compatible provider API versions and validates the re
 
 ## World configs
 
-Providers at API 2.1.0 or newer may expose the optional server-authoritative World config endpoint set. `SupportsWorldConfigs` reports whether the connected provider exposes the complete Open/Save set.
+World configs use the same `Defaults`, `Stored`, `Applied`, and editable `Draft` model as Local and Global configs, but authoritative state is owned by the server and synchronized over ConfigAPI networking.
 
-Providers at API 2.2.0 or newer may additionally expose the complete World file-operation set. `SupportsWorldFileOperations` reports whether `ReloadWorld(...)`, `LoadAndSwitchWorld(...)`, `SaveAndSwitchWorld(...)`, and `ExportWorld(...)` are available. Providers that expose only the 2.1 World contract remain compatible.
+`SupportsWorldConfigs` is true only when the connected provider exposes the complete canonical World endpoint set: Open, Apply, Save, Reload, Load, SaveAs, and ListVariants.
 
-All World operations are asynchronous requests. Authoritative snapshots, stale-write corrections, export confirmations, and errors are delivered through `WorldConfigResponseReceived`. Reload, LoadAndSwitch, Save, and SaveAndSwitch operate against the authoritative server iteration. Export writes the requested target file without switching authoritative state or advancing its iteration. Local and Global `Open`/`Save` remain synchronous and unchanged.
+`OpenWorld(...)` opens the `default` variant for a config key. Physical World filenames are derived internally as `<ConfigKey>.<variant>.toml`; callers work with config keys and variant names rather than raw filenames.
 
+World operations are asynchronous and results are delivered through `WorldConfigResponseReceived`:
+
+- `ApplyWorld(...)` sends a draft to the authoritative server. On success it updates `Applied` and advances `Revision` without writing the active variant.
+- `SaveWorld(...)` persists the current authoritative `Applied` values into `Stored` for the current variant. It does not accept a draft payload.
+- `ReloadWorld(...)` reloads the current variant from server storage into `Stored` and `Applied`.
+- `LoadWorld(..., variant)` switches to an existing named variant and loads it into `Stored` and `Applied`.
+- `SaveAsWorld(..., variant)` persists the current authoritative `Applied` values as a new variant and switches `CurrentVariant` only after successful persistence.
+- `ListWorldVariants(...)` returns the currently indexed named variants.
+
+Mutating World requests use optimistic `Revision` concurrency. A stale request does not overwrite authoritative state; the response reports `IsStale` and carries the current authoritative snapshot. `WorldConfigResponse` exposes `Stored`, `Applied`, `Revision`, `CurrentVariant`, `HasUnsavedChanges`, `IsChanged`, and `IsStale`. Variant-list responses expose `Variants`.
 ## Serialization contract
 
 `ConfigDefinition<T>` requires the consuming mod to provide three operations: create current defaults, serialize `T` to a `ConfigDocument`, and deserialize a `ConfigDocument` back to `T`.

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Toml;
 
-namespace MarcoZechner.ConfigAPI.V2.Serialization
+namespace MarcoZechner.ConfigAPI.Serialization
 {
     public static class ConfigTomlDocumentCodec
     {

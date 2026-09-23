@@ -2,55 +2,142 @@ using System;
 
 namespace Mz.ConfigApi
 {
-    public sealed class ConfigHandle<T>
-        where T : class
+    public sealed class ConfigHandle<T> where T : class
     {
         private readonly ConfigApiClient _client;
         private readonly ConfigDefinition<T> _definition;
+        private readonly ConfigDocument _defaultsDocument;
+        private ConfigDocument _storedDocument;
+        private ConfigDocument _appliedDocument;
+        private T _draft;
 
-        internal ConfigHandle(ConfigApiClient client, ConfigDefinition<T> definition, ConfigLocation location, string currentFile, T value)
+        internal ConfigHandle(ConfigApiClient client, ConfigDefinition<T> definition, ConfigLocation location, string currentVariant, ConfigDocument defaultsDocument, ConfigDocument storedDocument)
         {
             if (client == null)
                 throw new ArgumentNullException(nameof(client));
-
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
-
-            if (string.IsNullOrWhiteSpace(currentFile))
-                throw new ArgumentException("Current config file must not be empty.", nameof(currentFile));
-
-            if (value == null)
-                throw new ArgumentNullException(nameof(value));
+            if (defaultsDocument == null)
+                throw new ArgumentNullException(nameof(defaultsDocument));
+            if (storedDocument == null)
+                throw new ArgumentNullException(nameof(storedDocument));
 
             _client = client;
             _definition = definition;
+            _defaultsDocument = defaultsDocument;
+            _storedDocument = storedDocument;
+            _appliedDocument = storedDocument;
+            _draft = definition.Deserialize(storedDocument);
             Location = location;
-            CurrentFile = currentFile;
-            Value = value;
+            CurrentVariant = definition.NormalizeVariant(currentVariant);
         }
 
         public ConfigLocation Location { get; }
-        public string CurrentFile { get; private set; }
-        public T Value { get; private set; }
+        public string CurrentVariant { get; private set; }
 
-        public T SwitchFile(string file)
+        public T Defaults => DeserializeCopy(_defaultsDocument);
+        public T Stored => DeserializeCopy(_storedDocument);
+        public T Applied => DeserializeCopy(_appliedDocument);
+        public T Draft => _draft;
+        public T Value => Applied;
+
+        public bool HasDraftChanges => !_definition.Serialize(_draft).Equals(_appliedDocument);
+        public bool HasUnsavedChanges => !_appliedDocument.Equals(_storedDocument);
+
+        public void Apply()
         {
-            if (string.IsNullOrWhiteSpace(file))
-                throw new ArgumentException("Config file must not be empty.", nameof(file));
+            ConfigDocument document = _definition.Serialize(_draft);
+            T draft = DeserializeCopy(document);
 
-            T value = _definition.Deserialize(_client.Open(_definition.ConfigKey, Location, file, _definition.Serialize(_definition.CreateDefaults())));
+            _appliedDocument = document;
+            _draft = draft;
+        }
 
-            CurrentFile = file;
-            Value = value;
-            return value;
+        public void DiscardDraft() => _draft = DeserializeCopy(_appliedDocument);
+
+        public void ResetDraftToDefaults() => _draft = DeserializeCopy(_defaultsDocument);
+
+        public T Save()
+        {
+            string file = _definition.GetVariantFile(CurrentVariant);
+            ConfigDocument saved = _client.Save(_definition.ConfigKey, Location, file, _defaultsDocument, _appliedDocument);
+            T stored = DeserializeCopy(saved);
+
+            _storedDocument = saved;
+            return stored;
+        }
+
+        public T Load(string variant)
+        {
+            string normalizedVariant = _definition.NormalizeVariant(variant);
+            string file = _definition.GetVariantFile(normalizedVariant);
+            ConfigDocument loaded = _client.Open(_definition.ConfigKey, Location, file, _defaultsDocument);
+            T draft = DeserializeCopy(loaded);
+
+            CurrentVariant = normalizedVariant;
+            _storedDocument = loaded;
+            _appliedDocument = loaded;
+            _draft = draft;
+            return Applied;
         }
 
         public T Reload()
         {
-            T value = _definition.Deserialize(_client.Open(_definition.ConfigKey, Location, CurrentFile, _definition.Serialize(_definition.CreateDefaults())));
+            string file = _definition.GetVariantFile(CurrentVariant);
+            ConfigDocument loaded = _client.Open(_definition.ConfigKey, Location, file, _defaultsDocument);
+            T draft = DeserializeCopy(loaded);
 
-            Value = value;
-            return value;
+            _storedDocument = loaded;
+            _appliedDocument = loaded;
+            _draft = draft;
+            return Applied;
         }
+
+        public string[] ListVariants()
+        {
+            string prefix = _definition.ConfigKey + ".";
+            const string suffix = ".toml";
+            string[] files = _client.ListKnownFiles(Location);
+            var variants = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+
+            for (var index = 0; index < files.Length; index++)
+            {
+                string file = files[index];
+                if (string.IsNullOrEmpty(file) || !file.StartsWith(prefix, StringComparison.Ordinal) || !file.EndsWith(suffix, StringComparison.Ordinal))
+                    continue;
+
+                int variantLength = file.Length - prefix.Length - suffix.Length;
+                if (variantLength <= 0)
+                    continue;
+
+                string variant = file.Substring(prefix.Length, variantLength);
+                if (variant.IndexOf('.') >= 0 || !string.Equals(variant, variant.Trim(), StringComparison.Ordinal))
+                    continue;
+
+                variants.Add(variant);
+            }
+
+            var result = new System.Collections.Generic.List<string>(variants);
+            result.Sort(StringComparer.Ordinal);
+            return result.ToArray();
+        }
+
+        public T SaveAs(string variant)
+        {
+            string normalizedVariant = _definition.NormalizeVariant(variant);
+            string file = _definition.GetVariantFile(normalizedVariant);
+
+            if (_client.StorageExists(Location, file))
+                throw new InvalidOperationException("Config variant already exists: " + normalizedVariant);
+
+            ConfigDocument saved = _client.Save(_definition.ConfigKey, Location, file, _defaultsDocument, _appliedDocument);
+            T stored = DeserializeCopy(saved);
+
+            CurrentVariant = normalizedVariant;
+            _storedDocument = saved;
+            return stored;
+        }
+
+        private T DeserializeCopy(ConfigDocument document) => _definition.Deserialize(document);
     }
 }

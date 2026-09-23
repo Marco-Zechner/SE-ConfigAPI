@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Mz.ApiProtocol.SpaceEngineers
 {
@@ -10,25 +10,16 @@ namespace Mz.ApiProtocol.SpaceEngineers
         /// <summary>
         /// Registers a handler for a message channel.
         /// </summary>
-        void RegisterHandler(
-            long channelId,
-            Action<object> handler
-        );
+        void RegisterHandler(long channelId, Action<object> handler);
 
         /// <summary>
         /// Removes a previously registered handler.
         /// </summary>
-        void UnregisterHandler(
-            long channelId,
-            Action<object> handler
-        );
+        void UnregisterHandler(long channelId, Action<object> handler);
 
         /// <summary>
         /// Sends a payload to handlers registered on a channel.
         /// </summary>
-        void Send(
-            long channelId,
-            object payload
-        );
+        void Send(long channelId, object payload);
     }
 }

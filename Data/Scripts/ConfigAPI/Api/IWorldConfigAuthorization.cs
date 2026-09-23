@@ -1,4 +1,4 @@
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public interface IWorldConfigAuthorization
     {

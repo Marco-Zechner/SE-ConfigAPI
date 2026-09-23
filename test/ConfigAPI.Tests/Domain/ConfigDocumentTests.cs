@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 using NUnit.Framework;
 
 namespace MarcoZechner.ConfigAPI.Tests.V2.Domain

@@ -1,8 +1,8 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Domain;
 using Sandbox.ModAPI;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public interface IWorldConfigBootstrapVariables
     {
@@ -67,7 +67,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             {
                 var response = new WorldConfigNetworkResponse(
                     0UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot,
-                    0UL, false, false, snapshot, null);
+                    0UL, false, false, snapshot, null, null);
 
                 string encoded = Convert.ToBase64String(WorldConfigNetworkCodec.EncodeResponse(response));
                 _variables.Write(VariableName(snapshot.Identity), encoded);

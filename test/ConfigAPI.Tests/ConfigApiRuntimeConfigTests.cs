@@ -1,6 +1,6 @@
 using System;
-using MarcoZechner.ConfigAPI.V2;
-using Mz.ConfigApi;
+using MarcoZechner.ConfigAPI;
+using MarcoZechner.ConfigAPI.Domain;
 using Mz.Logging;
 using NUnit.Framework;
 
@@ -12,20 +12,22 @@ namespace MarcoZechner.ConfigAPI.Tests.V2
         [Test]
         public void Defaults_To_Trace_And_RoundTrips_Log_Level()
         {
-            ConfigApiRuntimeConfig defaults = ConfigApiRuntimeConfigDefinition.Definition.CreateDefaults();
+            ConfigApiRuntimeConfig defaults = ConfigApiRuntimeConfigDefinition.Deserialize(ConfigApiRuntimeConfigDefinition.CreateDefaults());
             Assert.That(defaults.MinimumLogLevel, Is.EqualTo(LogLevel.Trace));
 
             var configured = new ConfigApiRuntimeConfig { MinimumLogLevel = LogLevel.Debug };
-            ConfigDocument document = ConfigApiRuntimeConfigDefinition.Definition.Serialize(configured);
-            ConfigApiRuntimeConfig result = ConfigApiRuntimeConfigDefinition.Definition.Deserialize(document);
+            ConfigDocument document = ConfigApiRuntimeConfigDefinition.Serialize(configured);
+            ConfigApiRuntimeConfig result = ConfigApiRuntimeConfigDefinition.Deserialize(document);
 
-            ConfigValue serialized;
-            Assert.That(document.TryGet("MinimumLogLevel", out serialized), Is.True);
+            ConfigNode serialized;
+            Assert.That(document.TryGet(new ConfigValuePath("MinimumLogLevel"), out serialized), Is.True);
+            var scalar = serialized as ConfigScalarNode;
 
             Assert.Multiple(() =>
             {
-                Assert.That(serialized.Kind, Is.EqualTo(ConfigValueKind.String));
-                Assert.That(serialized.ScalarValue, Is.EqualTo("Debug"));
+                Assert.That(scalar, Is.Not.Null);
+                Assert.That(scalar.Kind, Is.EqualTo(ConfigScalarKind.String));
+                Assert.That(scalar.Value, Is.EqualTo("Debug"));
                 Assert.That(result.MinimumLogLevel, Is.EqualTo(LogLevel.Debug));
             });
         }
@@ -38,9 +40,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2
         [TestCase("fatal", LogLevel.Critical)]
         public void Accepts_Supported_Log_Level_Names(string value, LogLevel expected)
         {
-            var document = new ConfigDocument(new ConfigEntry("MinimumLogLevel", ConfigValue.String(value)));
-            ConfigApiRuntimeConfig result = ConfigApiRuntimeConfigDefinition.Definition.Deserialize(document);
-
+            var document = Document(ConfigScalarNode.String(value));
+            ConfigApiRuntimeConfig result = ConfigApiRuntimeConfigDefinition.Deserialize(document);
             Assert.That(result.MinimumLogLevel, Is.EqualTo(expected));
         }
 
@@ -49,10 +50,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2
         {
             Assert.Multiple(() =>
             {
-                Assert.Throws<FormatException>(() => ConfigApiRuntimeConfigDefinition.Definition.Deserialize(new ConfigDocument()));
-                Assert.Throws<FormatException>(() => ConfigApiRuntimeConfigDefinition.Definition.Deserialize(new ConfigDocument(new ConfigEntry("MinimumLogLevel", ConfigValue.Integer(1)))));
-                Assert.Throws<FormatException>(() => ConfigApiRuntimeConfigDefinition.Definition.Deserialize(new ConfigDocument(new ConfigEntry("MinimumLogLevel", ConfigValue.String("Everything")))));
+                Assert.Throws<FormatException>(() => ConfigApiRuntimeConfigDefinition.Deserialize(new ConfigDocument(new ConfigObjectNode())));
+                Assert.Throws<FormatException>(() => ConfigApiRuntimeConfigDefinition.Deserialize(Document(ConfigScalarNode.Integer(1))));
+                Assert.Throws<FormatException>(() => ConfigApiRuntimeConfigDefinition.Deserialize(Document(ConfigScalarNode.String("Everything"))));
             });
         }
+
+        private static ConfigDocument Document(ConfigNode value)
+            => new ConfigDocument(new ConfigObjectNode(new ConfigObjectEntry("MinimumLogLevel", value)));
     }
 }

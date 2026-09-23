@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Mz.Toml.Internal;
+using Mz.Collections;
 
 namespace Mz.Toml
 {
@@ -19,8 +19,8 @@ namespace Mz.Toml
                 throw new ArgumentNullException(nameof(trivia));
 
             Source = source;
-            Nodes = new TomlReadOnlyList<TomlSyntaxNode>(new List<TomlSyntaxNode>(nodes));
-            Trivia = new TomlReadOnlyList<TomlSyntaxTrivia>(new List<TomlSyntaxTrivia>(trivia));
+            Nodes = new ReadOnlyListView<TomlSyntaxNode>(new List<TomlSyntaxNode>(nodes));
+            Trivia = new ReadOnlyListView<TomlSyntaxTrivia>(new List<TomlSyntaxTrivia>(trivia));
         }
 
         /// <summary>

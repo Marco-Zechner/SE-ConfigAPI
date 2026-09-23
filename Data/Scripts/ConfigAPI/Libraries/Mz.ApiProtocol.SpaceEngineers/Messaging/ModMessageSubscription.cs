@@ -20,18 +20,10 @@ namespace Mz.ApiProtocol.SpaceEngineers
         /// <summary>
         /// Registers a handler and owns its lifecycle.
         /// </summary>
-        public ModMessageSubscription(
-            IModMessageBus messageBus,
-            long channelId,
-            Action<object> handler
-        )
+        public ModMessageSubscription(IModMessageBus messageBus, long channelId, Action<object> handler)
         {
             if (messageBus == null)
-            {
-                throw new ArgumentNullException(
-                    nameof(messageBus)
-                );
-            }
+                throw new ArgumentNullException(nameof(messageBus));
 
             if (handler == null)
                 throw new ArgumentNullException(nameof(handler));
@@ -40,10 +32,7 @@ namespace Mz.ApiProtocol.SpaceEngineers
             _handler = handler;
             ChannelId = channelId;
 
-            _messageBus.RegisterHandler(
-                ChannelId,
-                _handler
-            );
+            _messageBus.RegisterHandler(ChannelId, _handler);
         }
 
         /// <summary>
@@ -54,10 +43,7 @@ namespace Mz.ApiProtocol.SpaceEngineers
             if (_isDisposed)
                 return;
 
-            _messageBus.UnregisterHandler(
-                ChannelId,
-                _handler
-            );
+            _messageBus.UnregisterHandler(ChannelId, _handler);
 
             _isDisposed = true;
         }

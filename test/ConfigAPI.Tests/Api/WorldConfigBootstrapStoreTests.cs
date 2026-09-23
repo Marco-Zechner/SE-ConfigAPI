@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
 using NUnit.Framework;
 
 namespace MarcoZechner.ConfigAPI.Tests.V2.Api
@@ -16,8 +16,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var store = new WorldConfigBootstrapStore(variables);
             var identity = new ConfigIdentity("Example.Mod", "Settings");
 
-            store.Write(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(10))), 3UL, "settings.toml"));
-            store.Write(new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(20))), 4UL, "alternate.toml"));
+            store.Write(Snapshot(identity, 10, 10, 3UL, "default"));
+            store.Write(Snapshot(identity, 20, 25, 4UL, "combat"));
 
             WorldConfigSnapshot snapshot;
             Assert.That(store.TryRead(identity, out snapshot), Is.True);
@@ -26,9 +26,11 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             {
                 Assert.That(variables.Count, Is.EqualTo(1));
                 Assert.That(snapshot.Identity, Is.EqualTo(identity));
-                Assert.That(snapshot.ServerIteration, Is.EqualTo(4UL));
-                Assert.That(snapshot.CurrentFile, Is.EqualTo("alternate.toml"));
-                AssertDocumentValue(snapshot.Document, 20);
+                Assert.That(snapshot.Revision, Is.EqualTo(4UL));
+                Assert.That(snapshot.CurrentVariant, Is.EqualTo("combat"));
+                AssertDocumentValue(snapshot.Stored, 20);
+                AssertDocumentValue(snapshot.Applied, 25);
+                Assert.That(snapshot.HasUnsavedChanges, Is.True);
             });
         }
 
@@ -60,7 +62,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var storedIdentity = new ConfigIdentity("Example.Mod", "Settings");
             var requestedIdentity = new ConfigIdentity("Example.Mod", "Other");
 
-            store.Write(new WorldConfigSnapshot(storedIdentity, Document(Entry("Value", Integer(10))), 1UL, "settings.toml"));
+            store.Write(Snapshot(storedIdentity, 10, 10, 1UL, "default"));
             variables.CopyOnlyValueTo(StoreVariableName(requestedIdentity));
 
             WorldConfigSnapshot snapshot;
@@ -73,10 +75,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
         {
             var variables = new MemoryVariables { ThrowOnWrite = true };
             var store = new WorldConfigBootstrapStore(variables);
-            var snapshot = new WorldConfigSnapshot(new ConfigIdentity("Example.Mod", "Settings"), Document(Entry("Value", Integer(10))), 0UL, "settings.toml");
+            var identity = new ConfigIdentity("Example.Mod", "Settings");
 
-            Assert.DoesNotThrow(() => store.Write(snapshot));
+            Assert.DoesNotThrow(() => store.Write(Snapshot(identity, 10, 10, 0UL, "default")));
         }
+
+        private static WorldConfigSnapshot Snapshot(ConfigIdentity identity, long stored, long applied, ulong revision, string variant)
+            => new WorldConfigSnapshot(identity, Document(Entry("Value", Integer(stored))), Document(Entry("Value", Integer(applied))), revision, variant);
 
         private static string StoreVariableName(ConfigIdentity identity) => "ConfigAPI.World.Bootstrap|" + identity.OwnerId.Length + ":" + identity.OwnerId + identity.ConfigKey.Length + ":" + identity.ConfigKey;
         private static ConfigDocument Document(params ConfigObjectEntry[] entries) => new ConfigDocument(new ConfigObjectNode(entries));

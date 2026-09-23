@@ -1,5 +1,5 @@
 using System;
-using MarcoZechner.ConfigAPI.V2.Api;
+using MarcoZechner.ConfigAPI.Api;
 using NUnit.Framework;
 using VRage.Game.ModAPI;
 

@@ -1,4 +1,4 @@
-namespace MarcoZechner.ConfigAPI.V2.Domain
+namespace MarcoZechner.ConfigAPI.Domain
 {
     public enum ConfigLocation
     {

@@ -262,7 +262,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
-        public void Handle_SwitchFile_Reloads_Requested_File_And_Keeps_Using_It()
+        public void Handle_Load_Reloads_Requested_Variant_And_Keeps_Using_It()
         {
             var bus = new RecordingModMessageBus();
             var openedFiles = new List<string>();
@@ -281,16 +281,16 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
             client.Start();
 
-            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => document);
             ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
 
-            handle.SwitchFile("alternate.toml");
+            handle.Load("alternate");
             handle.Reload();
 
             Assert.Multiple(() =>
             {
-                Assert.That(handle.CurrentFile, Is.EqualTo("alternate.toml"));
-                Assert.That(openedFiles, Is.EqualTo(new[] { "settings.toml", "alternate.toml", "alternate.toml" }));
+                Assert.That(handle.CurrentVariant, Is.EqualTo("alternate"));
+                Assert.That(openedFiles, Is.EqualTo(new[] { "Settings.default.toml", "Settings.alternate.toml", "Settings.alternate.toml" }));
             });
 
             client.Dispose();
@@ -298,7 +298,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
-        public void Handle_SwitchFile_Failure_Keeps_Previous_File_And_Value()
+        public void Handle_Load_Failure_Keeps_Previous_Variant_And_Value()
         {
             var bus = new RecordingModMessageBus();
             var openedFiles = new List<string>();
@@ -309,7 +309,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 {
                     openedFiles.Add(file);
 
-                    if (file == "alternate.toml")
+                    if (file == "Settings.alternate.toml")
                         throw new InvalidOperationException("Synthetic open failure.");
 
                     return defaults;
@@ -321,24 +321,414 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
             client.Start();
 
-            var definition = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => document);
+            var definition = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => document);
             ConfigHandle<ConfigDocument> handle = client.OpenHandle(definition, ConfigLocation.Local);
             ConfigDocument previousValue = handle.Value;
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.SwitchFile("alternate.toml"));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Load("alternate"));
 
             Assert.Multiple(() =>
             {
                 Assert.That(exception.Message, Is.EqualTo("Synthetic open failure."));
-                Assert.That(handle.CurrentFile, Is.EqualTo("settings.toml"));
-                Assert.That(handle.Value, Is.SameAs(previousValue));
-                Assert.That(openedFiles, Is.EqualTo(new[] { "settings.toml", "alternate.toml" }));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<ConfigDocument>.DefaultVariant));
+                Assert.That(handle.Value.Equals(previousValue), Is.True);
+                Assert.That(openedFiles, Is.EqualTo(new[] { "Settings.default.toml", "Settings.alternate.toml" }));
             });
 
             client.Dispose();
             provider.Dispose();
         }
 
+        [Test]
+        public void Handle_Runtime_State_Separates_Draft_Applied_Stored_And_Defaults()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Defaults.Value, Is.EqualTo(1));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(10));
+                Assert.That(handle.Draft.Value, Is.EqualTo(10));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+                Assert.That(handle.Defaults, Is.Not.SameAs(handle.Stored));
+                Assert.That(handle.Stored, Is.Not.SameAs(handle.Applied));
+                Assert.That(handle.Applied, Is.Not.SameAs(handle.Draft));
+            });
+
+            handle.Draft.Value = 20;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.Applied.Value, Is.EqualTo(10));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            handle.DiscardDraft();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            handle.ResetDraftToDefaults();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(handle.Draft.Value, Is.EqualTo(1));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            MutableConfig appliedSnapshot = handle.Applied;
+            appliedSnapshot.Value = 99;
+            Assert.That(handle.Applied.Value, Is.EqualTo(20));
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Save_Persists_Applied_Without_Saving_Unapplied_Draft()
+        {
+            var bus = new RecordingModMessageBus();
+            ConfigDocument savedDocument = null;
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
+                {
+                    savedDocument = ConfigDocumentWireCodec.Decode(playerValues);
+                    return playerValues;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Global);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+            handle.Save();
+
+            ConfigValue savedValue;
+            Assert.That(savedDocument.TryGet("Value", out savedValue), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((long)savedValue.ScalarValue, Is.EqualTo(20L));
+                Assert.That(handle.Stored.Value, Is.EqualTo(20));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Apply_Deserialization_Failure_Preserves_Applied_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            var definition = new ConfigDefinition<MutableConfig>("Settings", () => new MutableConfig { Value = 1 }, value => Document(value.Value),
+                document => { ConfigValue value; if (!document.TryGet("Value", out value)) throw new InvalidOperationException("Value missing."); int number = (int)(long)value.ScalarValue; if (number == 20) throw new InvalidOperationException("Synthetic deserialize failure."); return new MutableConfig { Value = number }; });
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(definition, ConfigLocation.Local);
+            handle.Draft.Value = 20;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Apply());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic deserialize failure."));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(10));
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Save_Invalid_Returned_State_Preserves_Previous_Stored_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues) { return ConfigDocumentWireCodec.Encode(Document(99)); });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            var definition = new ConfigDefinition<MutableConfig>("Settings", () => new MutableConfig { Value = 1 }, value => Document(value.Value),
+                document => { ConfigValue value; if (!document.TryGet("Value", out value)) throw new InvalidOperationException("Value missing."); int number = (int)(long)value.ScalarValue; if (number == 99) throw new InvalidOperationException("Synthetic saved-state failure."); return new MutableConfig { Value = number }; });
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(definition, ConfigLocation.Global);
+            handle.Draft.Value = 20;
+            handle.Apply();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Save());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic saved-state failure."));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(20));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
+        public void Handle_Reload_Replaces_Stored_Applied_And_Draft_From_Active_Variant()
+        {
+            var bus = new RecordingModMessageBus();
+            var openCount = 0;
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
+                {
+                    openCount++;
+                    return ConfigDocumentWireCodec.Encode(Document(openCount == 1 ? 10 : 40));
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            handle.Reload();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(openCount, Is.EqualTo(2));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Defaults.Value, Is.EqualTo(1));
+                Assert.That(handle.Stored.Value, Is.EqualTo(40));
+                Assert.That(handle.Applied.Value, Is.EqualTo(40));
+                Assert.That(handle.Draft.Value, Is.EqualTo(40));
+                Assert.That(handle.HasDraftChanges, Is.False);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_Load_Failure_Preserves_Complete_Runtime_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
+                {
+                    if (file == "Settings.alternate.toml")
+                        throw new InvalidOperationException("Synthetic open failure.");
+
+                    return ConfigDocumentWireCodec.Encode(Document(10));
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.Load("alternate"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic open failure."));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Defaults.Value, Is.EqualTo(1));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
+        public void Handle_ListVariants_Filters_Exact_Config_Variant_Files_And_Sorts_Names()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => false, (location, file) => null, (location, file, content) => { },
+                location => new[] { "Settings.combat.toml", "Other.default.toml", "Settings.default.toml", "Settings.combat.toml.bak", "Settings.defaults", "Settings.bad.name.toml", "Settings..toml", "Settings.cargo_2.toml" });
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+
+            Assert.That(handle.ListVariants(), Is.EqualTo(new[] { "cargo_2", "combat", "default" }));
+
+            client.Dispose();
+            provider.Dispose();
+        }
+
+        [Test]
+        public void Handle_SaveAs_Rejects_Existing_Target_And_Switches_Only_After_Success()
+        {
+            var bus = new RecordingModMessageBus();
+            var saveCount = 0;
+            string savedFile = null;
+            ConfigDocument savedDocument = null;
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
+                {
+                    saveCount++;
+                    savedFile = file;
+                    savedDocument = ConfigDocumentWireCodec.Decode(playerValues);
+                    return playerValues;
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+
+            var client = CreateClient(bus, (location, file) => file == "Settings.existing.toml", (location, file) => null, (location, file, content) => { }, location => new string[0]);
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Global);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            InvalidOperationException collision = Assert.Throws<InvalidOperationException>(() => handle.SaveAs(" existing "));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(collision.Message, Does.Contain("already exists"));
+                Assert.That(saveCount, Is.EqualTo(0));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            handle.SaveAs(" snapshot ");
+
+            ConfigValue savedValue;
+            Assert.That(savedDocument.TryGet("Value", out savedValue), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(saveCount, Is.EqualTo(1));
+                Assert.That(savedFile, Is.EqualTo("Settings.snapshot.toml"));
+                Assert.That((long)savedValue.ScalarValue, Is.EqualTo(20L));
+                Assert.That(handle.CurrentVariant, Is.EqualTo("snapshot"));
+                Assert.That(handle.Stored.Value, Is.EqualTo(20));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.False);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
+        [Test]
+        public void Handle_SaveAs_Failure_Preserves_Current_Variant_And_Runtime_State()
+        {
+            var bus = new RecordingModMessageBus();
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
+            endpoints["OpenConfig"] = new Func<string, Guid, string, int, string, object, object>(delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults) { return ConfigDocumentWireCodec.Encode(Document(10)); });
+            endpoints["SaveConfig"] = new Func<string, Guid, string, int, string, object, object, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
+                {
+                    throw new InvalidOperationException("Synthetic SaveAs failure.");
+                });
+
+            var provider = CreateProvider(bus, new SemanticVersion(2, 0, 0), endpoints);
+            provider.Start();
+            var client = CreateClient(bus, (location, file) => false, (location, file) => null, (location, file, content) => { }, location => new string[0]);
+            client.Start();
+
+            ConfigHandle<MutableConfig> handle = client.OpenHandle(CreateMutableDefinition(), ConfigLocation.Local);
+            handle.Draft.Value = 20;
+            handle.Apply();
+            handle.Draft.Value = 30;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => handle.SaveAs("snapshot"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(exception.Message, Is.EqualTo("Synthetic SaveAs failure."));
+                Assert.That(handle.CurrentVariant, Is.EqualTo(ConfigDefinition<MutableConfig>.DefaultVariant));
+                Assert.That(handle.Stored.Value, Is.EqualTo(10));
+                Assert.That(handle.Applied.Value, Is.EqualTo(20));
+                Assert.That(handle.Draft.Value, Is.EqualTo(30));
+                Assert.That(handle.HasDraftChanges, Is.True);
+                Assert.That(handle.HasUnsavedChanges, Is.True);
+            });
+
+            client.Dispose();
+            provider.Dispose();
+        }
         [Test]
         public void Typed_Open_Delegate_Failures_Stop_At_Expected_Provider_Boundary()
         {
@@ -359,12 +749,12 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var client = CreateClient(bus, (location, file) => null, (location, file, value) => { });
             client.Start();
 
-            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
-            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => null, value => value, document => document);
-            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
-            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => null, document => document);
-            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
-            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => null);
+            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
+            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => null, value => value, document => document);
+            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
+            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => null, document => document);
+            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
+            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => null);
 
             InvalidOperationException defaultException = Assert.Throws<InvalidOperationException>(() => client.Open(throwingDefaults, ConfigLocation.Local));
             InvalidOperationException nullDefaultException = Assert.Throws<InvalidOperationException>(() => client.Open(nullDefaults, ConfigLocation.Local));
@@ -417,14 +807,14 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             client.Start();
             var playerValues = new ConfigDocument();
 
-            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
-            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => null, value => value, document => document);
-            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
-            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => null, document => document);
+            var throwingDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => { throw new InvalidOperationException("Synthetic default failure."); }, value => value, document => document);
+            var nullDefaults = new ConfigDefinition<ConfigDocument>("Settings", () => null, value => value, document => document);
+            var throwingSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => { throw new InvalidOperationException("Synthetic serializer failure."); }, document => document);
+            var nullSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => null, document => document);
             var playerSerializeCount = 0;
-            var throwingPlayerSerializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => { playerSerializeCount++; if (playerSerializeCount == 2) throw new InvalidOperationException("Synthetic player serializer failure."); return value; }, document => document);
-            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
-            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", "settings.toml", () => new ConfigDocument(), value => value, document => null);
+            var throwingPlayerSerializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => { playerSerializeCount++; if (playerSerializeCount == 2) throw new InvalidOperationException("Synthetic player serializer failure."); return value; }, document => document);
+            var throwingDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => { throw new InvalidOperationException("Synthetic deserializer failure."); });
+            var nullDeserializer = new ConfigDefinition<ConfigDocument>("Settings", () => new ConfigDocument(), value => value, document => null);
 
             InvalidOperationException defaultException = Assert.Throws<InvalidOperationException>(() => client.Save(throwingDefaults, ConfigLocation.Local, playerValues));
             InvalidOperationException nullDefaultException = Assert.Throws<InvalidOperationException>(() => client.Save(nullDefaults, ConfigLocation.Local, playerValues));
@@ -460,7 +850,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         [Test]
-        public void World_Endpoints_Are_Optional_And_Surface_Asynchronous_Response()
+        public void World_Endpoints_Are_Optional_And_Surface_Canonical_Asynchronous_Response()
         {
             var bus = new RecordingModMessageBus();
             Action<IDictionary<string, object>> worldCallback = null;
@@ -468,12 +858,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             var worldUnregisterCount = 0;
             var opened = false;
 
-            IDictionary<string, Delegate> endpoints = ValidEndpoints(
-                delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write)
-                {
-                    return delegate { };
-                });
-
+            IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
             endpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(
                 delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
                 {
@@ -481,35 +866,40 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                     worldCallback = callback;
                     return delegate { worldUnregisterCount++; };
                 });
-
-            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(
-                delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults)
+            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, object defaults)
                 {
                     opened = true;
                     Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
                     Assert.That(configKey, Is.EqualTo("Settings"));
-                    Assert.That(file, Is.EqualTo("settings.toml"));
+                    Assert.That(ConfigDocumentWireCodec.Decode(defaults), Is.Not.Null);
 
-                    worldCallback(
-                        new Dictionary<string, object>(StringComparer.Ordinal)
-                        {
-                            { "ConfigKey", "Settings" },
-                            { "RequestId", 17UL },
-                            { "Operation", "Open" },
-                            { "TriggeredBy", 222UL },
-                            { "IsApplied", false },
-                            { "IsStale", false },
-                            { "Error", null },
-                            { "ServerIteration", 4UL },
-                            { "CurrentFile", "settings.toml" },
-                            { "Document", ConfigDocumentWireCodec.Encode(new ConfigDocument()) },
-                        });
+                    object document = ConfigDocumentWireCodec.Encode(new ConfigDocument());
+                    worldCallback(new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        { "ConfigKey", "Settings" },
+                        { "RequestId", 17UL },
+                        { "Operation", "Open" },
+                        { "TriggeredBy", 222UL },
+                        { "IsChanged", false },
+                        { "IsStale", false },
+                        { "Error", null },
+                        { "Revision", 4UL },
+                        { "CurrentVariant", "default" },
+                        { "Stored", document },
+                        { "Applied", document },
+                        { "Variants", null },
+                        { "HasUnsavedChanges", false },
+                    });
                 });
+            endpoints["ApplyWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object draft) { });
+            endpoints["SaveWorldConfig"] = new Action<string, Guid, string>(delegate(string consumerId, Guid registrationId, string configKey) { });
+            endpoints["ReloadWorldConfig"] = new Action<string, Guid, string>(delegate(string consumerId, Guid registrationId, string configKey) { });
+            endpoints["LoadWorldConfig"] = new Action<string, Guid, string, string>(delegate(string consumerId, Guid registrationId, string configKey, string variant) { });
+            endpoints["SaveAsWorldConfig"] = new Action<string, Guid, string, string>(delegate(string consumerId, Guid registrationId, string configKey, string variant) { });
+            endpoints["ListWorldConfigVariants"] = new Action<string, Guid, string>(delegate(string consumerId, Guid registrationId, string configKey) { });
 
-            endpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(
-                delegate(string consumerId, Guid registrationId, string configKey, object document) { });
-
-            var provider = CreateProvider(bus, new SemanticVersion(2, 1, 0), endpoints);
+            var provider = CreateProvider(bus, new SemanticVersion(2, 3, 0), endpoints);
             provider.Start();
 
             var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
@@ -525,7 +915,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 Assert.That(worldCallback, Is.Not.Null);
             });
 
-            client.OpenWorld("Settings", "settings.toml", new ConfigDocument());
+            client.OpenWorld("Settings", new ConfigDocument());
 
             Assert.Multiple(() =>
             {
@@ -535,64 +925,81 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                 Assert.That(observed.RequestId, Is.EqualTo(17UL));
                 Assert.That(observed.Operation, Is.EqualTo(WorldConfigOperation.Open));
                 Assert.That(observed.TriggeredBy, Is.EqualTo(222UL));
-                Assert.That(observed.IsApplied, Is.False);
+                Assert.That(observed.IsChanged, Is.False);
                 Assert.That(observed.IsStale, Is.False);
                 Assert.That(observed.IsError, Is.False);
                 Assert.That(observed.HasSnapshot, Is.True);
-                Assert.That(observed.ServerIteration, Is.EqualTo(4UL));
-                Assert.That(observed.CurrentFile, Is.EqualTo("settings.toml"));
-                Assert.That(observed.Document, Is.Not.Null);
+                Assert.That(observed.Revision, Is.EqualTo(4UL));
+                Assert.That(observed.CurrentVariant, Is.EqualTo("default"));
+                Assert.That(observed.Stored, Is.Not.Null);
+                Assert.That(observed.Applied, Is.Not.Null);
+                Assert.That(observed.Variants, Is.Null);
+                Assert.That(observed.HasUnsavedChanges, Is.False);
             });
 
             client.Dispose();
             Assert.That(worldUnregisterCount, Is.EqualTo(1));
             provider.Dispose();
 
-            var legacyBus = new RecordingModMessageBus();
-            var legacyProvider = CreateProvider(
-                legacyBus,
-                new SemanticVersion(2, 0, 0),
-                ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; }));
+            var noWorldBus = new RecordingModMessageBus();
+            var noWorldProvider = CreateProvider(noWorldBus, new SemanticVersion(2, 3, 0), ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; }));
+            noWorldProvider.Start();
 
-            legacyProvider.Start();
-
-            var legacyClient = CreateClient(legacyBus, (location, file) => null, (location, file, content) => { });
-            legacyClient.Start();
+            var noWorldClient = CreateClient(noWorldBus, (location, file) => null, (location, file, content) => { });
+            noWorldClient.Start();
 
             Assert.Multiple(() =>
             {
-                Assert.That(legacyClient.IsConnected, Is.True);
-                Assert.That(legacyClient.SupportsWorldConfigs, Is.False);
-                Assert.Throws<InvalidOperationException>(() => legacyClient.OpenWorld("Settings", "settings.toml", new ConfigDocument()));
+                Assert.That(noWorldClient.IsConnected, Is.True);
+                Assert.That(noWorldClient.SupportsWorldConfigs, Is.False);
+                Assert.Throws<InvalidOperationException>(() => noWorldClient.OpenWorld("Settings", new ConfigDocument()));
             });
 
-            legacyClient.Dispose();
-            legacyProvider.Dispose();
+            noWorldClient.Dispose();
+            noWorldProvider.Dispose();
         }
 
-#if CONFIGAPI_CONSUMER_2_2_TESTS
         [Test]
-        public void World_File_Operation_Endpoints_Are_Optional_And_Invoke_Exact_Provider_Contract()
+        public void Canonical_World_Endpoint_Group_Invokes_Exact_Provider_Contract_And_Rejects_Partial_Group()
         {
             var bus = new RecordingModMessageBus();
+            Action<IDictionary<string, object>> worldCallback = null;
             Guid worldRegistrationId = Guid.Empty;
             var operations = new List<string>();
-            string loadedFile = null;
-            string savedFile = null;
-            string exportedFile = null;
-            ConfigDocument savedDocument = null;
-            ConfigDocument exportedDocument = null;
-            var exportedOverwrite = false;
+            ConfigDocument appliedDraft = null;
+            string loadedVariant = null;
+            string savedVariant = null;
 
             IDictionary<string, Delegate> endpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
             endpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(
                 delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
                 {
                     worldRegistrationId = registrationId;
+                    worldCallback = callback;
                     return delegate { };
                 });
-            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
-            endpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
+            endpoints["OpenWorldConfig"] = new Action<string, Guid, string, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, object defaults)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    operations.Add("Open");
+                });
+            endpoints["ApplyWorldConfig"] = new Action<string, Guid, string, object>(
+                delegate(string consumerId, Guid registrationId, string configKey, object draft)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    appliedDraft = ConfigDocumentWireCodec.Decode(draft);
+                    operations.Add("Apply");
+                });
+            endpoints["SaveWorldConfig"] = new Action<string, Guid, string>(
+                delegate(string consumerId, Guid registrationId, string configKey)
+                {
+                    Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
+                    Assert.That(configKey, Is.EqualTo("Settings"));
+                    operations.Add("Save");
+                });
             endpoints["ReloadWorldConfig"] = new Action<string, Guid, string>(
                 delegate(string consumerId, Guid registrationId, string configKey)
                 {
@@ -600,101 +1007,88 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
                     Assert.That(configKey, Is.EqualTo("Settings"));
                     operations.Add("Reload");
                 });
-            endpoints["LoadAndSwitchWorldConfig"] = new Action<string, Guid, string, string>(
-                delegate(string consumerId, Guid registrationId, string configKey, string file)
+            endpoints["LoadWorldConfig"] = new Action<string, Guid, string, string>(
+                delegate(string consumerId, Guid registrationId, string configKey, string variant)
                 {
                     Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
                     Assert.That(configKey, Is.EqualTo("Settings"));
-                    loadedFile = file;
-                    operations.Add("LoadAndSwitch");
+                    loadedVariant = variant;
+                    operations.Add("Load");
                 });
-            endpoints["SaveAndSwitchWorldConfig"] = new Action<string, Guid, string, string, object>(
-                delegate(string consumerId, Guid registrationId, string configKey, string file, object document)
+            endpoints["SaveAsWorldConfig"] = new Action<string, Guid, string, string>(
+                delegate(string consumerId, Guid registrationId, string configKey, string variant)
                 {
                     Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
                     Assert.That(configKey, Is.EqualTo("Settings"));
-                    savedFile = file;
-                    savedDocument = ConfigDocumentWireCodec.Decode(document);
-                    operations.Add("SaveAndSwitch");
+                    savedVariant = variant;
+                    operations.Add("SaveAs");
                 });
-            endpoints["ExportWorldConfig"] = new Action<string, Guid, string, string, object, bool>(
-                delegate(string consumerId, Guid registrationId, string configKey, string file, object document, bool overwrite)
+            endpoints["ListWorldConfigVariants"] = new Action<string, Guid, string>(
+                delegate(string consumerId, Guid registrationId, string configKey)
                 {
                     Assert.That(registrationId, Is.EqualTo(worldRegistrationId));
                     Assert.That(configKey, Is.EqualTo("Settings"));
-                    exportedFile = file;
-                    exportedDocument = ConfigDocumentWireCodec.Decode(document);
-                    exportedOverwrite = overwrite;
-                    operations.Add("Export");
+                    operations.Add("ListVariants");
+                    worldCallback(new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        { "ConfigKey", "Settings" },
+                        { "RequestId", 23UL },
+                        { "Operation", "ListVariants" },
+                        { "TriggeredBy", 222UL },
+                        { "IsChanged", false },
+                        { "IsStale", false },
+                        { "Error", null },
+                        { "Revision", null },
+                        { "CurrentVariant", null },
+                        { "Stored", null },
+                        { "Applied", null },
+                        { "Variants", new[] { "combat", "default" } },
+                        { "HasUnsavedChanges", false },
+                    });
                 });
 
-            var provider = CreateProvider(bus, new SemanticVersion(2, 2, 0), endpoints);
+            var provider = CreateProvider(bus, new SemanticVersion(2, 3, 0), endpoints);
             provider.Start();
 
             var client = CreateClient(bus, (location, file) => null, (location, file, content) => { });
+            WorldConfigResponse observed = null;
+            client.WorldConfigResponseReceived += delegate(WorldConfigResponse response) { observed = response; };
             client.Start();
+
             var values = new ConfigDocument();
+            client.OpenWorld("Settings", values);
+            client.ApplyWorld("Settings", values);
+            client.SaveWorld("Settings");
+            client.ReloadWorld("Settings");
+            client.LoadWorld("Settings", "combat");
+            client.SaveAsWorld("Settings", "cargo_2");
+            client.ListWorldVariants("Settings");
 
             Assert.Multiple(() =>
             {
                 Assert.That(client.IsConnected, Is.True);
                 Assert.That(client.SupportsWorldConfigs, Is.True);
-                Assert.That(client.SupportsWorldFileOperations, Is.True);
-            });
-
-            client.ReloadWorld("Settings");
-            client.LoadAndSwitchWorld("Settings", "alternate.toml");
-            client.SaveAndSwitchWorld("Settings", "saved.toml", values);
-            client.ExportWorld("Settings", "copy.toml", values, true);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(operations, Is.EqualTo(new[] { "Reload", "LoadAndSwitch", "SaveAndSwitch", "Export" }));
-                Assert.That(loadedFile, Is.EqualTo("alternate.toml"));
-                Assert.That(savedFile, Is.EqualTo("saved.toml"));
-                Assert.That(savedDocument.Equals(values), Is.True);
-                Assert.That(exportedFile, Is.EqualTo("copy.toml"));
-                Assert.That(exportedDocument.Equals(values), Is.True);
-                Assert.That(exportedOverwrite, Is.True);
+                Assert.That(operations, Is.EqualTo(new[] { "Open", "Apply", "Save", "Reload", "Load", "SaveAs", "ListVariants" }));
+                Assert.That(appliedDraft, Is.Not.Null);
+                Assert.That(appliedDraft.Equals(values), Is.True);
+                Assert.That(loadedVariant, Is.EqualTo("combat"));
+                Assert.That(savedVariant, Is.EqualTo("cargo_2"));
+                Assert.That(observed, Is.Not.Null);
+                Assert.That(observed.Operation, Is.EqualTo(WorldConfigOperation.ListVariants));
+                Assert.That(observed.IsChanged, Is.False);
+                Assert.That(observed.HasSnapshot, Is.False);
+                Assert.That(observed.Variants, Is.EqualTo(new[] { "combat", "default" }));
             });
 
             client.Dispose();
             provider.Dispose();
-        }
-
-        [Test]
-        public void World_File_Operation_Group_Preserves_21_Compatibility_And_Rejects_Partial_22_Contract()
-        {
-            var legacyBus = new RecordingModMessageBus();
-            IDictionary<string, Delegate> legacyEndpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
-            legacyEndpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback) { return delegate { }; });
-            legacyEndpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
-            legacyEndpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
-
-            var legacyProvider = CreateProvider(legacyBus, new SemanticVersion(2, 1, 0), legacyEndpoints);
-            legacyProvider.Start();
-            var legacyClient = CreateClient(legacyBus, (location, file) => null, (location, file, content) => { });
-            legacyClient.Start();
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(legacyClient.IsConnected, Is.True);
-                Assert.That(legacyClient.SupportsWorldConfigs, Is.True);
-                Assert.That(legacyClient.SupportsWorldFileOperations, Is.False);
-                Assert.Throws<InvalidOperationException>(() => legacyClient.ReloadWorld("Settings"));
-            });
-
-            legacyClient.Dispose();
-            legacyProvider.Dispose();
 
             var partialBus = new RecordingModMessageBus();
             IDictionary<string, Delegate> partialEndpoints = ValidEndpoints(delegate(string consumerId, Guid registrationId, Func<int, string, string> read, Action<int, string, string> write) { return delegate { }; });
             partialEndpoints["RegisterWorldConfig"] = new Func<string, Guid, Action<IDictionary<string, object>>, Action>(delegate(string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback) { return delegate { }; });
-            partialEndpoints["OpenWorldConfig"] = new Action<string, Guid, string, string, object>(delegate(string consumerId, Guid registrationId, string configKey, string file, object defaults) { });
-            partialEndpoints["SaveWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object document) { });
-            partialEndpoints["ReloadWorldConfig"] = new Action<string, Guid, string>(delegate(string consumerId, Guid registrationId, string configKey) { });
+            partialEndpoints["OpenWorldConfig"] = new Action<string, Guid, string, object>(delegate(string consumerId, Guid registrationId, string configKey, object defaults) { });
 
-            var partialProvider = CreateProvider(partialBus, new SemanticVersion(2, 2, 0), partialEndpoints);
+            var partialProvider = CreateProvider(partialBus, new SemanticVersion(2, 3, 0), partialEndpoints);
             partialProvider.Start();
             var partialClient = CreateClient(partialBus, (location, file) => null, (location, file, content) => { });
             partialClient.Start();
@@ -703,108 +1097,42 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
             {
                 Assert.That(partialClient.IsConnected, Is.False);
                 Assert.That(partialClient.LastError, Is.Not.Null);
-                Assert.That(partialClient.LastError.Message, Does.Contain("incomplete World file-operation endpoint set"));
+                Assert.That(partialClient.LastError.Message, Does.Contain("incomplete canonical World config endpoint set"));
             });
 
             partialClient.Dispose();
             partialProvider.Dispose();
         }
-#endif
+
 
         [Test]
         public void Constructor_Rejects_Invalid_Consumer_Identity_And_Callbacks()
         {
             var bus = new RecordingModMessageBus();
             var version = new SemanticVersion(1, 2, 3);
+            Func<int, string, bool> exists = (location, file) => false;
             Func<int, string, string> read = (location, file) => null;
             Action<int, string, string> write = (location, file, content) => { };
+            Func<int, string[]> listKnown = location => new string[0];
 
             Assert.Multiple(() =>
             {
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        null,
-                        "Example.Mod",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        " ",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        " ",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        "Example Mod",
-                        null,
-                        true,
-                        "Config",
-                        read,
-                        write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        null,
-                        write));
-
-                Assert.Throws<ArgumentNullException>(
-                    () => new ConfigApiClient(
-                        bus,
-                        "Example.Mod",
-                        "Example Mod",
-                        version,
-                        true,
-                        "Config",
-                        read,
-                        null));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(null, "Example.Mod", "Example Mod", version, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentException>(() => new ConfigApiClient(bus, " ", "Example Mod", version, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentException>(() => new ConfigApiClient(bus, "Example.Mod", " ", version, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", null, true, "Config", exists, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", null, read, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", exists, null, write, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", exists, read, null, listKnown));
+                Assert.Throws<ArgumentNullException>(() => new ConfigApiClient(bus, "Example.Mod", "Example Mod", version, true, "Config", exists, read, write, null));
             });
         }
 
-        private static ConfigApiClient CreateClient(
-            IModMessageBus bus,
-            Func<int, string, string> read,
-            Action<int, string, string> write)
-        {
-            return new ConfigApiClient(
-                bus,
-                "Example.Mod",
-                "Example Mod",
-                new SemanticVersion(2, 3, 4),
-                true,
-                "Uses ConfigAPI for configuration.",
-                read,
-                write);
-        }
+        private static ConfigApiClient CreateClient(IModMessageBus bus, Func<int, string, string> read, Action<int, string, string> write) =>
+            CreateClient(bus, (location, file) => read(location, file) != null, read, write, location => new string[0]);
 
+        private static ConfigApiClient CreateClient(IModMessageBus bus, Func<int, string, bool> exists, Func<int, string, string> read, Action<int, string, string> write, Func<int, string[]> listKnown) =>
+            new ConfigApiClient(bus, "Example.Mod", "Example Mod", new SemanticVersion(2, 3, 4), true, "Uses ConfigAPI for configuration.", exists, read, write, listKnown);
         private static ApiDiscoveryProvider CreateProvider(
             IModMessageBus bus,
             SemanticVersion apiVersion,
@@ -823,89 +1151,55 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Consumer
         }
 
         private static IDictionary<string, Delegate> ValidEndpoints(
-            Func<
-                string,
-                Guid,
-                Func<int, string, string>,
-                Action<int, string, string>,
-                Action> registerConsumer)
+            Func<string, Guid, Func<int, string, string>, Action<int, string, string>, Action> registerConsumer)
         {
             return new Dictionary<string, Delegate>(StringComparer.Ordinal)
             {
                 {
                     "RegisterConsumer",
-                    registerConsumer
+                    new Func<string, Guid, Func<int, string, bool>, Func<int, string, string>, Action<int, string, string>, Func<int, string[]>, Action>(
+                        delegate(string consumerId, Guid registrationId, Func<int, string, bool> exists, Func<int, string, string> read, Action<int, string, string> write, Func<int, string[]> listKnown)
+                        {
+                            return registerConsumer(consumerId, registrationId, read, write);
+                        })
                 },
                 {
                     "OpenConfig",
-                    new Func<
-                        string,
-                        Guid,
-                        string,
-                        int,
-                        string,
-                        object,
-                        object>(
-                        delegate(
-                            string consumerId,
-                            Guid registrationId,
-                            string configKey,
-                            int location,
-                            string file,
-                            object defaults)
+                    new Func<string, Guid, string, int, string, object, object>(
+                        delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults)
                         {
                             return defaults;
                         })
                 },
                 {
                     "SaveConfig",
-                    new Func<
-                        string,
-                        Guid,
-                        string,
-                        int,
-                        string,
-                        object,
-                        object,
-                        object>(
-                        delegate(
-                            string consumerId,
-                            Guid registrationId,
-                            string configKey,
-                            int location,
-                            string file,
-                            object defaults,
-                            object playerValues)
+                    new Func<string, Guid, string, int, string, object, object, object>(
+                        delegate(string consumerId, Guid registrationId, string configKey, int location, string file, object defaults, object playerValues)
                         {
                             return playerValues;
                         })
                 },
                 {
                     "LoadAndSwitchConfig",
-                    new Func<
-                        string,
-                        Guid,
-                        string,
-                        int,
-                        string,
-                        string,
-                        object,
-                        object>(
-                        delegate(
-                            string consumerId,
-                            Guid registrationId,
-                            string configKey,
-                            int location,
-                            string currentFile,
-                            string targetFile,
-                            object defaults)
+                    new Func<string, Guid, string, int, string, string, object, object>(
+                        delegate(string consumerId, Guid registrationId, string configKey, int location, string currentFile, string targetFile, object defaults)
                         {
                             return defaults;
                         })
                 }
             };
         }
+        private static ConfigDefinition<MutableConfig> CreateMutableDefinition() =>
+            new ConfigDefinition<MutableConfig>("Settings", () => new MutableConfig { Value = 1 },
+                value => Document(value.Value),
+                document => { ConfigValue value; if (!document.TryGet("Value", out value)) throw new InvalidOperationException("Value missing."); return new MutableConfig { Value = (int)(long)value.ScalarValue }; });
 
+        private static ConfigDocument Document(int value) => new ConfigDocument(new ConfigEntry("Value", ConfigValue.Integer(value)));
+
+        private sealed class MutableConfig
+        {
+            public int Value { get; set; }
+        }
         private sealed class RecordingModMessageBus : IModMessageBus
         {
             private readonly Dictionary<long, List<Action<object>>> _handlers =

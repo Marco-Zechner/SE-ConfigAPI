@@ -5,7 +5,7 @@ namespace Mz.ConfigApi
     public static class ApiVersionFile
     {
         public const int Major = 2;
-        public const int Minor = 2;
+        public const int Minor = 3;
         public const int Patch = 0;
 
         public static SemanticVersion MinimumProviderApiVersion { get; } = new SemanticVersion(2, 0, 0);
@@ -16,13 +16,27 @@ namespace Mz.ConfigApi
         /// Gets the exact SELibs package dependencies required by this consumer release.
         /// </summary>
         public static LibraryDependency[] Dependencies { get; } = {
-            new LibraryDependency("Mz.ApiProtocol", "0.3.0"),
-            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+            new LibraryDependency("Mz.ApiProtocol", "0.3.1"),
+            new LibraryDependency("Mz.Collections", "0.1.0"),
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0"),
+            new LibraryDependency("Mz.Storage", "0.1.1")
         };
         public static Changelog Changelog { get; } = new Changelog(
             VersionString,
             new[]
             {
+                new ChangelogEntry(
+                    "2.3.0",
+                    new[]
+                    {
+                        "Added indexed consumer storage callbacks backed by Mz.Storage 0.1.1 for existence checks and logical-name discovery.",
+                        "Added typed ConfigHandle<T> runtime state separating Defaults, Stored, Applied, and mutable Draft values, with Apply, DiscardDraft, ResetDraftToDefaults, HasDraftChanges, and HasUnsavedChanges.",
+                        "Added named Local and Global config variants derived as <ConfigKey>.<variant>.toml, with default as the initial active variant.",
+                        "Added ListVariants, Load, Reload, Save, and SaveAs variant workflows; SaveAs persists Applied values and changes CurrentVariant only after successful persistence.",
+                        "Replaced the unreleased World file-operation facade with server-authoritative Open, Apply, Save, Reload, Load, SaveAs, and ListVariants operations using Revision-based stale-write detection.",
+                        "World responses now expose Stored, Applied, Revision, CurrentVariant, HasUnsavedChanges, IsChanged, IsStale, and optional variant-list results without raw-file identity aliases.",
+                    }
+                ),
                 new ChangelogEntry(
                     "2.2.0",
                     new[]

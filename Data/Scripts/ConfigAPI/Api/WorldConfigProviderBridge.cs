@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
 using Mz.Logging;
 
-namespace MarcoZechner.ConfigAPI.V2.Api
+namespace MarcoZechner.ConfigAPI.Api
 {
     public sealed class WorldConfigProviderBridge : IDisposable
     {
@@ -43,33 +43,43 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             string normalizedConsumerId = consumerId.Trim();
             string key = RegistrationKey(normalizedConsumerId, registrationId);
-            _registrations[key] = new Registration(key, normalizedConsumerId, registrationId, responseCallback);
-
+            _registrations[key] = new Registration(key, normalizedConsumerId, registrationId, responseCallback, false);
             return () => Unregister(key);
         }
 
-        public void Open(string consumerId, Guid registrationId, string configKey, string file, object defaultsPayload)
+        internal Action RegisterInternal(string consumerId, Guid registrationId, Action<IDictionary<string, object>> responseCallback)
+        {
+            ThrowIfDisposed();
+
+            if (responseCallback == null)
+                throw new ArgumentNullException(nameof(responseCallback));
+
+            string normalizedConsumerId = consumerId == null ? null : consumerId.Trim();
+            _registry.GetCurrentStorage(normalizedConsumerId);
+
+            string key = RegistrationKey(normalizedConsumerId, registrationId);
+            _registrations[key] = new Registration(key, normalizedConsumerId, registrationId, responseCallback, true);
+            return () => Unregister(key);
+        }
+
+        public void Open(string consumerId, Guid registrationId, string configKey, object defaultsPayload)
         {
             ThrowIfDisposed();
 
             Registration registration = GetRequiredRegistration(consumerId, registrationId);
             ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
-
-            if (string.IsNullOrWhiteSpace(file))
-                throw new ArgumentException("Config file must not be empty.", nameof(file));
-
             ConfigDocument defaults = ConfigDocumentWireCodec.Decode(defaultsPayload);
 
             if (_runtime == null)
             {
-                _queuedOpens.Add(new QueuedOpen(registration.Key, identity, file, defaults));
+                _queuedOpens.Add(new QueuedOpen(registration.Key, identity, defaults));
                 return;
             }
 
-            SendOpen(registration, identity, file, defaults);
+            SendOpen(registration, identity, defaults);
         }
 
-        public void Save(string consumerId, Guid registrationId, string configKey, object documentPayload)
+        public void Apply(string consumerId, Guid registrationId, string configKey, object documentPayload)
         {
             ThrowIfDisposed();
 
@@ -79,13 +89,44 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             if (_clientAdapter != null)
             {
-                SaveClient(registration, identity, document);
+                try
+                {
+                    _clientAdapter.SetDraft(identity.OwnerId, identity.ConfigKey, document);
+                    SendClientRequest(registration, identity, WorldConfigNetworkOperation.Apply, () => _clientAdapter.Apply(identity.OwnerId, identity.ConfigKey));
+                }
+                catch (Exception exception)
+                {
+                    NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Apply, exception.Message);
+                }
+
                 return;
             }
 
             if (_serverService != null && _serverAdapter != null)
             {
-                SaveServer(registration, identity, document);
+                MutateServer(registration, identity, WorldConfigNetworkOperation.Apply, current => _serverService.Apply(identity.OwnerId, identity.ConfigKey, current.Revision, document));
+                return;
+            }
+
+            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Apply, RuntimeUnavailableError);
+        }
+
+        public void Save(string consumerId, Guid registrationId, string configKey)
+        {
+            ThrowIfDisposed();
+
+            Registration registration = GetRequiredRegistration(consumerId, registrationId);
+            ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
+
+            if (_clientAdapter != null)
+            {
+                SendClientRequest(registration, identity, WorldConfigNetworkOperation.Save, () => _clientAdapter.Save(identity.OwnerId, identity.ConfigKey));
+                return;
+            }
+
+            if (_serverService != null && _serverAdapter != null)
+            {
+                MutateServer(registration, identity, WorldConfigNetworkOperation.Save, current => _serverService.Save(identity.OwnerId, identity.ConfigKey, current.Revision));
                 return;
             }
 
@@ -107,108 +148,87 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
             if (_serverService != null && _serverAdapter != null)
             {
-                ReloadServer(registration, identity);
+                MutateServer(registration, identity, WorldConfigNetworkOperation.Reload, current => _serverService.Reload(identity.OwnerId, identity.ConfigKey, current.Revision));
                 return;
             }
 
             NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Reload, RuntimeUnavailableError);
         }
 
-        public void LoadAndSwitch(string consumerId, Guid registrationId, string configKey, string file)
+        public void Load(string consumerId, Guid registrationId, string configKey, string variant)
         {
             ThrowIfDisposed();
 
             Registration registration = GetRequiredRegistration(consumerId, registrationId);
             ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
 
-            if (string.IsNullOrWhiteSpace(file))
-                throw new ArgumentException("Config file must not be empty.", nameof(file));
-
             if (_clientAdapter != null)
             {
-                SendClientRequest(registration, identity, WorldConfigNetworkOperation.LoadAndSwitch, () => _clientAdapter.LoadAndSwitch(identity.OwnerId, identity.ConfigKey, file));
+                SendClientRequest(registration, identity, WorldConfigNetworkOperation.Load, () => _clientAdapter.Load(identity.OwnerId, identity.ConfigKey, variant));
                 return;
             }
 
             if (_serverService != null && _serverAdapter != null)
             {
-                LoadAndSwitchServer(registration, identity, file);
+                MutateServer(registration, identity, WorldConfigNetworkOperation.Load, current => _serverService.Load(identity.OwnerId, identity.ConfigKey, current.Revision, variant));
                 return;
             }
 
-            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.LoadAndSwitch, RuntimeUnavailableError);
+            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Load, RuntimeUnavailableError);
         }
 
-        public void SaveAndSwitch(string consumerId, Guid registrationId, string configKey, string file, object documentPayload)
+        public void SaveAs(string consumerId, Guid registrationId, string configKey, string variant)
         {
             ThrowIfDisposed();
 
             Registration registration = GetRequiredRegistration(consumerId, registrationId);
             ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
 
-            if (string.IsNullOrWhiteSpace(file))
-                throw new ArgumentException("Config file must not be empty.", nameof(file));
+            if (_clientAdapter != null)
+            {
+                SendClientRequest(registration, identity, WorldConfigNetworkOperation.SaveAs, () => _clientAdapter.SaveAs(identity.OwnerId, identity.ConfigKey, variant));
+                return;
+            }
 
-            ConfigDocument document = ConfigDocumentWireCodec.Decode(documentPayload);
+            if (_serverService != null && _serverAdapter != null)
+            {
+                MutateServer(registration, identity, WorldConfigNetworkOperation.SaveAs, current => _serverService.SaveAs(identity.OwnerId, identity.ConfigKey, current.Revision, variant));
+                return;
+            }
+
+            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SaveAs, RuntimeUnavailableError);
+        }
+
+        public void ListVariants(string consumerId, Guid registrationId, string configKey)
+        {
+            ThrowIfDisposed();
+
+            Registration registration = GetRequiredRegistration(consumerId, registrationId);
+            ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
 
             if (_clientAdapter != null)
+            {
+                SendClientRequest(registration, identity, WorldConfigNetworkOperation.ListVariants, () => _clientAdapter.ListVariants(identity.OwnerId, identity.ConfigKey));
+                return;
+            }
+
+            if (_serverService != null && _serverAdapter != null)
             {
                 try
                 {
-                    _clientAdapter.SetDraft(identity.OwnerId, identity.ConfigKey, document);
-                    SendClientRequest(registration, identity, WorldConfigNetworkOperation.SaveAndSwitch, () => _clientAdapter.SaveAndSwitch(identity.OwnerId, identity.ConfigKey, file));
+                    string[] variants = _serverService.ListVariants(identity.OwnerId, identity.ConfigKey);
+                    var response = new WorldConfigNetworkResponse(0UL, WorldConfigNetworkOperation.ListVariants, WorldConfigNetworkResponseKind.Variants, _serverAdapter.LocalPeerId, false, false, null, variants, null);
+                    Notify(registration, identity, response, null);
                 }
                 catch (Exception exception)
                 {
-                    NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SaveAndSwitch, exception.Message);
+                    NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.ListVariants, exception.Message);
                 }
 
                 return;
             }
 
-            if (_serverService != null && _serverAdapter != null)
-            {
-                SaveAndSwitchServer(registration, identity, file, document);
-                return;
-            }
-
-            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SaveAndSwitch, RuntimeUnavailableError);
-        }
-
-        public void Export(string consumerId, Guid registrationId, string configKey, string file, object documentPayload, bool overwrite)
-        {
-            ThrowIfDisposed();
-
-            Registration registration = GetRequiredRegistration(consumerId, registrationId);
-            ConfigIdentity identity = CreateIdentity(registration.ConsumerId, configKey);
-
-            if (string.IsNullOrWhiteSpace(file))
-                throw new ArgumentException("Config file must not be empty.", nameof(file));
-
-            ConfigDocument document = ConfigDocumentWireCodec.Decode(documentPayload);
-
-            if (_clientAdapter != null)
-            {
-                try
-                {
-                    _clientAdapter.SetDraft(identity.OwnerId, identity.ConfigKey, document);
-                    SendClientRequest(registration, identity, WorldConfigNetworkOperation.Export, () => _clientAdapter.Export(identity.OwnerId, identity.ConfigKey, file, overwrite));
-                }
-                catch (Exception exception)
-                {
-                    NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, exception.Message);
-                }
-
-                return;
-            }
-
-            if (_serverService != null && _serverAdapter != null)
-            {
-                ExportServer(registration, identity, file, document, overwrite);
-                return;
-            }
-
-            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, RuntimeUnavailableError);
+            NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.ListVariants, RuntimeUnavailableError);
         }
 
         public void AttachRuntime(WorldConfigNetworkRuntime runtime)
@@ -278,11 +298,11 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 if (!_registrations.TryGetValue(item.RegistrationKey, out registration) || !IsCurrent(registration))
                     continue;
 
-                SendOpen(registration, item.Identity, item.File, item.Defaults);
+                SendOpen(registration, item.Identity, item.Defaults);
             }
         }
 
-        private void SendOpen(Registration registration, ConfigIdentity identity, string file, ConfigDocument defaults)
+        private void SendOpen(Registration registration, ConfigIdentity identity, ConfigDocument defaults)
         {
             if (_clientAdapter != null)
             {
@@ -291,14 +311,11 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                     WorldConfigSnapshot bootstrap;
                     if (_clientAdapter.TrySeedBootstrap(identity.OwnerId, identity.ConfigKey, out bootstrap))
                     {
-                        var bootstrapResponse = new WorldConfigNetworkResponse(
-                            0UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot,
-                            _clientAdapter.LocalPeerId, false, false, bootstrap, null);
-
+                        var bootstrapResponse = new WorldConfigNetworkResponse(0UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, _clientAdapter.LocalPeerId, false, false, bootstrap, null, null);
                         Notify(registration, identity, bootstrapResponse, bootstrap);
                     }
 
-                    ulong requestId = _clientAdapter.Open(identity.OwnerId, identity.ConfigKey, file, defaults);
+                    ulong requestId = _clientAdapter.Open(identity.OwnerId, identity.ConfigKey, defaults);
                     _pendingRoutes[requestId] = new PendingRoute(registration.Key, identity);
                 }
                 catch (Exception exception)
@@ -313,14 +330,11 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             {
                 try
                 {
-                    WorldConfigSnapshot snapshot = _serverService.Open(identity.OwnerId, identity.ConfigKey, file, defaults);
+                    WorldConfigSnapshot snapshot = _serverService.Open(identity.OwnerId, identity.ConfigKey, defaults);
                     _serverSnapshots[snapshot.Identity] = snapshot;
                     _serverOpenedRoutes.Add(ServerOpenedRouteKey(registration.Key, snapshot.Identity));
 
-                    var response = new WorldConfigNetworkResponse(
-                        0UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot,
-                        _serverAdapter.LocalPeerId, false, false, snapshot, null);
-
+                    var response = new WorldConfigNetworkResponse(0UL, WorldConfigNetworkOperation.Open, WorldConfigNetworkResponseKind.Snapshot, _serverAdapter.LocalPeerId, false, false, snapshot, null, null);
                     Notify(registration, snapshot.Identity, response, snapshot);
                 }
                 catch (Exception exception)
@@ -332,56 +346,6 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             }
 
             NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Open, RuntimeUnavailableError);
-        }
-
-        private void SaveClient(Registration registration, ConfigIdentity identity, ConfigDocument document)
-        {
-            try
-            {
-                _clientAdapter.SetDraft(identity.OwnerId, identity.ConfigKey, document);
-                ulong requestId = _clientAdapter.Save(identity.OwnerId, identity.ConfigKey);
-                _pendingRoutes[requestId] = new PendingRoute(registration.Key, identity);
-            }
-            catch (Exception exception)
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Save, exception.Message);
-            }
-        }
-
-        private void SaveServer(Registration registration, ConfigIdentity identity, ConfigDocument document)
-        {
-            string openedRoute = ServerOpenedRouteKey(registration.Key, identity);
-            if (!_serverOpenedRoutes.Contains(openedRoute))
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Save, "World config has not been opened: " + identity.OwnerId + "/" + identity.ConfigKey);
-                return;
-            }
-
-            WorldConfigSnapshot current;
-            if (!_serverSnapshots.TryGetValue(identity, out current))
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Save, "Authoritative World config state is unavailable: " + identity.OwnerId + "/" + identity.ConfigKey);
-                return;
-            }
-
-            try
-            {
-                WorldConfigAuthorityResult result = _serverService.Save(identity.OwnerId, identity.ConfigKey, current.ServerIteration, document);
-                _serverSnapshots[identity] = result.Snapshot;
-
-                var response = new WorldConfigNetworkResponse(
-                    0UL, WorldConfigNetworkOperation.Save, WorldConfigNetworkResponseKind.Snapshot,
-                    _serverAdapter.LocalPeerId, result.IsApplied, result.IsStale, result.Snapshot, null);
-
-                if (result.IsApplied)
-                    _serverAdapter.BroadcastAppliedResponse(response);
-                else
-                    Notify(registration, identity, response, result.Snapshot);
-            }
-            catch (Exception exception)
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Save, exception.Message);
-            }
         }
 
         private void SendClientRequest(Registration registration, ConfigIdentity identity, WorldConfigNetworkOperation operation, Func<ulong> send)
@@ -397,69 +361,19 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             }
         }
 
-        private void ReloadServer(Registration registration, ConfigIdentity identity)
+        private void MutateServer(Registration registration, ConfigIdentity identity, WorldConfigNetworkOperation operation, Func<WorldConfigSnapshot, WorldConfigAuthorityResult> mutate)
         {
-            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.Reload);
+            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, operation);
             if (current == null)
                 return;
 
             try
             {
-                CompleteServerMutation(registration, identity, WorldConfigNetworkOperation.Reload, _serverService.Reload(identity.OwnerId, identity.ConfigKey, current.ServerIteration));
+                CompleteServerMutation(registration, identity, operation, mutate(current));
             }
             catch (Exception exception)
             {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Reload, exception.Message);
-            }
-        }
-
-        private void LoadAndSwitchServer(Registration registration, ConfigIdentity identity, string file)
-        {
-            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.LoadAndSwitch);
-            if (current == null)
-                return;
-
-            try
-            {
-                CompleteServerMutation(registration, identity, WorldConfigNetworkOperation.LoadAndSwitch, _serverService.LoadAndSwitch(identity.OwnerId, identity.ConfigKey, current.ServerIteration, file));
-            }
-            catch (Exception exception)
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.LoadAndSwitch, exception.Message);
-            }
-        }
-
-        private void SaveAndSwitchServer(Registration registration, ConfigIdentity identity, string file, ConfigDocument document)
-        {
-            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.SaveAndSwitch);
-            if (current == null)
-                return;
-
-            try
-            {
-                CompleteServerMutation(registration, identity, WorldConfigNetworkOperation.SaveAndSwitch, _serverService.SaveAndSwitch(identity.OwnerId, identity.ConfigKey, current.ServerIteration, document, file));
-            }
-            catch (Exception exception)
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.SaveAndSwitch, exception.Message);
-            }
-        }
-
-        private void ExportServer(Registration registration, ConfigIdentity identity, string file, ConfigDocument document, bool overwrite)
-        {
-            WorldConfigSnapshot current = GetServerSnapshot(registration, identity, WorldConfigNetworkOperation.Export);
-            if (current == null)
-                return;
-
-            try
-            {
-                WorldConfigExport export = _serverService.Export(identity.OwnerId, identity.ConfigKey, document, file, overwrite);
-                var response = new WorldConfigNetworkResponse(0UL, WorldConfigNetworkOperation.Export, WorldConfigNetworkResponseKind.Exported, _serverAdapter.LocalPeerId, false, false, export.Authoritative, null);
-                Notify(registration, identity, response, export.Authoritative);
-            }
-            catch (Exception exception)
-            {
-                NotifySyntheticError(registration, identity, WorldConfigNetworkOperation.Export, exception.Message);
+                NotifySyntheticError(registration, identity, operation, exception.Message);
             }
         }
 
@@ -486,10 +400,10 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         {
             _serverSnapshots[identity] = result.Snapshot;
 
-            var response = new WorldConfigNetworkResponse(0UL, operation, WorldConfigNetworkResponseKind.Snapshot, _serverAdapter.LocalPeerId, result.IsApplied, result.IsStale, result.Snapshot, null);
+            var response = new WorldConfigNetworkResponse(0UL, operation, WorldConfigNetworkResponseKind.Snapshot, _serverAdapter.LocalPeerId, result.IsChanged, result.IsStale, result.Snapshot, null, null);
 
-            if (result.IsApplied)
-                _serverAdapter.BroadcastAppliedResponse(response);
+            if (result.IsChanged)
+                _serverAdapter.BroadcastChangedResponse(response);
             else
                 Notify(registration, identity, response, result.Snapshot);
         }
@@ -524,7 +438,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         private void OnServerResponseSent(WorldConfigNetworkResponse response)
         {
-            if (response == null || response.Snapshot == null || !response.IsApplied)
+            if (response == null || response.Snapshot == null || !response.IsChanged)
                 return;
 
             bool wasKnown = _serverSnapshots.ContainsKey(response.Snapshot.Identity);
@@ -549,7 +463,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         private void NotifySyntheticError(Registration registration, ConfigIdentity identity, WorldConfigNetworkOperation operation, string error)
         {
             string message = string.IsNullOrWhiteSpace(error) ? "World config operation failed." : error;
-            var response = new WorldConfigNetworkResponse(0UL, operation, WorldConfigNetworkResponseKind.Error, 0UL, false, false, null, message);
+            var response = new WorldConfigNetworkResponse(0UL, operation, WorldConfigNetworkResponseKind.Error, 0UL, false, false, null, null, message);
             Notify(registration, identity, response, null);
         }
 
@@ -561,12 +475,15 @@ namespace MarcoZechner.ConfigAPI.V2.Api
                 { "RequestId", response.RequestId },
                 { "Operation", response.Operation.ToString() },
                 { "TriggeredBy", response.TriggeredBy },
-                { "IsApplied", response.IsApplied },
+                { "IsChanged", response.IsChanged },
                 { "IsStale", response.IsStale },
                 { "Error", response.Error },
-                { "ServerIteration", authoritative == null ? null : (object)authoritative.ServerIteration },
-                { "CurrentFile", authoritative == null ? null : authoritative.CurrentFile },
-                { "Document", authoritative == null ? null : ConfigDocumentWireCodec.Encode(authoritative.Document) },
+                { "Revision", authoritative == null ? null : (object)authoritative.Revision },
+                { "CurrentVariant", authoritative == null ? null : authoritative.CurrentVariant },
+                { "Stored", authoritative == null ? null : ConfigDocumentWireCodec.Encode(authoritative.Stored) },
+                { "Applied", authoritative == null ? null : ConfigDocumentWireCodec.Encode(authoritative.Applied) },
+                { "HasUnsavedChanges", authoritative == null ? null : (object)authoritative.HasUnsavedChanges },
+                { "Variants", response.Variants },
             };
 
             try
@@ -591,7 +508,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             if (!_registrations.TryGetValue(key, out registration))
                 throw new InvalidOperationException("World config consumer is not registered: " + normalizedConsumerId);
 
-            _registry.GetStorage(normalizedConsumerId, registrationId);
+            RequireCurrentRegistration(registration);
             return registration;
         }
 
@@ -599,13 +516,21 @@ namespace MarcoZechner.ConfigAPI.V2.Api
         {
             try
             {
-                _registry.GetStorage(registration.ConsumerId, registration.RegistrationId);
+                RequireCurrentRegistration(registration);
                 return true;
             }
             catch (InvalidOperationException)
             {
                 return false;
             }
+        }
+
+        private void RequireCurrentRegistration(Registration registration)
+        {
+            if (registration.IsInternal)
+                _registry.GetCurrentStorage(registration.ConsumerId);
+            else
+                _registry.GetStorage(registration.ConsumerId, registration.RegistrationId);
         }
 
         private void Unregister(string key)
@@ -643,8 +568,7 @@ namespace MarcoZechner.ConfigAPI.V2.Api
             return consumerId + "\n" + registrationId.ToString("D");
         }
 
-        private static string ServerOpenedRouteKey(string registrationKey, ConfigIdentity identity)
-            => registrationKey + "\n" + identity.OwnerId + "\n" + identity.ConfigKey;
+        private static string ServerOpenedRouteKey(string registrationKey, ConfigIdentity identity) => registrationKey + "\n" + identity.OwnerId + "\n" + identity.ConfigKey;
 
         private void Log(LogLevel level, string message, Exception exception = null)
         {
@@ -668,18 +592,20 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         private sealed class Registration
         {
-            public Registration(string key, string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback)
+            public Registration(string key, string consumerId, Guid registrationId, Action<IDictionary<string, object>> callback, bool isInternal)
             {
                 Key = key;
                 ConsumerId = consumerId;
                 RegistrationId = registrationId;
                 Callback = callback;
+                IsInternal = isInternal;
             }
 
             public string Key { get; }
             public string ConsumerId { get; }
             public Guid RegistrationId { get; }
             public Action<IDictionary<string, object>> Callback { get; }
+            public bool IsInternal { get; }
         }
 
         private sealed class PendingRoute
@@ -696,17 +622,15 @@ namespace MarcoZechner.ConfigAPI.V2.Api
 
         private sealed class QueuedOpen
         {
-            public QueuedOpen(string registrationKey, ConfigIdentity identity, string file, ConfigDocument defaults)
+            public QueuedOpen(string registrationKey, ConfigIdentity identity, ConfigDocument defaults)
             {
                 RegistrationKey = registrationKey;
                 Identity = identity;
-                File = file;
                 Defaults = defaults;
             }
 
             public string RegistrationKey { get; }
             public ConfigIdentity Identity { get; }
-            public string File { get; }
             public ConfigDocument Defaults { get; }
         }
     }

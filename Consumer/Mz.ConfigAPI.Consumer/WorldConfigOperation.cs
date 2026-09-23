@@ -3,10 +3,11 @@ namespace Mz.ConfigApi
     public enum WorldConfigOperation
     {
         Open = 0,
-        Reload = 1,
-        LoadAndSwitch = 2,
-        Save = 3,
-        SaveAndSwitch = 4,
-        Export = 5,
+        Apply = 1,
+        Save = 2,
+        Reload = 3,
+        Load = 4,
+        SaveAs = 5,
+        ListVariants = 6,
     }
 }

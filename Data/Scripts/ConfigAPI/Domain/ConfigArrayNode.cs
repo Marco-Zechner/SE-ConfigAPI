@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MarcoZechner.ConfigAPI.V2.Domain
+namespace MarcoZechner.ConfigAPI.Domain
 {
     public sealed class ConfigArrayNode : ConfigNode
     {

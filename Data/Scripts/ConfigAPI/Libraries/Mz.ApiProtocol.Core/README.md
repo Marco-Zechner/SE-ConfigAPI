@@ -10,8 +10,8 @@ The package contains:
 - `Mz.ApiProtocol.SpaceEngineers`  -  provider and consumer lifecycle classes
   backed by Space Engineers mod messages.
 
-`Mz.SemanticVersioning` is installed automatically as an exact transitive
-dependency.
+`Mz.Collections` `0.1.0` and `Mz.SemanticVersioning` `0.2.0` are installed
+automatically as exact dependencies.
 
 For a complete provider session, provider-authored consumer facade, and
 minimal downstream usage component, see the [copy-paste example](Guide.md).
@@ -28,13 +28,13 @@ After installing SELibs, run these commands from the root of the mod project:
 
 ```shell
     selibs init
-    selibs add Mz.ApiProtocol@0.2.2
+    selibs add Mz.ApiProtocol@0.3.1
 ```
 
 Skip `selibs init` when the project already contains `selibs.json`.
 
-SELibs installs both ApiProtocol components and its exact
-`Mz.SemanticVersioning` dependency. It records the complete dependency graph
+SELibs installs both ApiProtocol components plus exact `Mz.Collections` and
+`Mz.SemanticVersioning` dependencies. It records the complete dependency graph
 and managed file checksums. Inspect that state with:
 
 ```shell
@@ -49,6 +49,7 @@ these complete folders:
 ```text
     src/Mz.ApiProtocol.Core
     src/Mz.ApiProtocol.SpaceEngineers
+    src/Mz.Collections
     src/Mz.SemanticVersioning
 ```
 
@@ -57,13 +58,14 @@ Place them as sibling folders under the mod's script library directory:
 ```text
     Data/Scripts/ExampleMod/Libraries/Mz.ApiProtocol.Core
     Data/Scripts/ExampleMod/Libraries/Mz.ApiProtocol.SpaceEngineers
+    Data/Scripts/ExampleMod/Libraries/Mz.Collections
     Data/Scripts/ExampleMod/Libraries/Mz.SemanticVersioning
 ```
 
-For `Mz.ApiProtocol` 0.2.2, use `Mz.SemanticVersioning` 0.1.1. Compile all
-contained `.cs` files as part of the mod. Do not substitute a different
-dependency version unless the package manifest for the selected ApiProtocol
-release explicitly requires it.
+For `Mz.ApiProtocol` `0.3.1`, use `Mz.Collections` `0.1.0` and
+`Mz.SemanticVersioning` `0.2.0`. Compile all contained `.cs` files as part of
+the mod. Do not substitute different dependency versions unless the package
+manifest for the selected ApiProtocol release explicitly requires them.
 
 ## API identity and compatibility
 

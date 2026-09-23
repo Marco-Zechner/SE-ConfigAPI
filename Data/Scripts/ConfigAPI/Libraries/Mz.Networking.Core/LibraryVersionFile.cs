@@ -21,7 +21,7 @@ namespace Mz.Networking
         /// <summary>
         /// Gets the patch version number.
         /// </summary>
-        public const int Patch = 1;
+        public const int Patch = 2;
 
         /// <summary>
         /// Gets the version string.
@@ -32,7 +32,7 @@ namespace Mz.Networking
         /// Gets the exact package dependencies required by this release.
         /// </summary>
         public static LibraryDependency[] Dependencies { get; } = {
-            new LibraryDependency("Mz.ApiProtocol", "0.3.0"),
+            new LibraryDependency("Mz.ApiProtocol", "0.3.1"),
             new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
         };
 
@@ -43,6 +43,11 @@ namespace Mz.Networking
             VersionString,
             new[]
             {
+                new ChangelogEntry("0.2.2", new[]
+                {
+                    "Updated the exact Mz.ApiProtocol dependency to 0.3.1.",
+                    "Included the transitive Mz.Collections sources in Space Engineers source-copy validation."
+                }),
                 new ChangelogEntry(
                     "0.2.1",
                     new[]

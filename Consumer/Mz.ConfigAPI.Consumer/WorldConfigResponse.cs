@@ -5,31 +5,36 @@ namespace Mz.ConfigApi
 {
     public sealed class WorldConfigResponse
     {
-        private WorldConfigResponse(string configKey, ulong requestId, WorldConfigOperation operation, ulong triggeredBy, bool isApplied, bool isStale, string error, ulong? serverIteration, string currentFile, ConfigDocument document)
+        private WorldConfigResponse(string configKey, ulong requestId, WorldConfigOperation operation, ulong triggeredBy, bool isChanged, bool isStale, string error, ulong? revision, string currentVariant, ConfigDocument stored, ConfigDocument applied, string[] variants)
         {
             ConfigKey = configKey;
             RequestId = requestId;
             Operation = operation;
             TriggeredBy = triggeredBy;
-            IsApplied = isApplied;
+            IsChanged = isChanged;
             IsStale = isStale;
             Error = error;
-            ServerIteration = serverIteration;
-            CurrentFile = currentFile;
-            Document = document;
+            Revision = revision;
+            CurrentVariant = currentVariant;
+            Stored = stored;
+            Applied = applied;
+            Variants = variants;
         }
 
         public string ConfigKey { get; }
         public ulong RequestId { get; }
         public WorldConfigOperation Operation { get; }
         public ulong TriggeredBy { get; }
-        public bool IsApplied { get; }
+        public bool IsChanged { get; }
         public bool IsStale { get; }
         public string Error { get; }
-        public ulong? ServerIteration { get; }
-        public string CurrentFile { get; }
-        public ConfigDocument Document { get; }
-        public bool HasSnapshot => ServerIteration.HasValue && Document != null;
+        public ulong? Revision { get; }
+        public string CurrentVariant { get; }
+        public ConfigDocument Stored { get; }
+        public ConfigDocument Applied { get; }
+        public string[] Variants { get; }
+        public bool HasSnapshot => Revision.HasValue && !string.IsNullOrEmpty(CurrentVariant) && Stored != null && Applied != null;
+        public bool HasUnsavedChanges => HasSnapshot && !Applied.Equals(Stored);
         public bool IsError => !string.IsNullOrEmpty(Error);
 
         internal static WorldConfigResponse FromPayload(IDictionary<string, object> payload)
@@ -48,27 +53,37 @@ namespace Mz.ConfigApi
             if (errorPayload != null && !(errorPayload is string))
                 throw new InvalidOperationException("World config response field 'Error' has an invalid type.");
 
-            object iterationPayload = Value(payload, "ServerIteration");
-            ulong? serverIteration = null;
-            if (iterationPayload != null)
+            object revisionPayload = Value(payload, "Revision");
+            ulong? revision = null;
+            if (revisionPayload != null)
             {
-                if (!(iterationPayload is ulong))
-                    throw new InvalidOperationException("World config response field 'ServerIteration' has an invalid type.");
+                if (!(revisionPayload is ulong))
+                    throw new InvalidOperationException("World config response field 'Revision' has an invalid type.");
 
-                serverIteration = (ulong)iterationPayload;
+                revision = (ulong)revisionPayload;
             }
 
-            object currentFilePayload = Value(payload, "CurrentFile");
-            if (currentFilePayload != null && !(currentFilePayload is string))
-                throw new InvalidOperationException("World config response field 'CurrentFile' has an invalid type.");
+            object currentVariantPayload = Value(payload, "CurrentVariant");
+            if (currentVariantPayload != null && !(currentVariantPayload is string))
+                throw new InvalidOperationException("World config response field 'CurrentVariant' has an invalid type.");
 
-            object documentPayload = Value(payload, "Document");
-            ConfigDocument document = documentPayload == null ? null : ConfigDocumentWireCodec.Decode(documentPayload);
+            object storedPayload = Value(payload, "Stored");
+            ConfigDocument stored = storedPayload == null ? null : ConfigDocumentWireCodec.Decode(storedPayload);
+            object appliedPayload = Value(payload, "Applied");
+            ConfigDocument applied = appliedPayload == null ? null : ConfigDocumentWireCodec.Decode(appliedPayload);
 
-            return new WorldConfigResponse(
-                configKey, Required<ulong>(payload, "RequestId"), operation, Required<ulong>(payload, "TriggeredBy"),
-                Required<bool>(payload, "IsApplied"), Required<bool>(payload, "IsStale"), errorPayload as string,
-                serverIteration, currentFilePayload as string, document);
+            object variantsPayload = Value(payload, "Variants");
+            string[] variants = null;
+            if (variantsPayload != null)
+            {
+                var source = variantsPayload as string[];
+                if (source == null)
+                    throw new InvalidOperationException("World config response field 'Variants' has an invalid type.");
+
+                variants = (string[])source.Clone();
+            }
+
+            return new WorldConfigResponse(configKey, Required<ulong>(payload, "RequestId"), operation, Required<ulong>(payload, "TriggeredBy"), Required<bool>(payload, "IsChanged"), Required<bool>(payload, "IsStale"), errorPayload as string, revision, currentVariantPayload as string, stored, applied, variants);
         }
 
         private static object Value(IDictionary<string, object> payload, string key)

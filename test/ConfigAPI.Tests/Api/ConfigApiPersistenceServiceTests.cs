@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using MarcoZechner.ConfigAPI.V2.Api;
-using MarcoZechner.ConfigAPI.V2.Domain;
-using MarcoZechner.ConfigAPI.V2.Persistence;
-using MarcoZechner.ConfigAPI.V2.Serialization;
+using MarcoZechner.ConfigAPI.Api;
+using MarcoZechner.ConfigAPI.Domain;
+using MarcoZechner.ConfigAPI.Persistence;
+using MarcoZechner.ConfigAPI.Serialization;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
 using Mz.Logging;
@@ -34,16 +34,15 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             var result = ConfigDocumentWireCodec.Decode(resultPayload);
             var active = storage.Get(0, "settings.toml");
-            var provenanceSource = storage.Get(0, "settings.toml.configapi.provenance");
-            var provenance = ConfigProvenanceCodec.Decode(provenanceSource);
+            ConfigDefaultsEntry defaultsEntry = ReadDefaultsEntry(storage.Get(0, ".defaults"), "settings.toml");
 
             Assert.Multiple(() =>
             {
                 Assert.That(result.Equals(defaults), Is.True);
                 Assert.That(active, Is.Not.Null);
-                Assert.That(provenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
-                Assert.That(provenance.Identity.ConfigKey, Is.EqualTo("Settings"));
-                Assert.That(provenance.BaselineDefaults.Equals(defaults), Is.True);
+                Assert.That(defaultsEntry.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(defaultsEntry.Identity.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(defaultsEntry.BaselineDefaults.Equals(defaults), Is.True);
                 Assert.That(storage.WriteCount(0), Is.EqualTo(2));
                 Assert.That(storage.WriteCount(1), Is.EqualTo(0));
                 Assert.That(storage.WriteCount(2), Is.EqualTo(0));
@@ -69,8 +68,9 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             ConfigDocument settingsReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(settingsDefaults)));
             ConfigDocument tuningReloaded = ConfigDocumentWireCodec.Decode(service.Open("Example.Mod", registrationId, "Tuning", 0, "tuning.toml", ConfigDocumentWireCodec.Encode(tuningDefaults)));
-            ConfigProvenance settingsProvenance = ConfigProvenanceCodec.Decode(storage.Get(0, "settings.toml.configapi.provenance"));
-            ConfigProvenance tuningProvenance = ConfigProvenanceCodec.Decode(storage.Get(0, "tuning.toml.configapi.provenance"));
+            string defaultsSource = storage.Get(0, ".defaults");
+            ConfigDefaultsEntry settingsDefaultsEntry = ReadDefaultsEntry(defaultsSource, "settings.toml");
+            ConfigDefaultsEntry tuningDefaultsEntry = ReadDefaultsEntry(defaultsSource, "tuning.toml");
 
             Assert.Multiple(() =>
             {
@@ -78,10 +78,10 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(tuningReloaded, 25, "Value");
                 Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 15"));
                 Assert.That(storage.Get(0, "tuning.toml"), Does.Contain("Value = 25"));
-                Assert.That(settingsProvenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
-                Assert.That(settingsProvenance.Identity.ConfigKey, Is.EqualTo("Settings"));
-                Assert.That(tuningProvenance.Identity.OwnerId, Is.EqualTo("Example.Mod"));
-                Assert.That(tuningProvenance.Identity.ConfigKey, Is.EqualTo("Tuning"));
+                Assert.That(settingsDefaultsEntry.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(settingsDefaultsEntry.Identity.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(tuningDefaultsEntry.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(tuningDefaultsEntry.Identity.ConfigKey, Is.EqualTo("Tuning"));
             });
         }
 
@@ -97,22 +97,22 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             service.Open("Example.Mod", registrationId, "Settings", 0, "shared.toml", ConfigDocumentWireCodec.Encode(settingsDefaults));
             string activeBefore = storage.Get(0, "shared.toml");
-            string provenanceBefore = storage.Get(0, "shared.toml.configapi.provenance");
+            string defaultsBefore = storage.Get(0, ".defaults");
             storage.ClearOperations();
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
                 service.Open("Example.Mod", registrationId, "Tuning", 0, "shared.toml", ConfigDocumentWireCodec.Encode(tuningDefaults)));
 
-            ConfigProvenance provenanceAfter = ConfigProvenanceCodec.Decode(storage.Get(0, "shared.toml.configapi.provenance"));
+            ConfigDefaultsEntry defaultsAfter = ReadDefaultsEntry(storage.Get(0, ".defaults"), "shared.toml");
 
             Assert.Multiple(() =>
             {
-                Assert.That(exception.Message, Is.EqualTo("Config provenance identity does not match the requested config identity."));
+                Assert.That(exception.Message, Is.EqualTo("Config defaults identity does not match the requested config identity."));
                 Assert.That(storage.WriteCount(0), Is.EqualTo(0));
                 Assert.That(storage.Get(0, "shared.toml"), Is.EqualTo(activeBefore));
-                Assert.That(storage.Get(0, "shared.toml.configapi.provenance"), Is.EqualTo(provenanceBefore));
-                Assert.That(provenanceAfter.Identity.OwnerId, Is.EqualTo("Example.Mod"));
-                Assert.That(provenanceAfter.Identity.ConfigKey, Is.EqualTo("Settings"));
+                Assert.That(storage.Get(0, ".defaults"), Is.EqualTo(defaultsBefore));
+                Assert.That(defaultsAfter.Identity.OwnerId, Is.EqualTo("Example.Mod"));
+                Assert.That(defaultsAfter.Identity.ConfigKey, Is.EqualTo("Settings"));
             });
         }
 
@@ -141,8 +141,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(globalReloaded, 30, "Value");
                 Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 20"));
                 Assert.That(storage.Get(1, "settings.toml"), Does.Contain("Value = 30"));
-                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Not.Null);
-                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(0, ".defaults"), Is.Not.Null);
+                Assert.That(storage.Get(1, ".defaults"), Is.Not.Null);
             });
         }
 
@@ -163,8 +163,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             firstService.Save("Example.Mod", firstRegistrationId, "Settings", 0, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(localEdited));
             firstService.Save("Example.Mod", firstRegistrationId, "Settings", 1, "settings.toml", ConfigDocumentWireCodec.Encode(defaults), ConfigDocumentWireCodec.Encode(globalEdited));
 
-            string localProvenanceBefore = storage.Get(0, "settings.toml.configapi.provenance");
-            string globalProvenanceBefore = storage.Get(1, "settings.toml.configapi.provenance");
+            string localDefaultsBefore = storage.Get(0, ".defaults");
+            string globalDefaultsBefore = storage.Get(1, ".defaults");
             storage.ClearOperations();
 
             Guid secondRegistrationId = Guid.NewGuid();
@@ -180,8 +180,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 AssertDocumentValue(globalReloaded, 30, "Value");
                 Assert.That(storage.Get(0, "settings.toml"), Does.Contain("Value = 20"));
                 Assert.That(storage.Get(1, "settings.toml"), Does.Contain("Value = 30"));
-                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.EqualTo(localProvenanceBefore));
-                Assert.That(storage.Get(1, "settings.toml.configapi.provenance"), Is.EqualTo(globalProvenanceBefore));
+                Assert.That(storage.Get(0, ".defaults"), Is.EqualTo(localDefaultsBefore));
+                Assert.That(storage.Get(1, ".defaults"), Is.EqualTo(globalDefaultsBefore));
                 Assert.That(storage.WriteCount(0), Is.EqualTo(0));
                 Assert.That(storage.WriteCount(1), Is.EqualTo(0));
             });
@@ -198,10 +198,10 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var defaults = Document(Entry("Value", Integer(10)));
             var identity = new ConfigIdentity("Example.Mod", "Settings");
             const string malformed = "Value = [\n";
-            string provenance = ConfigProvenanceCodec.Encode(new ConfigProvenance(identity, defaults));
+            string defaultsSource = EncodeDefaultsSource("settings.toml", identity, defaults);
 
             storage.Set(location, "settings.toml", malformed);
-            storage.Set(location, "settings.toml.configapi.provenance", provenance);
+            storage.Set(location, ".defaults", defaultsSource);
             storage.ClearOperations();
 
             ArgumentException exception = Assert.Throws<ArgumentException>(() =>
@@ -212,7 +212,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(exception.Message, Does.StartWith("Source must be valid TOML."));
                 Assert.That(storage.WriteCount(location), Is.EqualTo(0));
                 Assert.That(storage.Get(location, "settings.toml"), Is.EqualTo(malformed));
-                Assert.That(storage.Get(location, "settings.toml.configapi.provenance"), Is.EqualTo(provenance));
+                Assert.That(storage.Get(location, ".defaults"), Is.EqualTo(defaultsSource));
                 Assert.That(storage.WriteCount(location == 0 ? 1 : 0), Is.EqualTo(0));
             });
         }
@@ -275,7 +275,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(activeSource, Does.Contain("#!Optional = \"fallback\""));
                 Assert.That(activeSource, Does.Contain("2027-01-02"));
                 Assert.That(activeSource, Does.Contain("9.5"));
-                Assert.That(storage.Get(0, "semantic.toml.configapi.provenance"), Is.Not.Null);
+                Assert.That(storage.Get(0, ".defaults"), Is.Not.Null);
             });
         }
         [Test]
@@ -290,10 +290,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var currentDefaults = Document(Entry("Value", Integer(20)));
 
             storage.Set(1, "settings.toml", "Value = 10\n");
-            storage.Set(
-                1,
-                "settings.toml.configapi.provenance",
-                ConfigProvenanceCodec.Encode(new ConfigProvenance(identity, oldDefaults)));
+            storage.Set(1, ".defaults", EncodeDefaultsSource("settings.toml", identity, oldDefaults));
             storage.ClearOperations();
 
             object resultPayload = service.Open(
@@ -306,14 +303,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
 
             var result = ConfigDocumentWireCodec.Decode(resultPayload);
             var active = storage.Get(1, "settings.toml");
-            var provenance = ConfigProvenanceCodec.Decode(
-                storage.Get(1, "settings.toml.configapi.provenance"));
+            ConfigDefaultsEntry defaultsEntry = ReadDefaultsEntry(storage.Get(1, ".defaults"), "settings.toml");
 
             Assert.Multiple(() =>
             {
                 AssertDocumentValue(result, 20, "Value");
                 Assert.That(active, Does.Contain("Value = 20"));
-                AssertDocumentValue(provenance.BaselineDefaults, 20, "Value");
+                AssertDocumentValue(defaultsEntry.BaselineDefaults, 20, "Value");
                 Assert.That(storage.WriteCount(0), Is.EqualTo(0));
                 Assert.That(storage.WriteCount(1), Is.EqualTo(2));
                 Assert.That(storage.WriteCount(2), Is.EqualTo(0));
@@ -353,14 +349,13 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             var persisted = ConfigTomlSourceDecoder.Decode(
                 storage.Get(0, "settings.toml"),
                 defaults);
-            var provenance = ConfigProvenanceCodec.Decode(
-                storage.Get(0, "settings.toml.configapi.provenance"));
+            ConfigDefaultsEntry defaultsEntry = ReadDefaultsEntry(storage.Get(0, ".defaults"), "settings.toml");
 
             Assert.Multiple(() =>
             {
                 Assert.That(result.Equals(edited), Is.True);
                 Assert.That(persisted.Equals(edited), Is.True);
-                Assert.That(provenance.BaselineDefaults.Equals(defaults), Is.True);
+                Assert.That(defaultsEntry.BaselineDefaults.Equals(defaults), Is.True);
                 Assert.That(storage.WriteCount(0), Is.EqualTo(2));
             });
         }
@@ -383,8 +378,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 ConfigDocumentWireCodec.Encode(defaults));
 
             string activeBefore = storage.Get(0, "settings.toml");
-            string provenanceBefore =
-                storage.Get(0, "settings.toml.configapi.provenance");
+            string defaultsBefore =
+                storage.Get(0, ".defaults");
 
             storage.ClearOperations();
 
@@ -422,8 +417,8 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(storage.WriteCount(0), Is.EqualTo(0));
                 Assert.That(storage.Get(0, "settings.toml"), Is.EqualTo(activeBefore));
                 Assert.That(
-                    storage.Get(0, "settings.toml.configapi.provenance"),
-                    Is.EqualTo(provenanceBefore));
+                    storage.Get(0, ".defaults"),
+                    Is.EqualTo(defaultsBefore));
             });
         }
 
@@ -445,7 +440,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                 Assert.That(exception.Message, Does.Contain("semantic null"));
                 Assert.That(storage.WriteCount(0), Is.EqualTo(0));
                 Assert.That(storage.Get(0, "settings.toml"), Is.Null);
-                Assert.That(storage.Get(0, "settings.toml.configapi.provenance"), Is.Null);
+                Assert.That(storage.Get(0, ".defaults"), Is.Null);
             });
         }
 
@@ -536,7 +531,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
                     out announcement),
                 Is.True);
 
-            Assert.That(announcement.Endpoints.Count, Is.EqualTo(10));
+            Assert.That(announcement.Endpoints.Count, Is.EqualTo(11));
 
             var open = announcement.Endpoints[ConfigApiProvider.OpenConfigEndpoint] as
                 Func<string, Guid, string, int, string, object, object>;
@@ -581,6 +576,19 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             });
         }
 
+        private static ConfigDefaultsEntry ReadDefaultsEntry(string source, string file)
+        {
+            ConfigDefaultsStore store = ConfigDefaultsStoreCodec.Decode(source);
+            ConfigDefaultsEntry entry;
+            Assert.That(store.TryGet(file, out entry), Is.True);
+            return entry;
+        }
+
+        private static string EncodeDefaultsSource(string file, ConfigIdentity identity, ConfigDocument baseline)
+        {
+            return ConfigDefaultsStoreCodec.Encode(new ConfigDefaultsStore().With(new ConfigDefaultsEntry(file, identity, baseline)));
+        }
+
         private sealed class ThrowingLogSink : ILogSink
         {
             public void Write(LogEntry entry)
@@ -594,7 +602,7 @@ namespace MarcoZechner.ConfigAPI.Tests.V2.Api
             ConsumerStorage storage)
         {
             var registry = new ConfigConsumerRegistrationRegistry();
-            registry.Register(consumerId, registrationId, storage.Read, storage.Write);
+            registry.RegisterReadWriteStorage(consumerId, registrationId, storage.Read, storage.Write);
             return registry;
         }
 

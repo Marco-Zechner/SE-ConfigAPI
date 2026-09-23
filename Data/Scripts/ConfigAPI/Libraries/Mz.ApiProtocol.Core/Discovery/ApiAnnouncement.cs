@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Mz.Collections;
 using Mz.SemanticVersioning;
 
 namespace Mz.ApiProtocol

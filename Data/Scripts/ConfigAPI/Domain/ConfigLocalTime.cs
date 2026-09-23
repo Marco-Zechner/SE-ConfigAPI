@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace MarcoZechner.ConfigAPI.V2.Domain
+namespace MarcoZechner.ConfigAPI.Domain
 {
     public sealed class ConfigLocalTime : IEquatable<ConfigLocalTime>
     {
